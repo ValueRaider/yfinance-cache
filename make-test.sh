@@ -19,8 +19,11 @@ _make() (
 	fi
 
 	_ddir="dist-test/$_ver"
-	mkdir -p "$_ddir"
-	rm -f "$_ddir"/*
+	if [ -d "$_ddir" ]; then
+		rm "$_ddir"/*
+	else
+		mkdir "$_ddir"
+	fi
 	python3 -m build --outdir "$_ddir"
 
 	if [ -d src/"$_nameu".egg-info ]; then
