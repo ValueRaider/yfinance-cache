@@ -1,10 +1,16 @@
 import yfinance as yf
 
-from .yfc_cache_manager import *
+# from .yfc_cache_manager import *
+from yfc_cache_manager import *
+
+# from .yfc_utils import *
+from yfc_utils import *
 
 class Ticker:
 	def __init__(self, ticker):
 		self.ticker = ticker.upper()
+
+		self._history = None
 
 		self._info = None
 
@@ -37,6 +43,35 @@ class Ticker:
 		self._options = None
 
 		self._news = None
+
+	def history(self, period=Period.Months1, interval=Interval.Days1,
+				start=None, end=None, prepost=False, actions=True,
+				auto_adjust=True, back_adjust=False,
+				proxy=None, rounding=False, tz=None, **kwargs):
+
+		# 'prepost' not doing anything in yfinance
+
+		if self._history is None:
+			dat = yf.Ticker(self.ticker)
+
+			# Intercept these arguments:
+			# - actions - always store 'dividends' and 'stock splits', drop columns on retrieval
+			# - auto_adjust - call yfinance auto_adjust() on DataFrame
+			# - back_adjust - call yfinance back_adjust() on DataFrame
+			# - rounding - round on retrieval, using _np.round()
+			# - tz - call Pandas tz_localize() on DataFrame
+
+			## Left with one data dimension: interval
+
+			h = dat.history(period=periodToString[period], 
+							interval=intervalToString[interval],
+							start=start, end=end, prepost=prepost, actions=actions,
+							auto_adjust=auto_adjust, back_adjust=back_adjust,
+							proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
+
+			self._history = h
+
+		return self._history
 
 	@property
 	def info(self):
