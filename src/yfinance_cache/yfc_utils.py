@@ -1,7 +1,13 @@
 from enum import Enum
 import os
-import json
-import datetime
+# import json
+# from pandas import Timestamp, to_datetime
+import pandas as pd
+from numpy import datetime64
+
+from datetime import datetime, date, time, timedelta, timezone
+import holidays, pytz
+from tzlocal import get_localzone
 
 
 class OperatingSystem(Enum):
@@ -73,7 +79,7 @@ def GetOperatingSystem():
 
 
 def JsonEncodeValue(value):
-	if isinstance(value, datetime.datetime):
+	if isinstance(value, datetime):
 		return value.isoformat()
 	raise TypeError()
 
@@ -81,8 +87,137 @@ def JsonEncodeValue(value):
 def JsonDecodeDict(value):
 	for k in value.keys():
 		try:
-			value[k] = datetime.datetime.fromisoformat(value[k])
+			value[k] = datetime.fromisoformat(value[k])
 		except:
 			pass
 	return value
 
+
+def CalculateNextDataTimepoint(market, lastDate, interval):
+	# print("NewPriceDataExpected({0}, {1}, {2})".format(market, lastDate, interval))
+
+	dt_now = datetime.now().astimezone()
+
+	market_tz = None
+	market_open = None
+	market_close = None
+	hdays = []
+	if market == "us_market":
+		market_tz = pytz.timezone('US/Eastern')
+		market_open = time(9, 30, 0)
+		market_close = time(16, 0, 0)
+		hdays = holidays.US(years=[dt_now.year-1, dt_now.year, dt_now.year+1])
+	else:
+		raise Exception("Unsupported market '{0}'".format(market))
+
+	lastDate = ConvertToDatetime(lastDate, market_tz)
+
+	## Determine if new data is expected
+	if interval == Interval.Mins1:
+		next_data_timepoint = lastDate + timedelta(minutes=1)
+	elif interval == Interval.Mins2:
+		next_data_timepoint = lastDate + timedelta(minutes=2)
+	elif interval == Interval.Mins5:
+		next_data_timepoint = lastDate + timedelta(minutes=5)
+	elif interval == Interval.Mins15:
+		next_data_timepoint = lastDate + timedelta(minutes=15)
+	elif interval == Interval.Mins30:
+		next_data_timepoint = lastDate + timedelta(minutes=30)
+	elif interval == Interval.Mins60 or interval == Interval.Hours1:
+		next_data_timepoint = lastDate + timedelta(hours=1)
+	elif interval == Interval.Mins90:
+		next_data_timepoint = lastDate + timedelta(hours=1, minutes=30)
+	elif interval in [Interval.Days1, Interval.Days5]:
+		if interval == Interval.Days1:
+			next_data_day = lastDate.date() + timedelta(days=1)
+		elif interval == Interval.Days5:
+			next_data_day = lastDate.date() + timedelta(days=5)
+		next_data_timepoint = datetime.combine(next_data_day, market_open, market_tz)
+	else:
+		raise Exception("Unsupported interval '{0}'".format(interval))
+	# print(" next_data_timepoint = {0}".format(next_data_timepoint))
+	# print("  type = {0}".format(type(next_data_timepoint)))
+	# print("  tz = {0}".format(next_data_timepoint.tzinfo))
+	if next_data_timepoint.time() >= market_close:
+		next_data_day = next_data_timepoint.date()
+		while (next_data_day.weekday() > 4) or (next_data_day in hdays):
+			next_data_day += timedelta(days=1)
+		next_data_timepoint = datetime.combine(next_data_day, market_open, market_tz)
+		# print(" next_data_timepoint = {0}".format(next_data_timepoint))
+		# print("  type = {0}".format(type(next_data_timepoint)))
+		# print("  tz = {0}".format(next_data_timepoint.tzinfo))
+	return next_data_timepoint
+
+
+
+def CalculateIntervalEndDatetime(market, intervalStart, interval):
+	# print("Function({0}, {1})".format(market, intervalStart))
+
+	dt_now = datetime.now().astimezone()
+
+	market_tz = None
+	market_open = None
+	market_close = None
+	hdays = []
+	if market == "us_market":
+		market_tz = pytz.timezone('US/Eastern')
+		market_open = time(9, 30, 0)
+		market_close = time(16, 0, 0)
+		hdays = holidays.US(years=[dt_now.year-1, dt_now.year, dt_now.year+1])
+	else:
+		raise Exception("Unsupported market '{0}'".format(market))
+
+	if interval == Interval.Mins1:
+		last_data_interval_end = intervalStart + timedelta(minutes=1)
+	elif interval == Interval.Mins2:
+		last_data_interval_end = intervalStart + timedelta(minutes=2)
+	elif interval == Interval.Mins5:
+		last_data_interval_end = intervalStart + timedelta(minutes=5)
+	elif interval == Interval.Mins15:
+		last_data_interval_end = intervalStart + timedelta(minutes=15)
+	elif interval == Interval.Mins30:
+		last_data_interval_end = intervalStart + timedelta(minutes=30)
+	elif interval == Interval.Mins60 or interval == Interval.Hours1:
+		last_data_interval_end = intervalStart + timedelta(hours=1)
+	elif interval == Interval.Mins90:
+		last_data_interval_end = intervalStart + timedelta(hours=1, minutes=30)
+	elif interval == Interval.Days1:
+		last_data_interval_end = datetime.combine(intervalStart.date(), market_close, market_tz)-timedelta(seconds=1)
+	else:
+		raise Exception("Unsupported interval '{0}'".format(interval))
+	# print(" last_data_interval_end = {0}".format(last_data_interval_end))
+	# print("  type = {0}".format(type(last_data_interval_end)))
+	# print("  tz = {0}".format(last_data_interval_end.tzinfo))
+
+	return last_data_interval_end
+
+
+def EnsureIndexHasTime(df, market, interval):
+	market_open = None
+	if market == "us_market":
+		market_open = time(9, 30, 0)
+	else:
+		raise Exception("Unsupported market '{0}'".format(market))
+
+	newIndex = []
+	for idt in df.index:
+		if idt.time() == time(0,0,0):
+			idt = pd.to_datetime("{0} {1}".format(idt.date(), market_open))
+		newIndex += [idt]
+	df = df.set_index(pd.DatetimeIndex(newIndex))
+	return df
+
+
+def ConvertToDatetime(dt, tz=None):
+	## Convert numpy.datetime64 -> pandas.Timestamp -> python datetime
+	if isinstance(dt, datetime64):
+		dt2 = pd.Timestamp(dt)
+		# print("Converted np.datetime64 -> pd.Timestamp: {0} -> {1}".format(dt, dt2))
+		dt = dt2
+	if isinstance(dt, pd.Timestamp):
+		dt2 = dt.to_pydatetime()
+		# print("Converted pd.Timestamp -> datetime: {0} -> {1}".format(dt, dt2))
+		dt = dt2
+	if not tz is None:
+		dt = dt.replace(tzinfo=tz)
+	return dt

@@ -10,7 +10,8 @@ class Ticker:
 	def __init__(self, ticker):
 		self.ticker = ticker.upper()
 
-		self._history = None
+		# self._history = None
+		self._history = {}
 
 		self._info = None
 
@@ -51,7 +52,48 @@ class Ticker:
 
 		# 'prepost' not doing anything in yfinance
 
-		if self._history is None:
+		dt_now = datetime.now().astimezone()
+
+		pstr = periodToString[period]
+		istr = intervalToString[interval]
+
+		h = None
+		# if not self._history is None:
+		# 	if interval in self._history.keys():
+		# 		h = self._history[interval]
+		## While developing just return raw data:
+		print("WARNING: As developing, just returning raw YF data")
+		if not self._history is None:
+			if interval in self._history.keys():
+				h = self._history[interval]
+		if (h is None) and IsDatumCached(self.ticker, "history-"+istr):
+			self._history[interval] = ReadCacheDatum(self.ticker, "history-"+istr)
+			h = self._history[interval]
+
+		if not h is None:
+			lastDt = h.index[-1]
+			fetchDt = ConvertToDatetime(h["FetchDate"].values[-1], get_localzone())
+			# print(" fetchDt = {0}".format(fetchDt))
+			# print("  type = {0}".format(type(fetchDt)))
+			# print("  tz = {0}".format(fetchDt.tzinfo))
+
+			nextDt = CalculateNextDataTimepoint(self.info['market'], lastDt, interval)
+			# print(" nextDt = {0}".format(nextDt))
+			# print("  type = {0}".format(type(nextDt)))
+			# print("  tz = {0}".format(nextDt.tzinfo))
+			lastDtEnd = CalculateIntervalEndDatetime(self.info['market'], lastDt, interval)
+			# print(" lastDtEnd = {0}".format(lastDtEnd))
+			# print("  type = {0}".format(type(lastDtEnd)))
+			# print("  tz = {0}".format(lastDtEnd.tzinfo))
+
+			expectNewData = dt_now >= nextDt
+			reviseLast = fetchDt <= lastDtEnd
+			# print("New data expected? {0}".format(expectNewData))
+			# print("Last data point revision expected? {0}".format(reviseLast))
+			
+			quit()
+
+		if h is None:
 			dat = yf.Ticker(self.ticker)
 
 			# Intercept these arguments:
@@ -63,15 +105,21 @@ class Ticker:
 
 			## Left with one data dimension: interval
 
-			h = dat.history(period=periodToString[period], 
-							interval=intervalToString[interval],
+			h = dat.history(period=pstr, 
+							interval=istr, 
 							start=start, end=end, prepost=prepost, actions=actions,
 							auto_adjust=auto_adjust, back_adjust=back_adjust,
 							proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
+			h["FetchDate"] = datetime.now()
 
-			self._history = h
+			# h = EnsureIndexHasTime(h, self.info['market'], interval)
 
-		return self._history
+			self._history[interval] = h
+			StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
+
+		if h is None:
+			raise Exception("history() is exiting without price data")
+		return h
 
 	@property
 	def info(self):

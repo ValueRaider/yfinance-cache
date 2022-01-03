@@ -1,6 +1,6 @@
 import os
 import pickle, json
-import datetime
+from datetime import datetime
 
 # from .yfc_utils import *
 from yfc_utils import *
@@ -37,9 +37,9 @@ def UpdateDatumMetadata(ticker, objectName, modifier):
 			md = json.load(inData, object_hook=JsonDecodeDict)
 
 	if modifier == Modifiers.Access:
-		md["LastAccess"] = datetime.datetime.today()
+		md["LastAccess"] = datetime.today()
 	elif modifier == Modifiers.Write:
-		md["LastWrite"] = datetime.datetime.today()
+		md["LastWrite"] = datetime.today()
 	else:
 		raise Exception("Unsupported modifiers '{0}'".format(modifier))
 

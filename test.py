@@ -11,8 +11,10 @@ tkr = "INTC"
 dat = yfc.Ticker(tkr)
 
 # pprint(dat.info)
-# pprint({k:dat.info[k] for k in dat.info if "ividen" in k})
-# pprint({k:dat.info[k] for k in dat.info if "change" in k})
+# pprint({k:dat.info[k] for k in dat.info if "dividend" in k.lower()})
+# pprint({k:dat.info[k] for k in dat.info if "exchange" in k.lower()})
+# pprint({k:dat.info[k] for k in dat.info if "market" in k.lower()})
+# pprint({k:dat.info[k] for k in dat.info if "time" in k.lower()})
 
 # dn = dat.info["lastDividendDate"]
 # dt = datetime.fromtimestamp(dn)
@@ -29,12 +31,21 @@ dat = yfc.Ticker(tkr)
 # print(dat.major_holders)
 # print(dat.institutional_holders)
 
-# h = dat.history()
-# h = dat.history(period=Period.Days5)
-# h = dat.history(period=Period.Days5,
-# 				interval=Interval.Days1)
-h = dat.history(period=Period.Days5,
+h = dat.history(period=Period.Months1,
 				interval=Interval.Days1, 
+				prepost=False,
 				actions=False)
-				# prepost=False,
+# h = dat.history(period=Period.Days5,
+# 				interval=Interval.Days1, 
+# 				prepost=False,
+# 				actions=False)
+# h = dat.history(period=Period.Days1,
+# 				interval=Interval.Hours1,
+# 				prepost=False,
+# 				actions=False)
 print(h)
+# print(h.shape)
+# print(h.columns)
+# print(h.index)
+# d = h.index[-1]
+# print(d)
