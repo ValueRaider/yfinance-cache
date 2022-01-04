@@ -109,6 +109,7 @@ def CalculateNextDataTimepoint(market, lastDate, interval):
 		hdays = holidays.US(years=[dt_now.year-1, dt_now.year, dt_now.year+1])
 	else:
 		raise Exception("Unsupported market '{0}'".format(market))
+	last_market_close = datetime.combine(lastDate.date(), market_close, tzinfo=market_tz)
 
 	lastDate = ConvertToDatetime(lastDate, market_tz)
 
@@ -138,7 +139,7 @@ def CalculateNextDataTimepoint(market, lastDate, interval):
 	# print(" next_data_timepoint = {0}".format(next_data_timepoint))
 	# print("  type = {0}".format(type(next_data_timepoint)))
 	# print("  tz = {0}".format(next_data_timepoint.tzinfo))
-	if next_data_timepoint.time() >= market_close:
+	if next_data_timepoint > last_market_close:
 		next_data_day = next_data_timepoint.date()
 		while (next_data_day.weekday() > 4) or (next_data_day in hdays):
 			next_data_day += timedelta(days=1)
