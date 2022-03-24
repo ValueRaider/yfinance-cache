@@ -7,10 +7,10 @@ from yfc_time import *
 import datetime
 from zoneinfo import ZoneInfo
 
-class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
+class Test_USMarket_HourInterval_DatetimePredictions(unittest.TestCase):
 
     def setUp(self):
-        self.interval = Interval.Days1
+        self.interval = Interval.Hours1
         self.market = "us_market"
         self.exchange = "NMS"
         self.market_tz = ZoneInfo('US/Eastern')
@@ -22,7 +22,7 @@ class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
         self.late_evening = datetime.time(hour=19, minute=0)
         self.start_times = [self.early_morning, self.midday, self.late_evening]
 
-    def test_next_day_not_weekend(self):
+    def test_next_hour_not_weekend(self):
         # Does not return weekend
         for weekday in range(5):
             for time in self.start_times:
@@ -33,10 +33,10 @@ class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
                     self.assertNotEqual(nextdt.weekday(), 6)
                 except:
                     print("lastDate = {0}".format(lastDate))
-                    print("nextdt = {0} (weekday={1})".format(nextdt, nextdt.weekday()))
+                    print("nextdt = {0}".format(nextdt))
                     raise
 
-    def test_next_day_is_different(self):
+    def test_next_hour_is_different(self):
         # Does not return same day:
         for weekday in range(5):
             for time in self.start_times:
@@ -49,7 +49,7 @@ class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
                     print("nextdt = {0}".format(nextdt))
                     raise
 
-    def test_next_day_is_in_future(self):
+    def test_next_hour_is_in_future(self):
         # Does not return same day:
         for weekday in range(5):
             for time in self.start_times:
@@ -62,16 +62,19 @@ class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
                     print("nextdt = {0}".format(nextdt))
                     raise
 
-    def test_next_day_is_nearest_weekday(self):
-        # Returns soonest next weekday
+    def test_next_hour_is_nearest_hour(self):
+        # Returns soonest next hour
         for weekday in range(5):
             for time in self.start_times:
                 lastDate = datetime.datetime.combine(self.monday+datetime.timedelta(days=weekday), time, self.market_tz)
                 nextdt = CalculateNextDataTimepoint(self.exchange, lastDate, self.interval)
 
-                answer = datetime.datetime(year=2022, month=2, day=7+weekday+1, tzinfo=self.market_tz)
-                if time < datetime.time(hour=9, minute=0):
-                    answer -= datetime.timedelta(days=1)
+                if lastDate.time() < datetime.time(hour=9, minute=30, tzinfo=self.market_tz):
+                    answer = datetime.datetime.combine(self.monday+datetime.timedelta(days=weekday), datetime.time(hour=9, minute=30), self.market_tz)
+                elif lastDate.time() >= datetime.time(hour=17, minute=0, tzinfo=self.market_tz):
+                    answer = datetime.datetime.combine(self.monday+datetime.timedelta(days=weekday+1), datetime.time(hour=9, minute=30), self.market_tz)
+                else:
+                    answer = lastDate + datetime.timedelta(hours=1)
                 while answer.weekday() > 4:
                     answer += datetime.timedelta(days=1)
 
@@ -83,19 +86,6 @@ class Test_USMarket_DayInterval_DatetimePredictions(unittest.TestCase):
                     print("nextdt = {0}".format(nextdt))
                     print("answer = {0}".format(answer))
                     raise
-
-    def test_next_day_early_close_not_skipped(self):
-        lastDate =  datetime.datetime(year=2022, month=11, day=23, hour=10, minute=30, tzinfo=self.market_tz)
-        ## Thanksgiving Day is 24th  = closed, and next day is early close
-        answer =  datetime.datetime(year=2022, month=11, day=25, tzinfo=self.market_tz)
-        nextdt = CalculateNextDataTimepoint(self.exchange, lastDate, self.interval)
-        try:
-            self.assertEqual(nextdt.date(), answer.date())
-        except:
-            print("lastDate = {0}".format(lastDate))
-            print("answer = {0}".format(answer))
-            print("nextdt = {0}".format(nextdt))
-            raise
 
 if __name__ == '__main__':
     unittest.main()
