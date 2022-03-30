@@ -2,7 +2,7 @@ from enum import Enum
 import pandas as pd
 from numpy import datetime64
 
-import datetime
+from datetime import datetime, date, time, timedelta
 
 import holidays
 import pandas_market_calendars as mcal
@@ -66,30 +66,32 @@ intervalToString[Interval.Week] = "1wk"
 intervalToString[Interval.Months1] = "1mo"
 intervalToString[Interval.Months3] = "3mo"
 intervalToTimedelta = {}
-intervalToTimedelta[Interval.Mins1] = datetime.timedelta(minutes=1)
-intervalToTimedelta[Interval.Mins2] = datetime.timedelta(minutes=2)
-intervalToTimedelta[Interval.Mins5] = datetime.timedelta(minutes=5)
-intervalToTimedelta[Interval.Mins15] = datetime.timedelta(minutes=15)
-intervalToTimedelta[Interval.Mins30] = datetime.timedelta(minutes=30)
-intervalToTimedelta[Interval.Mins60] = datetime.timedelta(minutes=60)
-intervalToTimedelta[Interval.Mins90] = datetime.timedelta(minutes=90)
-intervalToTimedelta[Interval.Hours1] = datetime.timedelta(hours=1)
-intervalToTimedelta[Interval.Days1] = datetime.timedelta(days=1)
-intervalToTimedelta[Interval.Days5] = datetime.timedelta(days=5)
-intervalToTimedelta[Interval.Week] = datetime.timedelta(days=7)
+intervalToTimedelta[Interval.Mins1] = timedelta(minutes=1)
+intervalToTimedelta[Interval.Mins2] = timedelta(minutes=2)
+intervalToTimedelta[Interval.Mins5] = timedelta(minutes=5)
+intervalToTimedelta[Interval.Mins15] = timedelta(minutes=15)
+intervalToTimedelta[Interval.Mins30] = timedelta(minutes=30)
+intervalToTimedelta[Interval.Mins60] = timedelta(minutes=60)
+intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
+intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
+intervalToTimedelta[Interval.Days1] = timedelta(days=1)
+intervalToTimedelta[Interval.Days5] = timedelta(days=5)
+intervalToTimedelta[Interval.Week] = timedelta(days=7)
 # intervalToTimedelta[Interval.Months1] = None ## irregular time interval
 # intervalToTimedelta[Interval.Months3] = None ## irregular time interval
 
 
 exchangeToMarket = {}
 exchangeToMarket["NMS"] = "us_market"
+exchangeToMarket["LSE"] = "gb_market"
 
 marketToTimezone = {}
-# marketToTimezone["us_market"] = pytz.timezone('US/Eastern')
 marketToTimezone["us_market"] = ZoneInfo('US/Eastern')
+marketToTimezone["gb_market"] = ZoneInfo('Europe/London')
 
 exchangeToMcalExchange = {}
 exchangeToMcalExchange["NMS"] = "NYSE"
+exchangeToMcalExchange["LSE"] = "LSE"
 
 # Cache mcal schedules, 10x speedup:
 mcalScheduleCache = {}
@@ -99,18 +101,16 @@ mcalScheduleCache = {}
 # 	if (not t.tzinfo is None) and (tz is None):
 # 		raise Exception("Provide a pytz timezone object to replace datetime's timezone")
 # 	t = t.replace(tzinfo=None)
-
 # 	pd_dt = pd.Timestamp.combine(d, t).replace(tzinfo=tz)
-
 # 	return pd_dt
 
 
 def GetExchangeSchedule(exchange, start_dt, end_dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	if not isinstance(start_dt, datetime.date):
+	if not isinstance(start_dt, date):
 		raise Exception("'start_dt' must be datetime.date")
-	if not isinstance(end_dt, datetime.date):
+	if not isinstance(end_dt, date):
 		raise Exception("'end_dt' must be datetime.date")
 
 	market = exchangeToMarket[exchange]
@@ -137,7 +137,7 @@ def GetExchangeSchedule(exchange, start_dt, end_dt):
 
 		opens = [d.to_pydatetime().astimezone(tz) for d in sched["market_open" ]]
 		closes = [d.to_pydatetime().astimezone(tz) for d in sched["market_close"]]
-		## Note: don't attempt to put datetime into pd.DataFrame, pandas dies
+		## Note: don't attempt to put datetime into pd.DataFrame, Pandas pukes
 		sched = {"market_open":opens, "market_close":closes}
 
 	## Store in cache:
@@ -150,6 +150,26 @@ def GetExchangeSchedule(exchange, start_dt, end_dt):
 	return sched
 
 
+def GetScheduleIntervals(schedule, interval):
+	if (not isinstance(schedule, dict)) and (schedule.keys() != ["market_close", "market_open"]):
+		raise Exception("'schedule' must be a dict with two keys: ['market_close', 'market_open']")
+	if not isinstance(interval, Interval):
+		raise Exception("'interval' must be Interval")
+
+	interval_td = intervalToTimedelta[interval]
+	intervals = []
+	opens  = schedule["market_open"]
+	closes = schedule["market_close"]
+	# for dt in schedule["market_open"]:
+	for i in range(len(opens)):
+		dt = opens[i]
+		day = dt.date()
+		while dt < closes[i]:
+			intervals.append(dt)
+			dt += interval_td
+
+	return intervals
+
 def GetExchangeTimezone(exchange):
 	if not exchange in exchangeToMarket:
 		raise Exception("'{0}' is not an exchange".format(exchange))
@@ -159,9 +179,7 @@ def GetExchangeTimezone(exchange):
 def IsTimestampInActiveSession(exchange, dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.datetime):
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
@@ -182,17 +200,15 @@ def IsTimestampInActiveSession(exchange, dt):
 def GetTimestampCurrentSession(exchange, dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.datetime):
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
 	sched = GetExchangeSchedule(exchange, dt.date(), dt.date())
-	# if sched is None or sched.shape[0] == 0:
 	if sched is None or len(sched["market_open"]) == 0:
 		return None
+
 	if dt >= sched["market_open"][0] and dt < sched["market_close"][0]:
 		# return sched.iloc[0]
 		return {"market_open":sched["market_open"][0], "market_close":sched["market_close"][0]}
@@ -203,9 +219,7 @@ def GetTimestampCurrentSession(exchange, dt):
 def GetTimestampMostRecentSession(exchange, dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.datetime):
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
@@ -215,7 +229,7 @@ def GetTimestampMostRecentSession(exchange, dt):
 	s = GetTimestampCurrentSession(exchange, dt)
 	if not s is None:
 		return s
-	sched = GetExchangeSchedule(exchange, dt.date()-datetime.timedelta(days=7), dt.date())
+	sched = GetExchangeSchedule(exchange, dt.date()-timedelta(days=7), dt.date())
 	# for i in range(sched.shape[0]-1, -1, -1):
 	# 	if sched["market_open"][i] <= dt:
 	# 		return sched.iloc[i]
@@ -228,14 +242,12 @@ def GetTimestampMostRecentSession(exchange, dt):
 def GetTimestampNextSession(exchange, dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.datetime):
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
-	sched = GetExchangeSchedule(exchange, dt.date(), dt.date()+datetime.timedelta(days=7))
+	sched = GetExchangeSchedule(exchange, dt.date(), dt.date()+timedelta(days=7))
 	# for i in range(sched.shape[0]):
 	# 	if dt < sched["market_open"][i]:
 	# 		return sched.iloc[i]
@@ -248,12 +260,8 @@ def GetTimestampNextSession(exchange, dt):
 def ExchangeOpenOnDay(exchange, dt):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.date):
-		raise Exception("'dt' must be date.datetime")
-	if dt.tzinfo is None:
-		raise Exception("'dt' must be timezone-aware")
+	if not isinstance(dt, date):
+		raise Exception("'dt' must be datetime.date")
 
 	market = exchangeToMarket[exchange]
 	tz = marketToTimezone[market]
@@ -263,106 +271,196 @@ def ExchangeOpenOnDay(exchange, dt):
 	exchange_days = exchange_cal.valid_days(start_date=dt.isoformat(), end_date=dt.isoformat())
 
 	# return dt in [ed.replace(tzinfo=tz) for ed in exchange_days]
-	return dt in [datetime.date(year=ed.year, month=ed.month, day=ed.day) for ed in exchange_days]
+	return dt in [date(year=ed.year, month=ed.month, day=ed.day) for ed in exchange_days]
 
 
-def CalculateNextDataTimepoint(exchange, dt, interval):
+
+def GetTimestampCurrentInterval(exchange, dt, interval):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str")
-	# if not isinstance(dt, pd.Timestamp):
-	# 	raise Exception("'dt' must be pd.Timestamp")
-	if not isinstance(dt, datetime.datetime):
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, Interval):
 		raise Exception("'interval' must be Interval")
-	# print("CalculateNextDataTimepoint({0}, {1}, {2})".format(exchange, dt, interval))
 
-	market = exchangeToMarket[exchange]
-	interval_td = intervalToTimedelta[interval]
-
-	mostRecentSession = GetTimestampCurrentSession(exchange, dt)
-	if mostRecentSession is None:
-		mostRecentSession = GetTimestampMostRecentSession(exchange, dt)
-	if interval in [Interval.Days1, Interval.Days5]:
-		lastIntervalStart = mostRecentSession["market_open"]
-	else:
-		if dt >= mostRecentSession["market_close"]:
-			lastIntervalStart = mostRecentSession["market_close"] - interval_td
+	if interval in [Interval.Days5, Interval.Week]:
+		## Treat week intervals as special case, 
+		## because will treat range as contiguous from Monday open to Friday close, 
+		## even if market closed at current time.
+		dt_weekStart = FloorDatetime(dt, interval)
+		weekSched = GetExchangeSchedule(exchange, dt_weekStart.date(), (dt_weekStart+timedelta(days=4)).date())
+		intervalStart = weekSched["market_open"][0]
+		intervalEnd = weekSched["market_close"][-1]
+		if dt < intervalStart or dt >= intervalEnd:
+			return None
 		else:
-			# lastIntervalStart = dt.floor(interval_td)
-			lastIntervalStart = FloorDatetime(dt, interval)
+			return {"interval_open":intervalStart, "interval_close":intervalEnd}
 
-	next_interval_start = lastIntervalStart + interval_td
+	if IsTimestampInActiveSession(exchange, dt):
+		s = GetTimestampCurrentSession(exchange, dt)
+		if interval == Interval.Days1:
+			intervalStart = s["market_open"]
+			intervalEnd = s["market_close"]
 
-	if IsTimestampInActiveSession(exchange, next_interval_start):
-		return next_interval_start
+		## If I decide that a week interval is only valid while market also open at that time, 
+		## then uncomment this code.
+		# elif interval in [Interval.Days5, Interval.Week]:
+		# 	dt_weekStart = FloorDatetime(dt, interval)
+		# 	weekSched = GetExchangeSchedule(exchange, dt_weekStart.date(), (dt_weekStart+timedelta(days=4)).date())
+		# 	intervalStart = weekSched["market_open"][0]
+		# 	intervalEnd = weekSched["market_close"][-1]
+
+		else:
+			intervalStart = FloorDatetime(dt, interval, s["market_open"])
+			intervalEnd = intervalStart + intervalToTimedelta[interval]
 	else:
-		return GetTimestampNextSession(exchange, next_interval_start)["market_open"]
+		return None
+
+	return {"interval_open":intervalStart, "interval_close":intervalEnd}
 
 
-def CalculateIntervalEndDatetime(market, intervalStart, interval):
-	## TODO: redo this
-	## - ensure intervalStart is rounded to interval before calculation below
-	## - use mcal
-	## - type checks
-
-
-	# print("Function({0}, {1})".format(market, intervalStart))
-
-	# dt_now = datetime.now().astimezone()
-	dt_now = pd.Timestamp.now()
-
-	market_tz = None
-	market_open = None
-	market_close = None
-	hdays = []
-	if market == "us_market":
-		market_tz = marketToTimezone[market]
-		## TODO: Lookup market open/close from module
-		market_open = datetime.time(9, 30, 0)
-		market_close = datetime.time(16, 0, 0)
-		hdays = holidays.US(years=[dt_now.year-1, dt_now.year, dt_now.year+1])
-	else:
-		raise Exception("Unsupported market '{0}'".format(market))
-
-	if interval == Interval.Mins1:
-		last_data_interval_end = intervalStart + datetime.timedelta(minutes=1)
-	elif interval == Interval.Mins2:
-		last_data_interval_end = intervalStart + datetime.timedelta(minutes=2)
-	elif interval == Interval.Mins5:
-		last_data_interval_end = intervalStart + datetime.timedelta(minutes=5)
-	elif interval == Interval.Mins15:
-		last_data_interval_end = intervalStart + datetime.timedelta(minutes=15)
-	elif interval == Interval.Mins30:
-		last_data_interval_end = intervalStart + datetime.timedelta(minutes=30)
-	elif interval == Interval.Mins60 or interval == Interval.Hours1:
-		last_data_interval_end = intervalStart + datetime.timedelta(hours=1)
-	elif interval == Interval.Mins90:
-		last_data_interval_end = intervalStart + datetime.timedelta(hours=1, minutes=30)
-	elif interval == Interval.Days1:
-		last_data_interval_end = PdTimestampCombine(intervalStart.date(), market_close, market_tz)-datetime.timedelta(seconds=1)
-	else:
-		raise Exception("Unsupported interval '{0}'".format(interval))
-	# print(" last_data_interval_end = {0}".format(last_data_interval_end))
-	# print("  type = {0}".format(type(last_data_interval_end)))
-	# print("  tz = {0}".format(last_data_interval_end.tzinfo))
-
-	return last_data_interval_end
-
-
-## TODO: unit tests
-def FloorDatetime(dt, interval):
-	if not isinstance(dt, datetime.datetime):
+def GetTimestampMostRecentInterval(exchange, dt, interval):
+	if not isinstance(exchange, str):
+		raise Exception("'exchange' must be str")
+	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime")
+	if dt.tzinfo is None:
+		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, Interval):
 		raise Exception("'interval' must be Interval")
 
-	if interval == Interval.Hours1:
+	i = GetTimestampCurrentInterval(exchange, dt, interval)
+
+	if not i is None:
+		return i
+	else:
+		interval_td = intervalToTimedelta[interval]
+		s = GetTimestampMostRecentSession(exchange, dt)
+		if interval == Interval.Days1:
+			intervalStart = s["market_open"]
+			intervalEnd = s["market_close"]
+
+		elif interval in [Interval.Days5, Interval.Week]:
+			dt_lastWeekStart = FloorDatetime(dt-timedelta(days=2), interval)
+			lastWeekSched = GetExchangeSchedule(exchange, dt_lastWeekStart.date(), (dt_lastWeekStart+timedelta(days=4)).date())
+			intervalStart = lastWeekSched["market_open"][0]
+			intervalEnd = lastWeekSched["market_close"][-1]
+
+		else:
+			intervalStart = s["market_close"] - interval_td
+			intervalEnd = s["market_close"]
+
+	return {"interval_open":intervalStart, "interval_close":intervalEnd}
+
+
+def GetTimestampNextInterval(exchange, dt, interval):
+	if not isinstance(exchange, str):
+		raise Exception("'exchange' must be str")
+	if not isinstance(dt, datetime):
+		raise Exception("'dt' must be datetime.datetime")
+	if dt.tzinfo is None:
+		raise Exception("'dt' must be timezone-aware")
+	if not isinstance(interval, Interval):
+		raise Exception("'interval' must be Interval")
+
+	if interval in [Interval.Days1, Interval.Days5, Interval.Week]:
+		if interval == Interval.Days1:
+			s = GetTimestampNextSession(exchange, dt)
+			interval_open  = s["market_open"]
+			interval_close = s["market_close"]
+			# if dt >= int
+		else:
+			## Calculate next Monday to get next week schedule
+			d = dt.date()
+			wd = d.weekday()
+			d += timedelta(days=7-wd)
+			sched = GetExchangeSchedule(exchange, d, d+timedelta(days=4))
+			interval_open  = sched["market_open"][0]
+			interval_close = sched["market_close"][-1]
+		return {"interval_open":interval_open, "interval_close":interval_close}
+
+	lastInterval = GetTimestampMostRecentInterval(exchange, dt, interval)
+	lastIntervalStart = lastInterval["interval_open"]
+	interval_td = intervalToTimedelta[interval]
+	next_interval_start = lastIntervalStart + interval_td
+	if not IsTimestampInActiveSession(exchange, next_interval_start):
+		s = GetTimestampNextSession(exchange, next_interval_start)
+		next_interval_start = s["market_open"]
+	next_interval_end = next_interval_start+interval_td
+	return {"interval_open":next_interval_start, "interval_close":next_interval_end}
+
+
+def FloorDatetime(dt, interval, firstIntervalStart=None):
+	if not isinstance(dt, datetime):
+		raise Exception("'dt' must be datetime.datetime")
+	if not isinstance(interval, Interval):
+		raise Exception("'interval' must be Interval")
+	if not firstIntervalStart is None:
+		if (not isinstance(firstIntervalStart, datetime)) and (not isinstance(firstIntervalStart, time)):
+			raise Exception("'firstIntervalStart' must be datetime.datetime or .time")
+		if isinstance(firstIntervalStart, datetime) and firstIntervalStart.tzinfo is None:
+			raise Exception("'firstIntervalStart' if datetime.datetime must be timezone-aware")
+
+	# print("FloorDatetime(dt={0}, interval={1}, firstIntervalStart={2})".format(dt, interval, firstIntervalStart))
+
+	offset = None
+	if not firstIntervalStart is None:
+		if isinstance(firstIntervalStart, time):
+			# firstIntervalStart = datetime.combine(dt.date(), firstIntervalStart)
+			firstIntervalStart = datetime.combine(dt.date(), firstIntervalStart, tzinfo=dt.tzinfo)
+		# offset = firstIntervalStart - FloorDatetime(firstIntervalStart, interval)
+		td = firstIntervalStart - FloorDatetime(firstIntervalStart, interval)
+		offset = timedelta(seconds=td.seconds, microseconds=td.microseconds)
+
+	if not offset is None:
+		dt -= offset
+
+	if interval == Interval.Mins1:
+		dtf = dt.replace(second=0, microsecond=0)
+
+	elif interval in [Interval.Mins2, Interval.Mins5, Interval.Mins15, Interval.Mins30]:
+		dtf = dt.replace(second=0, microsecond=0)
+		if interval == Interval.Mins2:
+			m = 2
+		elif interval == Interval.Mins5:
+			m = 5
+		elif interval == Interval.Mins15:
+			m = 15
+		elif interval == Interval.Mins30:
+			m = 30
+		r = dtf.minute%m
+		if r != 0:
+			dtf = dtf.replace(minute=dtf.minute - r)
+
+	elif interval in [Interval.Mins60, Interval.Hours1]:
 		dtf = dt.replace(minute=0, second=0, microsecond=0)
+
+	elif interval == Interval.Mins90:
+		dtf = dt.replace(second=0, microsecond=0)
+		r = (dtf.hour*60 + dtf.minute)%90
+		if r != 0:
+			dtf -= timedelta(minutes=r)
+
+	elif interval == Interval.Days1:
+		# dtf = datetime.combine(dt.date(), time(hour=0, minute=0))
+		dtf = datetime.combine(dt.date(), time(hour=0, minute=0), tzinfo=dt.tzinfo)
+		## Rely on offset to set time correctly
+
+	elif interval in [Interval.Days5, Interval.Week]:
+		# dtf = datetime.combine(dt.date(), time(hour=0, minute=0))
+		dtf = datetime.combine(dt.date(), time(hour=0, minute=0), tzinfo=dt.tzinfo)
+		## Rely on offset to set time correctly
+		if dtf.weekday() != 0:
+			dtf -= timedelta(days=dtf.weekday())
+
 	else:
 		raise Exception("Implement flooring for interval: {0}".format(interval))
+
+	if not offset is None:
+		dtf += offset
+	# print("offset = {0}".format(offset))
 
 	return dtf
 
@@ -383,8 +481,15 @@ def ConvertToDatetime(dt, tz=None):
 
 
 def GetSystemTz():
-	dt = datetime.datetime.utcnow().astimezone()
+	dt = datetime.utcnow().astimezone()
+	# print("dt.tzinfo = {0}".format(dt.tzinfo))
+	# print("dt.name() = {0}".format(dt.name()))
+
 	# tz = dt.tzinfo
-	tz = ZoneInfo(dt.tzname())
+	tzn = dt.tzname()
+	if tzn == "BST":
+		## Confirmed that ZoneInfo figures out DST
+		tzn = "GB"
+	tz = ZoneInfo(tzn)
 	return tz
 
