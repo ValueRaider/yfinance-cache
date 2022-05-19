@@ -43,6 +43,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
                     answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)}
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -63,6 +65,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
                     answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)}
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -395,6 +399,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     answer = {}
                     answer["interval_open"] = dt+interval_td
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -416,6 +422,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     answer = {}
                     answer["interval_open"] = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz) +interval_td
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -484,6 +492,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     answer = {}
                     answer["interval_open"] = datetime.combine(next_day, time(hour=9, minute=30), self.market_tz)
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -573,6 +583,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     answer["interval_close"] = datetime.combine(answer_day, time(hour=16, minute=0), self.market_tz)
                 else:
                     answer["interval_close"] = answer["interval_open"]+interval_td
+                    if answer["interval_close"].time() > self.market_close_time:
+                        answer["interval_close"] = datetime.combine(answer["interval_close"].date(), self.market_close_time, self.market_tz)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:

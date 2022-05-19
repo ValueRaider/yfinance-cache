@@ -1,6 +1,9 @@
 from enum import Enum
 import pandas as pd
-from numpy import datetime64
+
+import numpy as np
+def np_not(x):
+	return np.logical_not(x)
 
 from datetime import datetime, date, time, timedelta
 
@@ -95,14 +98,6 @@ exchangeToMcalExchange["LSE"] = "LSE"
 
 # Cache mcal schedules, 10x speedup:
 mcalScheduleCache = {}
-
-# def PdTimestampCombine(d, t, tz):
-# 	# datetime timezone model sucks, force use pytz:
-# 	if (not t.tzinfo is None) and (tz is None):
-# 		raise Exception("Provide a pytz timezone object to replace datetime's timezone")
-# 	t = t.replace(tzinfo=None)
-# 	pd_dt = pd.Timestamp.combine(d, t).replace(tzinfo=tz)
-# 	return pd_dt
 
 
 def GetExchangeSchedule(exchange, start_dt, end_dt):
@@ -315,6 +310,7 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 		else:
 			intervalStart = FloorDatetime(dt, interval, s["market_open"])
 			intervalEnd = intervalStart + intervalToTimedelta[interval]
+			intervalEnd = min(intervalEnd, s["market_close"])
 	else:
 		return None
 
@@ -465,9 +461,160 @@ def FloorDatetime(dt, interval, firstIntervalStart=None):
 	return dtf
 
 
+def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
+	if not isinstance(intervalStart_dt, datetime):
+		raise Exception("'intervalStart_dt' must be datetime.datetime")
+	if intervalStart_dt.tzinfo is None:
+		raise Exception("'intervalStart_dt' must be timezone-aware")
+	if not isinstance(fetch_dt, datetime):
+		raise Exception("'fetch_dt' must be datetime.datetime")
+	if fetch_dt.tzinfo is None:
+		raise Exception("'fetch_dt' must be timezone-aware")
+	if not isinstance(max_age, timedelta):
+		raise Exception("'max_age' must be timedelta")
+	if not isinstance(exchange, str):
+		raise Exception("'exchange' must be str")
+	if not isinstance(interval, Interval):
+		raise Exception("'interval' must be Interval")
+	if not triggerExpiryOnClose is None:
+		if not isinstance(triggerExpiryOnClose, bool):
+			raise Exception("'triggerExpiryOnClose' must be bool")
+	if not yf_lag is None:
+		if not isinstance(yf_lag, timedelta):
+			raise Exception("'yf_lag' must be timedelta")
+	if not dt_now is None:
+		if not isinstance(dt_now, datetime):
+			raise Exception("'dt_now' must be datetime.datetime")
+		if dt_now.tzinfo is None:
+			raise Exception("'dt_now' must be timezone-aware")
+
+	debug = False
+	# debug = True
+
+	if debug:
+		print("IsPriceDatapointExpired(intervalStart_dt={0}, fetch_dt={1}, max_age={2}, dt_now={3})".format(intervalStart_dt, fetch_dt, max_age, dt_now))
+
+	target_interval = GetTimestampCurrentInterval(exchange, intervalStart_dt, interval)
+	if target_interval is None:
+		raise Exception("intervalStart_dt is not in an interval")
+	intervalEnd_dt = target_interval["interval_close"]
+	if debug:
+		print("intervalEnd_dt = {0}".format(intervalEnd_dt))
+	if fetch_dt > intervalEnd_dt:
+		## Interval already closed before fetch, nothing to do.
+		if debug:
+			print("fetch_dt > intervalEnd_dt so return FALSE")
+		return False
+
+	if dt_now is None:
+		dt_now = datetime.datetime.now().astimezone()
+	if debug:
+		print("dt_now = {0}".format(dt_now))
+
+	expire_dt = fetch_dt+max_age
+	if debug:
+		print("expire_dt = {0}".format(expire_dt))
+
+	if expire_dt < intervalEnd_dt and expire_dt <= dt_now:
+		if debug:
+			print("expire_dt < intervalEnd_dt and expire_dt <= dt_now so return TRUE")
+		return True
+
+	if triggerExpiryOnClose:
+		if yf_lag is None:
+			yf_lag = timedelta(minutes=1)
+		if dt_now >= (intervalEnd_dt+yf_lag):
+			## Even though fetched data hasn't fully aged, the candle has since closed so treat as expired
+			if debug:
+				print("triggerExpiryOnClose and interval closed so return TRUE")
+			return True
+
+	if debug:
+		print("reached end of function, returning FALSE")
+	return False
+
+
+def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
+	if not isinstance(intervalStart_dts, list) and not isinstance(intervalStart_dts[0], datetime):
+		raise Exception("'intervalStart_dts' must be list of datetime.datetime")
+	if intervalStart_dts[0].tzinfo is None:
+		raise Exception("'intervalStart_dts' must be timezone-aware")
+	if not isinstance(fetch_dts, list) and not isinstance(fetch_dts[0], datetime):
+		raise Exception("'fetch_dts' must be list of datetime.datetime")
+	if fetch_dts[0].tzinfo is None:
+		raise Exception("'fetch_dts' must be timezone-aware")
+	if not isinstance(max_age, timedelta):
+		raise Exception("'max_age' must be timedelta")
+	if not isinstance(exchange, str):
+		raise Exception("'exchange' must be str")
+	if not isinstance(interval, Interval):
+		raise Exception("'interval' must be Interval")
+	if not triggerExpiryOnClose is None:
+		if not isinstance(triggerExpiryOnClose, bool):
+			raise Exception("'triggerExpiryOnClose' must be bool")
+	if not yf_lag is None:
+		if not isinstance(yf_lag, timedelta):
+			raise Exception("'yf_lag' must be timedelta")
+	if not dt_now is None:
+		if not isinstance(dt_now, datetime):
+			raise Exception("'dt_now' must be datetime.datetime")
+		if dt_now.tzinfo is None:
+			raise Exception("'dt_now' must be timezone-aware")
+
+	debug = False
+	# debug = True
+
+	n = len(fetch_dts)
+
+	expired = np.array([False]*n)
+	fetch_dts = np.array(fetch_dts)
+	# print(expired)
+
+	if dt_now is None:
+		dt_now = datetime.now().astimezone()
+
+	intervals = list(map(GetTimestampCurrentInterval, [exchange]*n, intervalStart_dts, [interval]*n))
+	interval_closes = np.array([i["interval_close"] for i in intervals])
+
+	# interval_fetched_after_close = list(map(lambda x,y: GetTimestampCurrentInterval(exchange,x,interval)["interval_close"] <= y, intervalStart_dts, fetch_dts))
+	interval_fetched_after_close = interval_closes <= fetch_dts
+	if debug:
+		print("interval_fetched_after_close: {0}".format(interval_fetched_after_close))
+		# intervals = list(map(GetTimestampCurrentInterval, [exchange]*n,intervalStart_dts,[interval]*n))
+		# print("intervals:")
+		# print(intervals)
+
+	# candleClosed = interval_closes <= dt_now
+	if yf_lag is None:
+		yf_lag = timedelta(minutes=1)
+	candleClosed = (interval_closes+yf_lag) <= dt_now
+	candleClosedSinceFetch = np.logical_and(np.logical_not(interval_fetched_after_close), candleClosed)
+
+	## TODO: MAYBE improve performance of below by using 'interval_fetched_after_close' as a mask
+
+	# Is expiry before now?
+	expire_dts = fetch_dts + max_age
+	expiry_in_past = expire_dts <= dt_now
+
+	if debug:
+		print("expire_dts: {0}".format(expire_dts))
+		print("expiry_in_past: {0}".format(expiry_in_past))
+
+	expiry_before_candle_close = expire_dts < interval_closes
+	if debug:
+		print("expiry_before_candle_close: {0}".format(expiry_before_candle_close))
+
+	should_refetch = np.logical_and(expiry_in_past, expiry_before_candle_close)
+	if triggerExpiryOnClose:
+		should_refetch = np.logical_or(candleClosedSinceFetch, should_refetch)
+
+	return list(should_refetch)
+
+
+
 def ConvertToDatetime(dt, tz=None):
 	## Convert numpy.datetime64 -> pandas.Timestamp -> python datetime
-	if isinstance(dt, datetime64):
+	if isinstance(dt, np.datetime64):
 		dt2 = pd.Timestamp(dt)
 		dt = dt2
 	if isinstance(dt, pd.Timestamp):
