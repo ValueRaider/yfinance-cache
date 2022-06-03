@@ -611,6 +611,82 @@ def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchang
 	return list(should_refetch)
 
 
+def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals, minDistanceThreshold=5):
+	if not isinstance(exchange, str):
+		raise Exception("'exchange' must be str")
+	if not isinstance(start, date):
+		raise Exception("'start' must be datetime.date")
+	if not isinstance(end, date):
+		raise Exception("'end' must be datetime.date")
+	if knownIntervals != None:
+		if not isinstance(knownIntervals, list) and not isinstance(knownIntervals, np.ndarray):
+			raise Exception("'knownIntervals' must be list or numpy array")
+		if not isinstance(knownIntervals[0], datetime):
+			raise Exception("'knownIntervals' must be list of datetime.datetime")
+		if knownIntervals[0].tzinfo is None:
+			raise Exception("'knownIntervals' dates must be timezone-aware")
+
+	sched = GetExchangeSchedule(exchange, start, end)
+	# print("")
+	# print("sched:")
+	# pprint(sched)
+
+	intervals = GetScheduleIntervals(sched, interval)
+	# print("")
+	# print("intervals:")
+	# pprint(intervals)
+
+	if not knownIntervals is None:
+		intervals_missing_data = np_not(np.isin(intervals, knownIntervals))
+	else:
+		intervals_missing_data = np.array([True]*len(intervals))
+	# print("")
+	# print("intervals_missing_data:")
+	# pprint(intervals_missing_data)
+
+	## Merge together near ranges if the distance between is below threshold.
+	## This is to reduce web requests
+	i_true = np.where(intervals_missing_data==True)[0]
+	# print("")
+	# print("i_true:")
+	# pprint(i_true)
+	for i in range(len(i_true)-1):
+		i0 = i_true[i]
+		i1 = i_true[i+1]
+		if i1-i0 <= minDistanceThreshold+1:
+			## Mark all intervals between as missing, thus merging together 
+			## the pair of missing ranges
+			intervals_missing_data[i0+1:i1] = True
+	# print("")
+	# print("intervals_missing_data:")
+	# pprint(intervals_missing_data)
+
+	## Scan for contiguous sets of missing intervals:
+	ranges = []
+	i_true = np.where(intervals_missing_data==True)[0]
+	if len(i_true) > 0:
+		start = None ; end = None
+		for i in range(len(intervals_missing_data)):
+			v = intervals_missing_data[i]
+			if v:
+				if start is None:
+					start = i ; end = i
+				else:
+					if i == (end+1):
+						end = i
+					else:
+						r = (intervals[start], intervals[end])
+						ranges.append(r)
+						start = i ; end = i
+
+			if i == (len(intervals_missing_data)-1):
+				r = (intervals[start], intervals[end])
+				ranges.append(r)
+
+	if len(ranges) == 0:
+		return None
+	return ranges
+
 
 def ConvertToDatetime(dt, tz=None):
 	## Convert numpy.datetime64 -> pandas.Timestamp -> python datetime
