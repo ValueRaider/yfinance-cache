@@ -1,7 +1,7 @@
 import os
 import pickle, json
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 # from .yfc_utils import *
@@ -92,6 +92,9 @@ def ReadCacheDatum(ticker, objectName):
 		return ReadCachePackedDatum(ticker, objectName)
 
 	fp_base = os.path.join(GetCacheDirpath(), ticker, objectName)
+	if os.path.isfile(fp_base+".json") and os.path.isfile(fp_base+".pkl"):
+		raise Exception("For cached datum '{0}', both a .json and .pkl file exist. Should only be one.".format(objectName))
+
 	if os.path.isfile(fp_base+".json"):
 		fp = fp_base+".json"
 		with open(fp, 'r') as inData:
@@ -164,25 +167,37 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 		StoreCachePackedDatum(ticker, objectName, datum, expiry)
 		return
 
-	if isinstance(objectName, (list,dict,int,float,str)):
-		ext = "json"
-	else:
-		ext = "pkl"
-
 	td = os.path.join(GetCacheDirpath(), ticker)
 	if not os.path.isdir(td):
 		os.makedirs(td)
 	fp_base = os.path.join(td, objectName)
+
+	if isinstance(datum, (list,int,float,str,datetime,timedelta)):
+		ext = "json"
+		## Ensure only one of json or pkl exists:
+		if os.path.isfile(fp_base+".pkl"):
+			os.remove(fp_base+".pkl")
+	else:
+		ext = "pkl"
+		## Ensure only one of json or pkl exists:
+		if os.path.isfile(fp_base+".json"):
+			os.remove(fp_base+".json")
+	# print("StoreCacheDatum() - {0} ext = {1}".format(datum, ext))
+
 	fp = fp_base+"."+ext
 
 	if not os.path.isfile(fp):
 		md = {}
 	else:
-		with open(fp, 'r') as inData:
-			if ext == "json":
+		if ext == "json":
+			with open(fp, 'r') as inData:
 				md = json.load(inData, object_hook=JsonDecodeDict)["metadata"]
-			else:
-				md = pickle.load(inData)["metadata"]
+		else:
+			with open(fp, 'rb') as inData:
+				pkl = pickle.load(inData)
+				if not "metadata" in pkl.keys():
+					raise Exception("Pickled file lacks metadata: {0}".format(fp))
+				md = pkl["metadata"]
 
 	md["LastWrite"] = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 	if not expiry is None:

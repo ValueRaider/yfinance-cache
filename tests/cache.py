@@ -127,5 +127,47 @@ class Test_Yfc_Cache(unittest.TestCase):
             self.assertFalse(cat in pkl.keys())
 
 
+    def test_cache_store_types(self):
+        cat = "test1"
+        var = "value"
+
+        json_values = []
+        json_values.append(int(1))
+        json_values.append(float(1))
+        json_values.append([1, 3])
+        json_values.append(datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")))
+        json_values.append(timedelta(seconds=2.01))
+
+        pkl_values = []
+        pkl_values.append(set([1, 3]))
+        pkl_values.append({'a':1, 'b':2})
+
+        for value in json_values+pkl_values:
+            # print("")
+            # print("testing value = {0} (type={1})".format(value, type(value)))
+
+            if value in json_values:
+                ext = "json"
+            else:
+                ext = "pkl"
+            # print("ext = {0}".format(ext))
+
+            fp = os.path.join(yfcm.GetCacheDirpath(), cat, var+"."+ext)
+            # if os.path.isfile(fp):
+            #     os.remove(fp)
+
+            # print("value = {0}".format(value))
+            yfcm.StoreCacheDatum(cat, var, value)
+            # print("value = {0}".format(value))
+            try:
+                self.assertTrue(os.path.isfile(fp))
+            except:
+                print("Does not exist: "+fp)
+                raise
+
+            obj = yfcm.ReadCacheDatum(cat, var)
+            self.assertEqual(obj, value)
+
+
 if __name__ == '__main__':
     unittest.main()
