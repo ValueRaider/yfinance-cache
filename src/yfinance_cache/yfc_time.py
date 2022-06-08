@@ -93,32 +93,32 @@ marketToTimezone["us_market"] = ZoneInfo('US/Eastern')
 marketToTimezone["gb_market"] = ZoneInfo('Europe/London')
 
 exchangeToMcalExchange = {}
-exchangeToMcalExchange["NMS"] = "NYSE"
+exchangeToMcalExchange["NMS"] = "NASDAQ"
 exchangeToMcalExchange["LSE"] = "LSE"
 
 # Cache mcal schedules, 10x speedup:
 mcalScheduleCache = {}
 
 
-def GetExchangeSchedule(exchange, start_dt, end_dt):
+def GetExchangeSchedule(exchange, start_d, end_d):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
-	if not isinstance(start_dt, date):
-		raise Exception("'start_dt' must be datetime.date")
-	if not isinstance(end_dt, date):
-		raise Exception("'end_dt' must be datetime.date")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
+	if not (isinstance(start_d, date) and not isinstance(start_d, datetime)):
+		raise Exception("'start_d' must be datetime.date not {0}".format(type(start_d)))
+	if not (isinstance(end_d, date) and not isinstance(end_d, datetime)):
+		raise Exception("'end_d' must be datetime.date not {0}".format(type(end_d)))
 
 	market = exchangeToMarket[exchange]
 	tz = marketToTimezone[market]
 
 	## Lazy-load from cache:
 	if exchange in mcalScheduleCache:
-		if start_dt in mcalScheduleCache[exchange]:
-			if end_dt in mcalScheduleCache[exchange][start_dt]:
-				return mcalScheduleCache[exchange][start_dt][end_dt]
+		if start_d in mcalScheduleCache[exchange]:
+			if end_d in mcalScheduleCache[exchange][start_d]:
+				return mcalScheduleCache[exchange][start_d][end_d]
 
 	exchange_cal = mcal.get_calendar(exchangeToMcalExchange[exchange])
-	sched = exchange_cal.schedule(start_date=start_dt.isoformat(), end_date=end_dt.isoformat())
+	sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
 
 	if sched.shape[0] == 0:
 		# sched = None
@@ -138,44 +138,46 @@ def GetExchangeSchedule(exchange, start_dt, end_dt):
 	## Store in cache:
 	if not exchange in mcalScheduleCache:
 		mcalScheduleCache[exchange] = {}
-	if not start_dt in mcalScheduleCache[exchange]:
-		mcalScheduleCache[exchange][start_dt] = {}
-	mcalScheduleCache[exchange][start_dt][end_dt] = sched
+	if not start_d in mcalScheduleCache[exchange]:
+		mcalScheduleCache[exchange][start_d] = {}
+	mcalScheduleCache[exchange][start_d][end_d] = sched
 
 	return sched
 
 
-def GetScheduleIntervals(schedule, interval):
+def GetScheduleIntervals(schedule, interval, start=None, end=None):
 	if (not isinstance(schedule, dict)) and (schedule.keys() != ["market_close", "market_open"]):
 		raise Exception("'schedule' must be a dict with two keys: ['market_close', 'market_open']")
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 
 	interval_td = intervalToTimedelta[interval]
-	intervals = []
 	opens  = schedule["market_open"]
 	closes = schedule["market_close"]
-	# for dt in schedule["market_open"]:
+
+	intervals = []
 	for i in range(len(opens)):
-		dt = opens[i]
-		day = dt.date()
-		while dt < closes[i]:
-			intervals.append(dt)
-			dt += interval_td
+		iopen = opens[i]
+		while iopen < closes[i]:
+			iclose = min(iopen+interval_td, closes[i])
+			if (start is None or iopen >= start) and (end is None or iclose <= end):
+				intervals.append(iopen)
+			iopen += interval_td
 
 	return intervals
 
+
 def GetExchangeTimezone(exchange):
 	if not exchange in exchangeToMarket:
-		raise Exception("'{0}' is not an exchange".format(exchange))
+		raise Exception("'{0}' is not an exchange".format(type(exchange)))
 	return marketToTimezone[exchangeToMarket[exchange]]
 
 
 def IsTimestampInActiveSession(exchange, dt):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
@@ -184,19 +186,14 @@ def IsTimestampInActiveSession(exchange, dt):
 	if sched is None or len(sched["market_open"]) == 0:
 		return False
 
-	# open0  = sched["market_open" ][0]
-	# print("open0 = {0} (tz={1})".format(open0, open0.tzinfo))
-	# close0 = sched["market_close"][0]
-	# print("close0 = {0} (tz={1})".format(close0, close0.tzinfo))
-
 	return sched["market_open"][0] <= dt and dt < sched["market_close"][0]
 
 
 def GetTimestampCurrentSession(exchange, dt):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
@@ -213,9 +210,9 @@ def GetTimestampCurrentSession(exchange, dt):
 
 def GetTimestampMostRecentSession(exchange, dt):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
@@ -236,9 +233,9 @@ def GetTimestampMostRecentSession(exchange, dt):
 
 def GetTimestampNextSession(exchange, dt):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 
@@ -254,9 +251,9 @@ def GetTimestampNextSession(exchange, dt):
 
 def ExchangeOpenOnDay(exchange, dt):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
-	if not isinstance(dt, date):
-		raise Exception("'dt' must be datetime.date")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
+	if not (isinstance(dt, date) and not isinstance(dt, datetime)):
+		raise Exception("'dt' must be datetime.date not {0}".format(type(dt)))
 
 	market = exchangeToMarket[exchange]
 	tz = marketToTimezone[market]
@@ -272,13 +269,13 @@ def ExchangeOpenOnDay(exchange, dt):
 
 def GetTimestampCurrentInterval(exchange, dt, interval):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 
 	if interval in [Interval.Days5, Interval.Week]:
 		## Treat week intervals as special case, 
@@ -319,13 +316,13 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 
 def GetTimestampMostRecentInterval(exchange, dt, interval):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 
 	i = GetTimestampCurrentInterval(exchange, dt, interval)
 
@@ -353,13 +350,13 @@ def GetTimestampMostRecentInterval(exchange, dt, interval):
 
 def GetTimestampNextInterval(exchange, dt, interval):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 
 	if interval in [Interval.Days1, Interval.Days5, Interval.Week]:
 		if interval == Interval.Days1:
@@ -390,12 +387,12 @@ def GetTimestampNextInterval(exchange, dt, interval):
 
 def FloorDatetime(dt, interval, firstIntervalStart=None):
 	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime")
+		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 	if not firstIntervalStart is None:
 		if (not isinstance(firstIntervalStart, datetime)) and (not isinstance(firstIntervalStart, time)):
-			raise Exception("'firstIntervalStart' must be datetime.datetime or .time")
+			raise Exception("'firstIntervalStart' must be datetime.datetime or .time not {0}".format(type(firstIntervalStart)))
 		if isinstance(firstIntervalStart, datetime) and firstIntervalStart.tzinfo is None:
 			raise Exception("'firstIntervalStart' if datetime.datetime must be timezone-aware")
 
@@ -452,39 +449,38 @@ def FloorDatetime(dt, interval, firstIntervalStart=None):
 			dtf -= timedelta(days=dtf.weekday())
 
 	else:
-		raise Exception("Implement flooring for interval: {0}".format(interval))
+		raise Exception("Implement flooring for interval: {0}".format(type(interval)))
 
 	if not offset is None:
 		dtf += offset
-	# print("offset = {0}".format(offset))
 
 	return dtf
 
 
 def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
 	if not isinstance(intervalStart_dt, datetime):
-		raise Exception("'intervalStart_dt' must be datetime.datetime")
+		raise Exception("'intervalStart_dt' must be datetime.datetime not {0}".format(type(intervalStart_dt)))
 	if intervalStart_dt.tzinfo is None:
 		raise Exception("'intervalStart_dt' must be timezone-aware")
 	if not isinstance(fetch_dt, datetime):
-		raise Exception("'fetch_dt' must be datetime.datetime")
+		raise Exception("'fetch_dt' must be datetime.datetime not {0}".format(type(fetch_dt)))
 	if fetch_dt.tzinfo is None:
 		raise Exception("'fetch_dt' must be timezone-aware")
 	if not isinstance(max_age, timedelta):
-		raise Exception("'max_age' must be timedelta")
+		raise Exception("'max_age' must be timedelta not {0}".format(type(max_age)))
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 	if not triggerExpiryOnClose is None:
 		if not isinstance(triggerExpiryOnClose, bool):
-			raise Exception("'triggerExpiryOnClose' must be bool")
+			raise Exception("'triggerExpiryOnClose' must be bool not {0}".format(type(triggerExpiryOnClose)))
 	if not yf_lag is None:
 		if not isinstance(yf_lag, timedelta):
-			raise Exception("'yf_lag' must be timedelta")
+			raise Exception("'yf_lag' must be timedelta not {0}".format(type(yf_lag)))
 	if not dt_now is None:
 		if not isinstance(dt_now, datetime):
-			raise Exception("'dt_now' must be datetime.datetime")
+			raise Exception("'dt_now' must be datetime.datetime not {0}".format(type(dt_now)))
 		if dt_now.tzinfo is None:
 			raise Exception("'dt_now' must be timezone-aware")
 
@@ -536,28 +532,28 @@ def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, inter
 
 def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
 	if not isinstance(intervalStart_dts, list) and not isinstance(intervalStart_dts[0], datetime):
-		raise Exception("'intervalStart_dts' must be list of datetime.datetime")
+		raise Exception("'intervalStart_dts' must be list of datetime.datetime not {0}".format(type(intervalStart_dts[0])))
 	if intervalStart_dts[0].tzinfo is None:
 		raise Exception("'intervalStart_dts' must be timezone-aware")
 	if not isinstance(fetch_dts, list) and not isinstance(fetch_dts[0], datetime):
-		raise Exception("'fetch_dts' must be list of datetime.datetime")
+		raise Exception("'fetch_dts' must be list of datetime.datetime not {0}".format(type(fetch_dts[0])))
 	if fetch_dts[0].tzinfo is None:
 		raise Exception("'fetch_dts' must be timezone-aware")
 	if not isinstance(max_age, timedelta):
-		raise Exception("'max_age' must be timedelta")
+		raise Exception("'max_age' must be timedelta not {0}".format(type(max_age)))
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval")
+		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
 	if not triggerExpiryOnClose is None:
 		if not isinstance(triggerExpiryOnClose, bool):
-			raise Exception("'triggerExpiryOnClose' must be bool")
+			raise Exception("'triggerExpiryOnClose' must be bool not {0}".format(type(triggerExpiryOnClose)))
 	if not yf_lag is None:
 		if not isinstance(yf_lag, timedelta):
-			raise Exception("'yf_lag' must be timedelta")
+			raise Exception("'yf_lag' must be timedelta not {0}".format(type(yf_lag)))
 	if not dt_now is None:
 		if not isinstance(dt_now, datetime):
-			raise Exception("'dt_now' must be datetime.datetime")
+			raise Exception("'dt_now' must be datetime.datetime not {0}".format(type(dt_now)))
 		if dt_now.tzinfo is None:
 			raise Exception("'dt_now' must be timezone-aware")
 
@@ -613,43 +609,31 @@ def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchang
 
 def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals, minDistanceThreshold=5):
 	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str")
-	if not isinstance(start, date):
-		raise Exception("'start' must be datetime.date")
-	if not isinstance(end, date):
-		raise Exception("'end' must be datetime.date")
+		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
+	if not isinstance(start, datetime):
+		raise Exception("'start' must be datetime.datetime not not {0}".format(type(start)))
+	if not isinstance(end, datetime):
+		raise Exception("'end' must be datetime.datetime not not {0}".format(type(end)))
 	if knownIntervals != None:
 		if not isinstance(knownIntervals, list) and not isinstance(knownIntervals, np.ndarray):
-			raise Exception("'knownIntervals' must be list or numpy array")
+			raise Exception("'knownIntervals' must be list or numpy array not {0}".format(type(knownIntervals)))
 		if not isinstance(knownIntervals[0], datetime):
-			raise Exception("'knownIntervals' must be list of datetime.datetime")
+			raise Exception("'knownIntervals' must be list of datetime.datetime not {0}".format(type(knownIntervals[0])))
 		if knownIntervals[0].tzinfo is None:
 			raise Exception("'knownIntervals' dates must be timezone-aware")
 
-	sched = GetExchangeSchedule(exchange, start, end)
-	# print("")
-	# print("sched:")
-	# pprint(sched)
-
-	intervals = GetScheduleIntervals(sched, interval)
-	# print("")
-	# print("intervals:")
-	# pprint(intervals)
+	sched = GetExchangeSchedule(exchange, start.date(), end.date())
+	intervals = GetScheduleIntervals(sched, interval, start, end)
+	td = intervalToTimedelta[interval]
 
 	if not knownIntervals is None:
 		intervals_missing_data = np_not(np.isin(intervals, knownIntervals))
 	else:
 		intervals_missing_data = np.array([True]*len(intervals))
-	# print("")
-	# print("intervals_missing_data:")
-	# pprint(intervals_missing_data)
 
 	## Merge together near ranges if the distance between is below threshold.
 	## This is to reduce web requests
 	i_true = np.where(intervals_missing_data==True)[0]
-	# print("")
-	# print("i_true:")
-	# pprint(i_true)
 	for i in range(len(i_true)-1):
 		i0 = i_true[i]
 		i1 = i_true[i+1]
@@ -657,9 +641,6 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals
 			## Mark all intervals between as missing, thus merging together 
 			## the pair of missing ranges
 			intervals_missing_data[i0+1:i1] = True
-	# print("")
-	# print("intervals_missing_data:")
-	# pprint(intervals_missing_data)
 
 	## Scan for contiguous sets of missing intervals:
 	ranges = []
@@ -705,8 +686,6 @@ def ConvertToDatetime(dt, tz=None):
 
 def GetSystemTz():
 	dt = datetime.utcnow().astimezone()
-	# print("dt.tzinfo = {0}".format(dt.tzinfo))
-	# print("dt.name() = {0}".format(dt.name()))
 
 	# tz = dt.tzinfo
 	tzn = dt.tzname()
