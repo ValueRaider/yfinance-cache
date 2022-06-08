@@ -20,7 +20,7 @@ def GetOperatingSystem():
 
 def JsonEncodeValue(value):
 	if isinstance(value, datetime):
-		return e
+		return value.isoformat()
 	elif isinstance(value, timedelta):
 		e = "timedelta-{0}".format(value.total_seconds())
 		return e
