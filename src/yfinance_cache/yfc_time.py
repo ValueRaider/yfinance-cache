@@ -1,104 +1,24 @@
-from enum import Enum
-import pandas as pd
-
-import numpy as np
-def np_not(x):
-	return np.logical_not(x)
+from pprint import pprint
 
 from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
 
 import holidays
 import pandas_market_calendars as mcal
 
-from zoneinfo import ZoneInfo
-
-from pprint import pprint
-
-class Period(Enum):
-	Days1 = 0
-	Days5 = 1
-	Months1 = 10
-	Months3 = 11
-	Months6 = 12
-	Years1 = 20
-	Years2 = 21
-	Years5 = 22
-	Years10 = 23
-	Ytd = 24
-	Max = 30
-periodToString = {}
-periodToString[Period.Days1] = "1d"
-periodToString[Period.Days5] = "5d"
-periodToString[Period.Months1] = "1m"
-periodToString[Period.Months3] = "3m"
-periodToString[Period.Months6] = "6m"
-periodToString[Period.Years1] = "1y"
-periodToString[Period.Years2] = "2y"
-periodToString[Period.Years5] = "5y"
-periodToString[Period.Years10] = "10y"
-periodToString[Period.Ytd] = "ytd"
-periodToString[Period.Max] = "max"
+import pandas as pd
+import numpy as np
+def np_not(x):
+	return np.logical_not(x)
 
 
-class Interval(Enum):
-	Mins1 = 0
-	Mins2 = 1
-	Mins5 = 2
-	Mins15 = 3
-	Mins30 = 4
-	Mins60 = 5
-	Mins90 = 6
-	Hours1 = 10
-	Days1 = 20
-	Days5 = 21
-	Week = 30
-	Months1 = 40
-	Months3 = 41
-intervalToString = {}
-intervalToString[Interval.Mins1] = "1m"
-intervalToString[Interval.Mins2] = "2m"
-intervalToString[Interval.Mins5] = "5m"
-intervalToString[Interval.Mins15] = "15m"
-intervalToString[Interval.Mins30] = "30m"
-intervalToString[Interval.Mins60] = "60m"
-intervalToString[Interval.Mins90] = "90m"
-intervalToString[Interval.Hours1] = "1h"
-intervalToString[Interval.Days1] = "1d"
-intervalToString[Interval.Days5] = "5d"
-intervalToString[Interval.Week] = "1wk"
-intervalToString[Interval.Months1] = "1mo"
-intervalToString[Interval.Months3] = "3mo"
-intervalToTimedelta = {}
-intervalToTimedelta[Interval.Mins1] = timedelta(minutes=1)
-intervalToTimedelta[Interval.Mins2] = timedelta(minutes=2)
-intervalToTimedelta[Interval.Mins5] = timedelta(minutes=5)
-intervalToTimedelta[Interval.Mins15] = timedelta(minutes=15)
-intervalToTimedelta[Interval.Mins30] = timedelta(minutes=30)
-intervalToTimedelta[Interval.Mins60] = timedelta(minutes=60)
-intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
-intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
-intervalToTimedelta[Interval.Days1] = timedelta(days=1)
-intervalToTimedelta[Interval.Days5] = timedelta(days=5)
-intervalToTimedelta[Interval.Week] = timedelta(days=7)
-# intervalToTimedelta[Interval.Months1] = None ## irregular time interval
-# intervalToTimedelta[Interval.Months3] = None ## irregular time interval
+from yfc_dat import *
+import yfc_cache_manager as yfcm
 
-
-exchangeToMarket = {}
-exchangeToMarket["NMS"] = "us_market"
-exchangeToMarket["LSE"] = "gb_market"
-
-marketToTimezone = {}
-marketToTimezone["us_market"] = ZoneInfo('US/Eastern')
-marketToTimezone["gb_market"] = ZoneInfo('Europe/London')
-
-exchangeToMcalExchange = {}
-exchangeToMcalExchange["NMS"] = "NASDAQ"
-exchangeToMcalExchange["LSE"] = "LSE"
 
 # Cache mcal schedules, 10x speedup:
+## Performance TODO: convert nexted dicts to dict of tables (one per exchange). Prepend/append rows if requested date(s) out-of-range
 mcalScheduleCache = {}
-
 
 def GetExchangeSchedule(exchange, start_d, end_d):
 	if not isinstance(exchange, str):
@@ -111,6 +31,18 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	market = exchangeToMarket[exchange]
 	tz = marketToTimezone[market]
 
+	global mcalScheduleCache
+	if not exchange in mcalScheduleCache:
+		## Load from file cache. If missing, init with 7-day expiry
+		## Performance TODO: when dict replaced with tables, remove expiry entirely
+		o = yfcm.ReadCacheDatum("exchange-"+exchange, "mcalScheduleCache")
+		if not o is None:
+			mcalScheduleCache[exchange] = o
+		else:
+			mcalScheduleCache[exchange] = {}
+			yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=Interval.Days1)
+
+
 	## Lazy-load from cache:
 	if exchange in mcalScheduleCache:
 		if start_d in mcalScheduleCache[exchange]:
@@ -121,26 +53,21 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
 
 	if sched.shape[0] == 0:
-		# sched = None
 		sched = None
 	else:
-		# sched.index = sched.index.tz_localize(tz)
-		# # sched["market_open"]  = sched["market_open" ].dt.tz_convert(tz)
-		# # sched["market_close"] = sched["market_close"].dt.tz_convert(tz)
-		# sched["market_open" ] = sched["market_open" ].dt.to_pydatetime()
-		# sched["market_close"] = sched["market_close"].dt.to_pydatetime()
-
 		opens = [d.to_pydatetime().astimezone(tz) for d in sched["market_open" ]]
 		closes = [d.to_pydatetime().astimezone(tz) for d in sched["market_close"]]
 		## Note: don't attempt to put datetime into pd.DataFrame, Pandas pukes
 		sched = {"market_open":opens, "market_close":closes}
 
-	## Store in cache:
+	## Cache:
 	if not exchange in mcalScheduleCache:
 		mcalScheduleCache[exchange] = {}
 	if not start_d in mcalScheduleCache[exchange]:
 		mcalScheduleCache[exchange][start_d] = {}
 	mcalScheduleCache[exchange][start_d][end_d] = sched
+
+	yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange])
 
 	return sched
 
