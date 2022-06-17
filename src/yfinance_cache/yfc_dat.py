@@ -83,3 +83,10 @@ exchangeToMcalExchange = {}
 exchangeToMcalExchange["LSE"] = "LSE"
 exchangeToMcalExchange["NMS"] = "NASDAQ"
 exchangeToMcalExchange["NYQ"] = "NYSE"
+
+## Yahoo specify data delays here:
+## https://help.yahoo.com/kb/SLN2310.html?guccounter=1
+exchangeToYfLag = {}
+exchangeToYfLag["LSE"] = timedelta(minutes=15)
+exchangeToYfLag["NMS"] = timedelta(seconds=0)
+exchangeToYfLag["NYQ"] = timedelta(seconds=0)
