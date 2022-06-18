@@ -22,20 +22,20 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
     def test_GetTimestampCurrentInterval_open(self):
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
         times = []
         times.append(time(hour=9, minute=30))
         times.append(time(hour=15, minute=30))
         for i in range(len(intervals)):
             interval = intervals[i]
-            interval_td = intervalToTimedelta[interval]
+            interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 for t in times:
                     ## dt at start of interval:
@@ -79,9 +79,9 @@ class Test_USMarket_Schedules(unittest.TestCase):
                         raise
 
         intervals = []
-        intervals.append(Interval.Days1)
-        intervals.append(Interval.Days5)
-        intervals.append(Interval.Week)
+        intervals.append(yfcd.Interval.Days1)
+        intervals.append(yfcd.Interval.Days5)
+        intervals.append(yfcd.Interval.Week)
         times = []
         times.append(time(hour=9, minute=30))
         times.append(time(hour=15, minute=30))
@@ -91,7 +91,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
                     intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
-                    if interval == Interval.Days1:
+                    if interval == yfcd.Interval.Days1:
                         answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), time(hour=9, minute=30), self.market_tz)}
                         answer["interval_close"] = datetime.combine(self.monday+timedelta(days=weekday), time(hour=16), self.market_tz)
                     else:
@@ -116,15 +116,15 @@ class Test_USMarket_Schedules(unittest.TestCase):
         times.append(time(hour=9, minute=29))
         times.append(time(hour=16, minute=0))
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
-        intervals.append(Interval.Days1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
+        intervals.append(yfcd.Interval.Days1)
         for i in range(len(intervals)):
             interval = intervals[i]
             for weekday in [0,1,2,3,4]:
@@ -147,15 +147,15 @@ class Test_USMarket_Schedules(unittest.TestCase):
         times.append(time(hour=9, minute=30))
         times.append(time(hour=15, minute=30))
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
-        intervals.append(Interval.Days1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
+        intervals.append(yfcd.Interval.Days1)
         for i in range(len(intervals)):
             interval = intervals[i]
             for weekday in [5,6]:
@@ -175,8 +175,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         ## Handle week-intervals separately
         intervals = []
-        intervals.append(Interval.Days5)
-        intervals.append(Interval.Week)
+        intervals.append(yfcd.Interval.Days5)
+        intervals.append(yfcd.Interval.Week)
         ## 1) - Between Friday close and next Monday open:
         dates = []
         dates.append(datetime.combine(self.friday, time(hour=16, minute=0), self.market_tz))
@@ -225,14 +225,14 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         t = time(hour=9, minute=29)
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
         for weekday in range(7):
             dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
             answer_day = dt.date() - timedelta(days=1)
@@ -243,7 +243,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
             for i in range(len(intervals)):
                 interval = intervals[i]
-                interval_td = intervalToTimedelta[interval]
+                interval_td = yfcd.intervalToTimedelta[interval]
                 answer = {"interval_close":datetime.combine(answer_day, time(16, 0), self.market_tz)}
                 answer["interval_open"] = answer["interval_close"] - interval_td
 
@@ -260,14 +260,14 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     raise
         t = time(hour=16, minute=0)
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
         for weekday in range(7):
             dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
             answer_day = dt.date()
@@ -278,7 +278,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
             for i in range(len(intervals)):
                 interval = intervals[i]
-                interval_td = intervalToTimedelta[interval]
+                interval_td = yfcd.intervalToTimedelta[interval]
                 answer = {"interval_close":datetime.combine(answer_day, time(16, 0), self.market_tz)}
                 answer["interval_open"] = answer["interval_close"] - interval_td
 
@@ -295,7 +295,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     raise
 
         t = time(hour=9, minute=29)
-        interval = Interval.Days1
+        interval = yfcd.Interval.Days1
         for weekday in range(7):
             dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
             answer_day = dt.date() - timedelta(days=1)
@@ -320,7 +320,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 pprint(answer)
                 raise
         t = time(hour=16, minute=00)
-        interval = Interval.Days1
+        interval = yfcd.Interval.Days1
         for weekday in range(7):
             dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
             answer_day = dt.date()
@@ -347,7 +347,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         ## Week-intervals
         ## Check that between Friday close and Monday open returns last week:
-        intervals = [Interval.Days5, Interval.Week]
+        intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
         dates = []
         dates.append(datetime.combine(self.friday,                   time(hour=17, minute=0), self.market_tz))
         dates.append(datetime.combine(self.friday+timedelta(days=1), time(hour=12, minute=0), self.market_tz))
@@ -376,19 +376,19 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_GetTimestampNextInterval_open(self):
         ## If during day session, next interval is in same session:
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Hours1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Hours1)
         times = []
         times.append(time(hour=9, minute=30))
         times.append(time(hour=13, minute=30))
         for i in range(len(intervals)):
             interval = intervals[i]
-            interval_td = intervalToTimedelta[interval]
+            interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 for t in times:
                     ## dt at start of interval:
@@ -432,7 +432,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                         print("answer:")
                         pprint(answer)
                         raise
-        interval = Interval.Mins90
+        interval = yfcd.Interval.Mins90
         times = []
         answers = []
         times.append(time(hour=9, minute=30))  ; answers.append({"interval_open":time(hour=11, minute=0), "interval_close":time(hour=12, minute=30)})
@@ -461,17 +461,17 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # If during the final interval of session, next interval is next day first interval
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Hours1)
-        intervals.append(Interval.Mins90)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Hours1)
+        intervals.append(yfcd.Interval.Mins90)
         for i in range(len(intervals)):
             interval = intervals[i]
-            interval_td = intervalToTimedelta[interval]
+            interval_td = yfcd.intervalToTimedelta[interval]
 
             times = []
             times.append(time(hour=15, minute=59))
@@ -505,9 +505,9 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # If a day/week interval, is next working day/week regardless of today
         intervals = []
-        intervals.append(Interval.Days1)
-        intervals.append(Interval.Days5)
-        intervals.append(Interval.Week)
+        intervals.append(yfcd.Interval.Days1)
+        intervals.append(yfcd.Interval.Days5)
+        intervals.append(yfcd.Interval.Week)
         times = []
         times.append(time(hour=9, minute=30))
         times.append(time(hour=15, minute=30))
@@ -518,7 +518,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
                     intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
                     answer = {}
-                    if interval == Interval.Days1:
+                    if interval == yfcd.Interval.Days1:
                         # Next day
                         answer["interval_open"]  = datetime.combine(self.monday+timedelta(days=weekday+1), time(hour=9, minute=30), self.market_tz)
                         answer["interval_close"] = datetime.combine(self.monday+timedelta(days=weekday+1), time(hour=16), self.market_tz)
@@ -541,7 +541,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
             answer = {}
             answer["interval_open"]  = datetime.combine(self.monday+timedelta(days=7), time(hour=9, minute=30), self.market_tz)
-            if interval == Interval.Days1:
+            if interval == yfcd.Interval.Days1:
                 answer["interval_close"] = datetime.combine(self.monday+timedelta(days=7), time(hour=16), self.market_tz)
             else:
                 answer["interval_close"] = datetime.combine(self.friday+timedelta(days=7), time(hour=16), self.market_tz)
@@ -557,19 +557,19 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_GetTimestampNextInterval_closed(self):
         ## If in morning before market open, next interval next session first interval:
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
-        intervals.append(Interval.Days1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
+        intervals.append(yfcd.Interval.Days1)
         t = time(hour=9, minute=0)
         for i in range(len(intervals)):
             interval = intervals[i]
-            interval_td = intervalToTimedelta[interval]
+            interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
                 intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
@@ -577,7 +577,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 answer_day = dt.date()
                 answer = {}
                 answer["interval_open"]  = datetime.combine(answer_day, time(hour=9, minute=30), self.market_tz)
-                if interval == Interval.Days1:
+                if interval == yfcd.Interval.Days1:
                     answer["interval_close"] = datetime.combine(answer_day, time(hour=16, minute=0), self.market_tz)
                 else:
                     answer["interval_close"] = answer["interval_open"]+interval_td
@@ -596,19 +596,19 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         ## If in afternoon after market close, next interval is next session first interval:
         intervals = []
-        intervals.append(Interval.Mins1)
-        intervals.append(Interval.Mins2)
-        intervals.append(Interval.Mins5)
-        intervals.append(Interval.Mins15)
-        intervals.append(Interval.Mins30)
-        intervals.append(Interval.Mins60)
-        intervals.append(Interval.Mins90)
-        intervals.append(Interval.Hours1)
-        intervals.append(Interval.Days1)
+        intervals.append(yfcd.Interval.Mins1)
+        intervals.append(yfcd.Interval.Mins2)
+        intervals.append(yfcd.Interval.Mins5)
+        intervals.append(yfcd.Interval.Mins15)
+        intervals.append(yfcd.Interval.Mins30)
+        intervals.append(yfcd.Interval.Mins60)
+        intervals.append(yfcd.Interval.Mins90)
+        intervals.append(yfcd.Interval.Hours1)
+        intervals.append(yfcd.Interval.Days1)
         t = time(hour=16, minute=0)
         for i in range(len(intervals)):
             interval = intervals[i]
-            interval_td = intervalToTimedelta[interval]
+            interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
                 intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
@@ -620,7 +620,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     answer_day += timedelta(days=1)
                 answer = {}
                 answer["interval_open"]  = datetime.combine(answer_day, time(hour=9, minute=30), self.market_tz)
-                if interval == Interval.Days1:
+                if interval == yfcd.Interval.Days1:
                     answer["interval_close"] = datetime.combine(answer_day, time(hour=16, minute=0), self.market_tz)
                 else:
                     answer["interval_close"] = answer["interval_open"]+interval_td
@@ -637,8 +637,8 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # If a week interval, is next week regardless of today
         intervals = []
-        intervals.append(Interval.Days5)
-        intervals.append(Interval.Week)
+        intervals.append(yfcd.Interval.Days5)
+        intervals.append(yfcd.Interval.Week)
         dates = []
         dates.append(datetime.combine(self.friday,                   time(hour=16, minute=0), self.market_tz))
         dates.append(datetime.combine(self.friday+timedelta(days=1), time(hour=12, minute=0), self.market_tz))

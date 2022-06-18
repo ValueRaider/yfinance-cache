@@ -1,19 +1,20 @@
 import os
 import pickle, json
 from pprint import pprint
+from enum import Enum
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from yfc_dat import *
-from yfc_utils import *
+import yfc_dat as yfcd
+import yfc_utils as yfcu
 
 # To reduce #files in cache, store some YF objects together into same file (including metadata)
 packed_data_cats = {}
 # packed_data_cats["info"] = ["info"]
 packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
 packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials"]
-for i in intervalToString.values():
+for i in yfcd.intervalToString.values():
 	packed_data_cats["history-"+i] = ["history-"+i]
 
 quarterly_objects = packed_data_cats["quarterlys"]
@@ -36,11 +37,11 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
 	global cacheDirpath
-	_os = GetOperatingSystem()
-	if _os == OperatingSystem.Windows:
+	_os = yfcu.GetOperatingSystem()
+	if _os == yfcu.OperatingSystem.Windows:
 		cacheDirpath = os.getenv("APPDATA") + "\\yfinance-cache"
 		raise Exception("Not tested. Does this make sense as cache dir in Windows? - {0}".format(cacheDirpath))
-	elif _os == OperatingSystem.Linux:
+	elif _os == yfcu.OperatingSystem.Linux:
 		cacheDirpath = os.path.join(os.getenv("HOME"), ".cache", "yfinance-cache")
 	else:
 		raise Exception("Not implemented: cache dirpath under OS '{0}'".format(_os))
@@ -100,7 +101,7 @@ def ReadCacheDatum(ticker, objectName):
 		if os.path.isfile(fp):
 			exists = True
 			with open(fp, 'r') as inData:
-				js   = json.load(inData, object_hook=JsonDecodeDict)
+				js   = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 				data = js["data"]
 				md   = js["metadata"]
 	else:
@@ -171,8 +172,8 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 	if verbose:
 		print("StoreCacheDatum({0}, {1})".format(ticker, objectName))
 
-	if isinstance(expiry, Interval):
-		expiry = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + intervalToTimedelta[expiry]
+	if isinstance(expiry, yfcd.Interval):
+		expiry = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
 
 	if IsObjectInPackedData(objectName):
 		StoreCachePackedDatum(ticker, objectName, datum, expiry)
@@ -207,7 +208,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 	else:
 		if ext == "json":
 			with open(fp, 'r') as inData:
-				md = json.load(inData, object_hook=JsonDecodeDict)["metadata"]
+				md = json.load(inData, object_hook=yfcu.JsonDecodeDict)["metadata"]
 		else:
 			with open(fp, 'rb') as inData:
 				pkl = pickle.load(inData)
@@ -221,7 +222,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 
 	if ext == "json":
 		with open(fp, 'w') as outData:
-			json.dump({"data":datum,"metadata":md}, outData, default=JsonEncodeValue)
+			json.dump({"data":datum,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
 	else:
 		with open(fp, 'wb') as outData:
 			pickle.dump({"data":datum,"metadata":md}, outData, 4)

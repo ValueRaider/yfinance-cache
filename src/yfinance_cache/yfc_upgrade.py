@@ -1,9 +1,9 @@
-from yfc_cache_manager import *
+import yfc_cache_manager as yfcm
 
 def merge_files():
 	## To reduce filesystem load, merge files and unpack in memory
 
-	d = GetCacheDirpath()
+	d = yfcm.GetCacheDirpath()
 
 	for tkr in os.listdir(d):
 		quarterly_objects = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
@@ -119,7 +119,7 @@ def merge_files():
 
 def clean_metadata():
 	# Remove fields: FileType, LastAccess
-	d = GetCacheDirpath()
+	d = yfcm.GetCacheDirpath()
 
 	fields = ["FileType", "LastAccess"]
 

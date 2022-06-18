@@ -1,10 +1,13 @@
 import yfinance as yf
 
 import yfc_cache_manager as yfcm
-from yfc_utils import *
-from yfc_time import *
+import yfc_dat as yfcd
+import yfc_utils as yfcu
+import yfc_time as yfct
 
+import pandas as pd
 import datetime, time
+from zoneinfo import ZoneInfo
 
 from pprint import pprint
 
@@ -79,7 +82,7 @@ class Ticker:
 		self._news = None
 
 	def history(self, 
-				interval=Interval.Days1, 
+				interval=yfcd.Interval.Days1, 
 				max_age=None, # defaults to half of interval
 				period=None, 
 				start=None, end=None, prepost=False, actions=True,
@@ -98,13 +101,13 @@ class Ticker:
 			if not isinstance(period, Period):
 				raise Exception("'period' must be a 'Period' value")
 		if isinstance(interval, str):
-			if not interval in intervalStrToEnum.keys():
-				raise Exception("'interval' if str must be one of: {}".format(intervalStrToEnum.keys()))
-			interval = intervalStrToEnum[interval]
-		if not isinstance(interval, Interval):
-			raise Exception("'interval' must be Interval")
+			if not interval in yfcd.intervalStrToEnum.keys():
+				raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
+			interval = yfcd.intervalStrToEnum[interval]
+		if not isinstance(interval, yfcd.Interval):
+			raise Exception("'interval' must be yfcd.Interval")
 		if not start is None:
-			tz_exchange = GetExchangeTimezone(self.info['exchange'])
+			tz_exchange =  yfct.GetExchangeTimezone(self.info['exchange'])
 			if isinstance(start, str):
 				start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=tz_exchange)
 			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
@@ -117,7 +120,7 @@ class Ticker:
 				raise Exception("Argument 'start' tzinfo must be DST-aware")
 
 		if not end is None:
-			tz_exchange = GetExchangeTimezone(self.info['exchange'])
+			tz_exchange =  yfct.GetExchangeTimezone(self.info['exchange'])
 			if isinstance(end, str):
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 				end = datetime.datetime.combine(end_d, datetime.time(23, 59), tz_exchange)
@@ -136,23 +139,23 @@ class Ticker:
 		# 'prepost' not doing anything in yfinance
 
 		if max_age is None:
-			max_age = 0.5*intervalToTimedelta[interval]
+			max_age = 0.5*yfcd.intervalToTimedelta[interval]
 
 		dt_now = datetime.datetime.now().astimezone()
 		if end is None:
 			end = dt_now
 
 		if start is None and period is None:
-			tz_exchange = GetExchangeTimezone(self.info['exchange'])
+			tz_exchange =  yfct.GetExchangeTimezone(self.info['exchange'])
 			start = datetime.datetime.combine(end.date(), datetime.time(), tzinfo=tz_exchange)
 
-		tz_exchange = GetExchangeTimezone(self.info['exchange'])
+		tz_exchange =  yfct.GetExchangeTimezone(self.info['exchange'])
 
 		if period is None:
 			pstr = ""
 		else:
 			pstr = periodToString[period]
-		istr = intervalToString[interval]
+		istr = yfcd.intervalToString[interval]
 
 		h = None
 		if not self._history is None:
@@ -202,24 +205,24 @@ class Ticker:
 		## Performance TODO: only check expiry on datapoints not marked 'final'
 		## - need to improve 'expiry check' performance, is 3-4x slower than fetching from YF
 
-		h_intervals = [ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
-		fetch_dts = [ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
-		expired = IsPriceDatapointExpired_batch(h_intervals, fetch_dts, datetime.timedelta(minutes=30), self.info['exchange'], interval, yf_lag=self.yf_lag)
+		h_intervals = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
+		fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
+		expired = yfct.IsPriceDatapointExpired_batch(h_intervals, fetch_dts, datetime.timedelta(minutes=30), self.info['exchange'], interval, yf_lag=self.yf_lag)
 		if sum(expired) > 0:
 			f = np_not(expired)
 			h = h[f]
 			h_intervals = np.array(h_intervals)[f]
 			fetch_dts = np.array(fetch_dts)[f]
 
-		sched = GetExchangeSchedule(self.info['exchange'], start.date(), end.date())
+		sched = yfct.GetExchangeSchedule(self.info['exchange'], start.date(), end.date())
 
-		intervals = GetScheduleIntervals(sched, interval, start, end)
+		intervals = yfct.GetScheduleIntervals(sched, interval, start, end)
 
-		ranges_to_fetch = IdentifyMissingIntervalRanges(self.info['exchange'], start, end, interval, h_intervals, minDistanceThreshold=5)
+		ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.info['exchange'], start, end, interval, h_intervals, minDistanceThreshold=5)
 		if ranges_to_fetch is None:
 			ranges_to_fetch = []
 
-		interval_td = intervalToTimedelta[interval]
+		interval_td = yfcd.intervalToTimedelta[interval]
 
 		if len(ranges_to_fetch) > 0:
 			for r in ranges_to_fetch:
@@ -227,7 +230,7 @@ class Ticker:
 				lastInterval = r[1]
 
 				istart = firstInterval
-				s = GetTimestampCurrentSession(self.info['exchange'], lastInterval)
+				s = yfct.GetTimestampCurrentSession(self.info['exchange'], lastInterval)
 				iend = lastInterval + interval_td
 				iend = min(iend, s["market_close"])
 
@@ -535,13 +538,13 @@ class Ticker:
 		## To avoid circular logic will call YF directly, not use my cache. Because cache requires knowing lag.
 
 		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		if not IsTimestampInActiveSession(self.info["exchange"], dt_now):
+		if not yfct.IsTimestampInActiveSession(self.info["exchange"], dt_now):
 			## Exchange closed so used hardcoded delay, ...
-			self._yf_lag = exchangeToYfLag[self.info["exchange"]]
+			self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
 
 			## ... but only until next session starts +1H:
-			s = GetTimestampNextSession(self.info["exchange"], dt_now)
-			expiry = s["market_open"] + timedelta(hours=1)
+			s = yfct.GetTimestampNextSession(self.info["exchange"], dt_now)
+			expiry = s["market_open"] + datetime.timedelta(hours=1)
 
 			yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=expiry)
 			return self._yf_lag
@@ -549,21 +552,21 @@ class Ticker:
 		## Calculate actual delay from live market data, and cache with expiry in 4 weeks
 
 		## Get last hour of 5m price data:
-		df_5mins = self.dat.history(interval="5m", start=dt_now-timedelta(hours=1), end=dt_now)
+		df_5mins = self.dat.history(interval="5m", start=dt_now-datetime.timedelta(hours=1), end=dt_now)
 		df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
 		df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
 
 		## Now 10 minutes of 1m price data around the last 5m candle:
-		dt2_end = df_5mins_lastDt + timedelta(minutes=5)
-		dt2_start = dt2_end-timedelta(minutes=10)
+		dt2_end = df_5mins_lastDt + datetime.timedelta(minutes=5)
+		dt2_start = dt2_end-datetime.timedelta(minutes=10)
 		df_1mins = self.dat.history(interval="1m", start=dt2_start, end=dt2_end)
 		df_1mins_lastDt = df_1mins.index[df_1mins.shape[0]-1].to_pydatetime()
 
 		lag = dt_now - df_1mins_lastDt
-		if lag > timedelta(minutes=20):
+		if lag > datetime.timedelta(minutes=20):
 			raise Exception("{0}: calculated YF lag as {1}, seems excessive".format(self.ticker, lag))
-		if lag < timedelta(seconds=0):
+		if lag < datetime.timedelta(seconds=0):
 			raise Exception("{0}: calculated YF lag as {1}, seems negative".format(self.ticker, lag))
 		self._yf_lag = lag
-		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+timedelta(days=28))
+		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+datetime.timedelta(days=28))
 		return self._yf_lag

@@ -12,7 +12,7 @@ def np_not(x):
 	return np.logical_not(x)
 
 
-from yfc_dat import *
+import yfc_dat as yfcd
 import yfc_cache_manager as yfcm
 
 
@@ -28,8 +28,8 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	if not (isinstance(end_d, date) and not isinstance(end_d, datetime)):
 		raise Exception("'end_d' must be datetime.date not {0}".format(type(end_d)))
 
-	market = exchangeToMarket[exchange]
-	tz = marketToTimezone[market]
+	market = yfcd.exchangeToMarket[exchange]
+	tz = yfcd.marketToTimezone[market]
 
 	global mcalScheduleCache
 	if not exchange in mcalScheduleCache:
@@ -40,7 +40,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 			mcalScheduleCache[exchange] = o
 		else:
 			mcalScheduleCache[exchange] = {}
-			yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=Interval.Days1)
+			yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=yfcd.Interval.Days1)
 
 
 	## Lazy-load from cache:
@@ -49,7 +49,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 			if end_d in mcalScheduleCache[exchange][start_d]:
 				return mcalScheduleCache[exchange][start_d][end_d]
 
-	exchange_cal = mcal.get_calendar(exchangeToMcalExchange[exchange])
+	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
 	sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
 
 	if sched.shape[0] == 0:
@@ -75,10 +75,10 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 def GetScheduleIntervals(schedule, interval, start=None, end=None):
 	if (not isinstance(schedule, dict)) and (schedule.keys() != ["market_close", "market_open"]):
 		raise Exception("'schedule' must be a dict with two keys: ['market_close', 'market_open']")
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 
-	interval_td = intervalToTimedelta[interval]
+	interval_td = yfcd.intervalToTimedelta[interval]
 	opens  = schedule["market_open"]
 	closes = schedule["market_close"]
 
@@ -95,9 +95,9 @@ def GetScheduleIntervals(schedule, interval, start=None, end=None):
 
 
 def GetExchangeTimezone(exchange):
-	if not exchange in exchangeToMarket:
+	if not exchange in yfcd.exchangeToMarket:
 		raise Exception("'{0}' is not an exchange".format(type(exchange)))
-	return marketToTimezone[exchangeToMarket[exchange]]
+	return yfcd.marketToTimezone[yfcd.exchangeToMarket[exchange]]
 
 
 def IsTimestampInActiveSession(exchange, dt):
@@ -182,10 +182,10 @@ def ExchangeOpenOnDay(exchange, dt):
 	if not (isinstance(dt, date) and not isinstance(dt, datetime)):
 		raise Exception("'dt' must be datetime.date not {0}".format(type(dt)))
 
-	market = exchangeToMarket[exchange]
-	tz = marketToTimezone[market]
+	market = yfcd.exchangeToMarket[exchange]
+	tz = yfcd.marketToTimezone[market]
 
-	exchange_cal = mcal.get_calendar(exchangeToMcalExchange[exchange])
+	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
 	# exchange_days = exchange_cal.valid_days(start_date=dt.date().isoformat(), end_date=dt.date().isoformat())
 	exchange_days = exchange_cal.valid_days(start_date=dt.isoformat(), end_date=dt.isoformat())
 
@@ -201,10 +201,10 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 
-	if interval in [Interval.Days5, Interval.Week]:
+	if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
 		## Treat week intervals as special case, 
 		## because will treat range as contiguous from Monday open to Friday close, 
 		## even if market closed at current time.
@@ -219,12 +219,12 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 
 	if IsTimestampInActiveSession(exchange, dt):
 		s = GetTimestampCurrentSession(exchange, dt)
-		if interval == Interval.Days1:
+		if interval == yfcd.Interval.Days1:
 			intervalStart = s["market_open"]
 			intervalEnd = s["market_close"]
 		else:
 			intervalStart = FloorDatetime(dt, interval, s["market_open"])
-			intervalEnd = intervalStart + intervalToTimedelta[interval]
+			intervalEnd = intervalStart + yfcd.intervalToTimedelta[interval]
 			intervalEnd = min(intervalEnd, s["market_close"])
 	else:
 		return None
@@ -239,21 +239,21 @@ def GetTimestampMostRecentInterval(exchange, dt, interval):
 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 
 	i = GetTimestampCurrentInterval(exchange, dt, interval)
 
 	if not i is None:
 		return i
 	else:
-		interval_td = intervalToTimedelta[interval]
+		interval_td = yfcd.intervalToTimedelta[interval]
 		s = GetTimestampMostRecentSession(exchange, dt)
-		if interval == Interval.Days1:
+		if interval == yfcd.Interval.Days1:
 			intervalStart = s["market_open"]
 			intervalEnd = s["market_close"]
 
-		elif interval in [Interval.Days5, Interval.Week]:
+		elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
 			dt_lastWeekStart = FloorDatetime(dt-timedelta(days=2), interval)
 			lastWeekSched = GetExchangeSchedule(exchange, dt_lastWeekStart.date(), (dt_lastWeekStart+timedelta(days=4)).date())
 			intervalStart = lastWeekSched["market_open"][0]
@@ -274,11 +274,11 @@ def GetTimestampNextInterval(exchange, dt, interval):
 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
 	if dt.tzinfo is None:
 		raise Exception("'dt' must be timezone-aware")
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 
-	if interval in [Interval.Days1, Interval.Days5, Interval.Week]:
-		if interval == Interval.Days1:
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval == yfcd.Interval.Days1:
 			s = GetTimestampNextSession(exchange, dt)
 			interval_open  = s["market_open"]
 			interval_close = s["market_close"]
@@ -295,7 +295,7 @@ def GetTimestampNextInterval(exchange, dt, interval):
 
 	lastInterval = GetTimestampMostRecentInterval(exchange, dt, interval)
 	lastIntervalStart = lastInterval["interval_open"]
-	interval_td = intervalToTimedelta[interval]
+	interval_td = yfcd.intervalToTimedelta[interval]
 	next_interval_start = lastIntervalStart + interval_td
 	if not IsTimestampInActiveSession(exchange, next_interval_start):
 		s = GetTimestampNextSession(exchange, next_interval_start)
@@ -307,8 +307,8 @@ def GetTimestampNextInterval(exchange, dt, interval):
 def FloorDatetime(dt, interval, firstIntervalStart=None):
 	if not isinstance(dt, datetime):
 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 	if not firstIntervalStart is None:
 		if (not isinstance(firstIntervalStart, datetime)) and (not isinstance(firstIntervalStart, time)):
 			raise Exception("'firstIntervalStart' must be datetime.datetime or .time not {0}".format(type(firstIntervalStart)))
@@ -329,38 +329,38 @@ def FloorDatetime(dt, interval, firstIntervalStart=None):
 	if not offset is None:
 		dt -= offset
 
-	if interval == Interval.Mins1:
+	if interval == yfcd.Interval.Mins1:
 		dtf = dt.replace(second=0, microsecond=0)
 
-	elif interval in [Interval.Mins2, Interval.Mins5, Interval.Mins15, Interval.Mins30]:
+	elif interval in [yfcd.Interval.Mins2, yfcd.Interval.Mins5, yfcd.Interval.Mins15, yfcd.Interval.Mins30]:
 		dtf = dt.replace(second=0, microsecond=0)
-		if interval == Interval.Mins2:
+		if interval == yfcd.Interval.Mins2:
 			m = 2
-		elif interval == Interval.Mins5:
+		elif interval == yfcd.Interval.Mins5:
 			m = 5
-		elif interval == Interval.Mins15:
+		elif interval == yfcd.Interval.Mins15:
 			m = 15
-		elif interval == Interval.Mins30:
+		elif interval == yfcd.Interval.Mins30:
 			m = 30
 		r = dtf.minute%m
 		if r != 0:
 			dtf = dtf.replace(minute=dtf.minute - r)
 
-	elif interval in [Interval.Mins60, Interval.Hours1]:
+	elif interval in [yfcd.Interval.Mins60, yfcd.Interval.Hours1]:
 		dtf = dt.replace(minute=0, second=0, microsecond=0)
 
-	elif interval == Interval.Mins90:
+	elif interval == yfcd.Interval.Mins90:
 		dtf = dt.replace(second=0, microsecond=0)
 		r = (dtf.hour*60 + dtf.minute)%90
 		if r != 0:
 			dtf -= timedelta(minutes=r)
 
-	elif interval == Interval.Days1:
+	elif interval == yfcd.Interval.Days1:
 		# dtf = datetime.combine(dt.date(), time(hour=0, minute=0))
 		dtf = datetime.combine(dt.date(), time(hour=0, minute=0), tzinfo=dt.tzinfo)
 		## Rely on offset to set time correctly
 
-	elif interval in [Interval.Days5, Interval.Week]:
+	elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
 		# dtf = datetime.combine(dt.date(), time(hour=0, minute=0))
 		dtf = datetime.combine(dt.date(), time(hour=0, minute=0), tzinfo=dt.tzinfo)
 		## Rely on offset to set time correctly
@@ -389,8 +389,8 @@ def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, inter
 		raise Exception("'max_age' must be timedelta not {0}".format(type(max_age)))
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 	if not triggerExpiryOnClose is None:
 		if not isinstance(triggerExpiryOnClose, bool):
 			raise Exception("'triggerExpiryOnClose' must be bool not {0}".format(type(triggerExpiryOnClose)))
@@ -416,7 +416,7 @@ def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, inter
 	if debug:
 		print("intervalEnd_dt = {0}".format(intervalEnd_dt))
 	if fetch_dt > intervalEnd_dt:
-		## Interval already closed before fetch, nothing to do.
+		## yfcd.Interval already closed before fetch, nothing to do.
 		if debug:
 			print("fetch_dt > intervalEnd_dt so return FALSE")
 		return False
@@ -462,8 +462,8 @@ def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchang
 		raise Exception("'max_age' must be timedelta not {0}".format(type(max_age)))
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
-	if not isinstance(interval, Interval):
-		raise Exception("'interval' must be Interval not {0}".format(type(interval)))
+	if not isinstance(interval, yfcd.Interval):
+		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 	if not triggerExpiryOnClose is None:
 		if not isinstance(triggerExpiryOnClose, bool):
 			raise Exception("'triggerExpiryOnClose' must be bool not {0}".format(type(triggerExpiryOnClose)))

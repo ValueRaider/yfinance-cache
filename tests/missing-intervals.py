@@ -2,9 +2,11 @@ import unittest
 
 import sys
 sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-from yfc_time import *
+import yfc_dat as yfcd
+import yfc_time as yfct
 
 from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
 
 def timeAddTd(t, td):
     dt = datetime.combine(date(year=2022, month=1, day=1), t) + td
@@ -24,7 +26,7 @@ class TestMissingIntervals(unittest.TestCase):
 
     def test_IdentifyMissingIntervalRanges_basics(self):
         ## Test super-simple scenarios
-        interval = Interval.Hours1
+        interval = yfcd.Interval.Hours1
 
         ## Test 1: no known intervals -> returns all intervals in date range
         startDay = self.week_start
@@ -34,7 +36,7 @@ class TestMissingIntervals(unittest.TestCase):
         endDt   = datetime.combine(endDay,   self.exchangeCloseTime, tzinfo=self.market_tz)
         answer = [( datetime.combine(startDay, self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(endDay,   self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -56,7 +58,7 @@ class TestMissingIntervals(unittest.TestCase):
             knownIntervals.append(nextInt)
             nextInt = knownIntervals[-1] + timedelta(hours=1)
         answer = None
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -68,7 +70,7 @@ class TestMissingIntervals(unittest.TestCase):
 
     def test_IdentifyMissingIntervalRanges_simpleMissingDays(self):
         ## Test simple scenarios of missing days
-        interval = Interval.Hours1
+        interval = yfcd.Interval.Hours1
 
         ## missing 2nd day of 2-day range
         startDay = self.week_start
@@ -82,7 +84,7 @@ class TestMissingIntervals(unittest.TestCase):
             nextInt = knownIntervals[-1] + timedelta(hours=1)
         answer = [( datetime.combine(endDay, self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(endDay, self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -104,7 +106,7 @@ class TestMissingIntervals(unittest.TestCase):
             nextInt = knownIntervals[-1] + timedelta(hours=1)
         answer = [ (datetime.combine(startDay, self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(startDay, self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -130,7 +132,7 @@ class TestMissingIntervals(unittest.TestCase):
             nextInt = knownIntervals[-1] + timedelta(hours=1)
         answer = [ (datetime.combine(startDay+timedelta(days=1), self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(startDay+timedelta(days=1), self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -155,7 +157,7 @@ class TestMissingIntervals(unittest.TestCase):
                     datetime.combine(startDay,                   self.exchangeLastHrInt, tzinfo=self.market_tz)),
                    (datetime.combine(startDay+timedelta(days=2), self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(startDay+timedelta(days=2), self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -167,7 +169,7 @@ class TestMissingIntervals(unittest.TestCase):
 
     def test_IdentifyMissingIntervalRanges_complexMissingDays(self):
         ## Test complex scenarios of missing days
-        interval = Interval.Hours1
+        interval = yfcd.Interval.Hours1
 
         ## Missing 1st, 3rd and 5th days of week:
         startDay = self.week_start
@@ -189,7 +191,7 @@ class TestMissingIntervals(unittest.TestCase):
                     datetime.combine(startDay+timedelta(days=2), self.exchangeLastHrInt, tzinfo=self.market_tz)),
                    (datetime.combine(startDay+timedelta(days=4), self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(startDay+timedelta(days=4), self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -212,7 +214,7 @@ class TestMissingIntervals(unittest.TestCase):
                 nextInt = knownIntervals[-1] + timedelta(hours=1)
         answer = [ (datetime.combine(startDay+timedelta(days=4), self.exchangeOpenTime,  tzinfo=self.market_tz), 
                     datetime.combine(startDay+timedelta(days=7), self.exchangeLastHrInt, tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -224,7 +226,7 @@ class TestMissingIntervals(unittest.TestCase):
 
     def test_IdentifyMissingIntervalRanges_simpleMissingHours(self):
         ## Test simple scenarios of missing intermittent hours within days
-        interval = Interval.Hours1
+        interval = yfcd.Interval.Hours1
         hour = timedelta(hours=1)
 
         startDay = self.week_start
@@ -239,7 +241,7 @@ class TestMissingIntervals(unittest.TestCase):
             knownIntervals.append(datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*h), tzinfo=self.market_tz))
         answer = [ (datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*4), tzinfo=self.market_tz), 
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*4), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -259,7 +261,7 @@ class TestMissingIntervals(unittest.TestCase):
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*3), tzinfo=self.market_tz)), 
                    (datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*5), tzinfo=self.market_tz), 
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*5), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=0)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=0)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -271,7 +273,7 @@ class TestMissingIntervals(unittest.TestCase):
         ## - should be merged if threshold>=1
         answer = [ (datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*3), tzinfo=self.market_tz), 
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*5), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -288,7 +290,7 @@ class TestMissingIntervals(unittest.TestCase):
             knownIntervals.append(datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*h), tzinfo=self.market_tz))
         answer = [ (datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*4), tzinfo=self.market_tz), 
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*6), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -305,7 +307,7 @@ class TestMissingIntervals(unittest.TestCase):
             knownIntervals.append(datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*h), tzinfo=self.market_tz))
         answer = [ (datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*0), tzinfo=self.market_tz), 
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*2), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=1)
         try:
             self.assertEqual(ranges, answer)
         except:
@@ -316,7 +318,7 @@ class TestMissingIntervals(unittest.TestCase):
             raise
 
     def test_IdentifyMissingIntervalRanges_complexMissingHours(self):
-        interval = Interval.Hours1
+        interval = yfcd.Interval.Hours1
         hour = timedelta(hours=1)
 
         thr = 2
@@ -337,7 +339,7 @@ class TestMissingIntervals(unittest.TestCase):
                     datetime.combine(startDay, timeAddTd(self.exchangeOpenTime,hour*3), tzinfo=self.market_tz)), 
                    (datetime.combine(endDay,   timeAddTd(self.exchangeOpenTime,hour*0), tzinfo=self.market_tz), 
                     datetime.combine(endDay,   timeAddTd(self.exchangeOpenTime,hour*3), tzinfo=self.market_tz))]
-        ranges = IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=thr)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervals, minDistanceThreshold=thr)
         try:
             self.assertEqual(ranges, answer)
         except:

@@ -1,13 +1,13 @@
 import unittest
 
-import os, shutil, tempfile
-import json, pickle
-
 import sys
 sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
 import yfc_ticker as yfc
 import yfc_cache_manager as yfcm
-from yfc_utils import *
+import yfc_utils as yfcu
+
+import os, shutil, tempfile
+import json, pickle
 
 from time import sleep
 from datetime import datetime, date, time, timedelta
@@ -45,7 +45,7 @@ class Test_Yfc_Cache(unittest.TestCase):
         self.assertEqual(obj, value)
 
         with open(fp, 'r') as inData:
-            js = json.load(inData, object_hook=JsonDecodeDict)
+            js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
             md = js["metadata"]
             self.assertEqual(js["data"], value)
             self.assertIsNotNone(js["metadata"], "LastWrite")
@@ -69,7 +69,7 @@ class Test_Yfc_Cache(unittest.TestCase):
         self.assertEqual(obj, value)
 
         with open(fp, 'r') as inData:
-            js = json.load(inData, object_hook=JsonDecodeDict)
+            js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 
         sleep(1)
         obj = yfcm.ReadCacheDatum(cat, var)

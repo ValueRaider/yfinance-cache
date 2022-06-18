@@ -1,5 +1,4 @@
 import unittest
-# import numpy as np
 import pandas as pd
 from pprint import pprint
 
@@ -7,7 +6,7 @@ import sys
 sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
 import yfc_ticker as yfc
 import yfc_cache_manager as yfcm
-from yfc_time import IsTimestampInActiveSession
+import yfc_time as yfct
 
 import tempfile
 
@@ -50,7 +49,7 @@ class Test_Yfc_Interface(unittest.TestCase):
     ## Test day interval fetched same day
     def test_yf_lag(self):
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        if not IsTimestampInActiveSession(self.dat.info["exchange"], dt_now):
+        if not yfct.IsTimestampInActiveSession(self.dat.info["exchange"], dt_now):
             # If market closed, can't run this test
             return
 

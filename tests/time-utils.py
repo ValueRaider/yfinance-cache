@@ -2,8 +2,10 @@ import unittest
 
 import sys
 sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-from yfc_time import *
+import yfc_dat as yfcd
+import yfc_time as yfct
 
+import pandas as pd
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -19,7 +21,7 @@ class TestTimeUtils(unittest.TestCase):
         self.exchangeCloseTime = time(hour=16, minute=0)
 
     def test_dt_flooring_1min(self):
-        interval = Interval.Mins1
+        interval = yfcd.Interval.Mins1
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -29,7 +31,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval)
+            dt_floored = yfct.FloorDatetime(dt, interval)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -41,7 +43,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_2min(self):
-        interval = Interval.Mins2
+        interval = yfcd.Interval.Mins2
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -60,7 +62,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval)
+            dt_floored = yfct.FloorDatetime(dt, interval)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -72,7 +74,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_5min(self):
-        interval = Interval.Mins5
+        interval = yfcd.Interval.Mins5
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -94,7 +96,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval)
+            dt_floored = yfct.FloorDatetime(dt, interval)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -106,7 +108,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_15min(self):
-        interval = Interval.Mins15
+        interval = yfcd.Interval.Mins15
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -128,7 +130,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval)
+            dt_floored = yfct.FloorDatetime(dt, interval)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -140,7 +142,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_30min(self):
-        interval = Interval.Mins30
+        interval = yfcd.Interval.Mins30
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -162,7 +164,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval)
+            dt_floored = yfct.FloorDatetime(dt, interval)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -174,7 +176,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_1h(self):
-        intervals = [Interval.Mins60, Interval.Hours1]
+        intervals = [yfcd.Interval.Mins60, yfcd.Interval.Hours1]
         dates = []
         answer = datetime.combine(self.day, time(hour=9, minute=0, tzinfo=self.market_tz))
         for ms in [0, 1, 5, 45]:
@@ -186,7 +188,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             for interval in intervals:
                 dt = dates[i]
-                dt_floored = FloorDatetime(dt, interval)
+                dt_floored = yfct.FloorDatetime(dt, interval)
                 try:
                     self.assertEqual(dt_floored, answer)
                     self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -198,7 +200,7 @@ class TestTimeUtils(unittest.TestCase):
                     raise
 
     def test_dt_flooring_90min(self):
-        interval = Interval.Mins90
+        interval = yfcd.Interval.Mins90
 
         dates = [] ; answers = []
         for ms in [0, 1, 5, 45]:
@@ -227,7 +229,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             dt = dates[i]
             answer = answers[i]
-            dt_floored = FloorDatetime(dt, interval, self.exchangeOpenTime)
+            dt_floored = yfct.FloorDatetime(dt, interval, self.exchangeOpenTime)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -239,7 +241,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_1d(self):
-        interval = Interval.Days1
+        interval = yfcd.Interval.Days1
 
         weekdays = [0,1,2,3,4]
         dates = [] ; answers = []
@@ -251,7 +253,7 @@ class TestTimeUtils(unittest.TestCase):
         for i in range(len(dates)):
             answer = answers[i]
             dt = dates[i]
-            dt_floored = FloorDatetime(dt, interval, self.exchangeOpenTime)
+            dt_floored = yfct.FloorDatetime(dt, interval, self.exchangeOpenTime)
             try:
                 self.assertEqual(dt_floored, answer)
                 self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -263,7 +265,7 @@ class TestTimeUtils(unittest.TestCase):
                 raise
 
     def test_dt_flooring_5d(self):
-        intervals = [Interval.Days5, Interval.Week]
+        intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
 
         answer = datetime.combine(self.week_start, time(hour=9, minute=30), tzinfo=self.market_tz)
         weekdays = [0,1,2,3,4]
@@ -276,7 +278,7 @@ class TestTimeUtils(unittest.TestCase):
         for interval in intervals:
             for i in range(len(dates)):
                 dt = dates[i]
-                dt_floored = FloorDatetime(dt, interval, self.exchangeOpenTime)
+                dt_floored = yfct.FloorDatetime(dt, interval, self.exchangeOpenTime)
                 try:
                     self.assertEqual(dt_floored, answer)
                     self.assertEqual(dt.tzinfo, dt_floored.tzinfo)
@@ -301,7 +303,7 @@ class TestTimeUtils(unittest.TestCase):
         # dt1 = dt1.astimezone(zi_usa)
         pdt = pd.Timestamp(dt1)
         
-        dt2 = ConvertToDatetime(pdt, tz=zi_usa)
+        dt2 = yfct.ConvertToDatetime(pdt, tz=zi_usa)
         try:
             self.assertEqual(dt2.astimezone(zi_utc), dt1)
         except:
