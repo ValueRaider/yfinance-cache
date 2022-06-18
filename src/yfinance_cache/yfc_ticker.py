@@ -119,7 +119,8 @@ class Ticker:
 		if not end is None:
 			tz_exchange = GetExchangeTimezone(self.info['exchange'])
 			if isinstance(end, str):
-				end = datetime.datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=tz_exchange)
+				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
+				end = datetime.datetime.combine(end_d, datetime.time(23, 59), tz_exchange)
 			elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
 				end = datetime.datetime.combine(end, datetime.time(23, 59), tz_exchange)
 			elif not isinstance(end, datetime.datetime):
