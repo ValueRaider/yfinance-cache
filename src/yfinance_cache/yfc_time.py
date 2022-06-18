@@ -599,15 +599,13 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals
 def ConvertToDatetime(dt, tz=None):
 	## Convert numpy.datetime64 -> pandas.Timestamp -> python datetime
 	if isinstance(dt, np.datetime64):
-		dt2 = pd.Timestamp(dt)
-		dt = dt2
+		dt = pd.Timestamp(dt)
 	if isinstance(dt, pd.Timestamp):
-		dt2 = dt.to_pydatetime()
-		dt = dt2
-	## Update: keep pd.Timestamp, handles timezones better than datetime
-	## Update 2: Python has improved timezone handling with ZoneUtil
-	if not tz is None:
+		dt = dt.to_pydatetime()
+	if tz is None:
 		dt = dt.replace(tzinfo=tz)
+	else:
+		dt = dt.astimezone(tz)
 	return dt
 
 
