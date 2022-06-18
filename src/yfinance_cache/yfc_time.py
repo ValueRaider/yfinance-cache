@@ -222,15 +222,6 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 		if interval == Interval.Days1:
 			intervalStart = s["market_open"]
 			intervalEnd = s["market_close"]
-
-		## If I decide that a week interval is only valid while market also open at that time, 
-		## then uncomment this code.
-		# elif interval in [Interval.Days5, Interval.Week]:
-		# 	dt_weekStart = FloorDatetime(dt, interval)
-		# 	weekSched = GetExchangeSchedule(exchange, dt_weekStart.date(), (dt_weekStart+timedelta(days=4)).date())
-		# 	intervalStart = weekSched["market_open"][0]
-		# 	intervalEnd = weekSched["market_close"][-1]
-
 		else:
 			intervalStart = FloorDatetime(dt, interval, s["market_open"])
 			intervalEnd = intervalStart + intervalToTimedelta[interval]
@@ -269,6 +260,7 @@ def GetTimestampMostRecentInterval(exchange, dt, interval):
 			intervalEnd = lastWeekSched["market_close"][-1]
 
 		else:
+			# i is None so recent interval is last of previous day
 			intervalStart = s["market_close"] - interval_td
 			intervalEnd = s["market_close"]
 
@@ -430,7 +422,7 @@ def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, inter
 		return False
 
 	if dt_now is None:
-		dt_now = datetime.datetime.now().astimezone()
+		dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 	if debug:
 		print("dt_now = {0}".format(dt_now))
 
@@ -551,7 +543,6 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals
 
 	sched = GetExchangeSchedule(exchange, start.date(), end.date())
 	intervals = GetScheduleIntervals(sched, interval, start, end)
-	td = intervalToTimedelta[interval]
 
 	if not knownIntervals is None:
 		intervals_missing_data = np_not(np.isin(intervals, knownIntervals))

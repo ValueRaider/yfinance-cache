@@ -85,7 +85,7 @@ class Ticker:
 				start=None, end=None, prepost=False, actions=True,
 				auto_adjust=True, back_adjust=False,
 				proxy=None, rounding=False, 
-				# tz=None, ## I will handle timezones, just make your dates tz-aware
+				tz=None,
 				**kwargs):
 
 		if prepost:
@@ -97,38 +97,37 @@ class Ticker:
 		if not period is None:
 			if not isinstance(period, Period):
 				raise Exception("'period' must be a 'Period' value")
+		if isinstance(interval, str):
+			if not interval in intervalStrToEnum.keys():
+				raise Exception("'interval' if str must be one of: {}".format(intervalStrToEnum.keys()))
+			interval = intervalStrToEnum[interval]
 		if not isinstance(interval, Interval):
 			raise Exception("'interval' must be Interval")
 		if not start is None:
-			if (not isinstance(start, str)) and (not isinstance(start, datetime.datetime)):
-				raise Exception("Argument 'start' must be str or datetime")
+			tz_exchange = GetExchangeTimezone(self.info['exchange'])
 			if isinstance(start, str):
-				# start = datetime.datetime.strptime(start, "%Y-%m-%d").astimezone()
-				tz_exchange = GetExchangeTimezone(self.info['exchange'])
 				start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=tz_exchange)
-				if start.dst() is None:
-					raise Exception("Failed to set DST of start date")
-			else:
-				if start.tzinfo is None:
-					raise Exception("Argument 'start' tzinfo must be tz-aware")
-				if start.dst() is None:
-					raise Exception("Argument 'start' tzinfo must be DST-aware")
+			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
+				start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
+			elif not isinstance(start, datetime.datetime):
+				raise Exception("Argument 'start' must be str, date or datetime")
+			if start.tzinfo is None:
+				raise Exception("Argument 'start' tzinfo must be tz-aware")
+			if start.dst() is None:
+				raise Exception("Argument 'start' tzinfo must be DST-aware")
 
 		if not end is None:
-			if (not isinstance(end, str)) and (not isinstance(end, datetime.datetime)):
-				raise Exception("Argument 'end' must be str or datetime")
+			tz_exchange = GetExchangeTimezone(self.info['exchange'])
 			if isinstance(end, str):
-				endDay = datetime.date.fromisoformat(end)
-				# end = datetime.datetime.combine(endDay, datetime.time(hour=23, minute=59, second=59)).astimezone()
-				tz_exchange = GetExchangeTimezone(self.info['exchange'])
-				end = datetime.datetime.combine(endDay, datetime.time(hour=23, minute=59, second=59)).replace(tzinfo=tz_exchange)
-				if end.dst() is None:
-					raise Exception("Failed to set DST of end date")
-			else:
-				if end.tzinfo is None:
-					raise Exception("Argument 'end' tzinfo must be tz-aware")
-				if end.dst() is None:
-					raise Exception("Argument 'end' tzinfo must be DST-aware")
+				end = datetime.datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=tz_exchange)
+			elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
+				end = datetime.datetime.combine(end, datetime.time(23, 59), tz_exchange)
+			elif not isinstance(end, datetime.datetime):
+				raise Exception("Argument 'end' must be str, date or datetime")
+			if end.tzinfo is None:
+				raise Exception("Argument 'end' tzinfo must be tz-aware")
+			if end.dst() is None:
+				raise Exception("Argument 'end' tzinfo must be DST-aware")
 
 		if (not period is None) and (not start is None):
 			raise Exception("Don't set both 'period' and 'start' arguments")
@@ -141,24 +140,11 @@ class Ticker:
 		dt_now = datetime.datetime.now().astimezone()
 		if end is None:
 			end = dt_now
-			# end = datetime.date.today()
 
 		if start is None and period is None:
-			# session = GetTimestampMostRecentSession(self.info['exchange'], end)
-			# start = session["market_open"]
 			tz_exchange = GetExchangeTimezone(self.info['exchange'])
 			start = datetime.datetime.combine(end.date(), datetime.time(), tzinfo=tz_exchange)
-			# start = end
 
-
-
-		start = start.astimezone(ZoneInfo("UTC"))
-		end   = end.astimezone(ZoneInfo("UTC"))
-		# tz    = ZoneInfo("UTC")
-		tz = "UTC"
-		# print("start = {0} ; end = {1}".format(start, end))
-		
-		# tz_local = GetSystemTz()
 		tz_exchange = GetExchangeTimezone(self.info['exchange'])
 
 		if period is None:
@@ -185,10 +171,12 @@ class Ticker:
 
 			## Left with one data dimension: interval
 
-			# print("period={0}".format(pstr))
-			# print("interval={0}".format(istr))
-			# print("start={0}".format(start))
-			# print("end={0}".format(end))
+			# print("YF query:")
+			# print("- period={0}".format(pstr))
+			# print("- interval={0}".format(istr))
+			# print("- start={0}".format(start))
+			# print("- end={0}".format(end))
+			# print("")
 
 			h = self.dat.history(period=pstr, 
 								interval=istr, 
@@ -198,11 +186,12 @@ class Ticker:
 								proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
 			h["FetchDate"] = pd.Timestamp.now()
 
-			## Sometimes YF appends most recent price to table. Remove any out-of-range data:
+			## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
+			## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
 			if h.index[-1] > end:
 				h = h[0:h.shape[0]-1]
 
-			## Performance TODO: mark appropriate rows as final				
+			## Performance TODO: mark appropriate rows as final
 			## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)
 
 			self._history[interval] = h
@@ -237,10 +226,9 @@ class Ticker:
 				lastInterval = r[1]
 
 				istart = firstInterval
+				s = GetTimestampCurrentSession(self.info['exchange'], lastInterval)
 				iend = lastInterval + interval_td
-
-				istart = istart.astimezone(ZoneInfo("UTC"))
-				iend   = iend.astimezone(ZoneInfo("UTC"))
+				iend = min(iend, s["market_close"])
 
 				# print("Will fetch {0} -> {1} (tz={2})".format(istart, iend, tz))
 
@@ -260,12 +248,10 @@ class Ticker:
 									proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
 				h2["FetchDate"] = pd.Timestamp.now()
 
-				## Sometimes YF appends most recent price to table. Remove any out-of-range data:
+				## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
+				## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
 				if h2.index[-1] > end:
 					h2 = h2[0:h2.shape[0]-1]
-
-				# f = np.logical_and(h2.index >= start, h2.index < end)
-				# h2 = h2[f]
 
 				## Performance TODO: mark appropriate rows as final				
 				## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)

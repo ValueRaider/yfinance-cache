@@ -55,6 +55,7 @@ intervalToString[Interval.Days5] = "5d"
 intervalToString[Interval.Week] = "1wk"
 intervalToString[Interval.Months1] = "1mo"
 intervalToString[Interval.Months3] = "3mo"
+intervalStrToEnum = {v:k for k,v in intervalToString.items()}
 intervalToTimedelta = {}
 intervalToTimedelta[Interval.Mins1] = timedelta(minutes=1)
 intervalToTimedelta[Interval.Mins2] = timedelta(minutes=2)
@@ -75,6 +76,7 @@ exchangeToMarket["LSE"] = "gb_market"
 exchangeToMarket["NMS"] = "us_market"
 exchangeToMarket["NYQ"] = "us_market"
 
+## TODO: remove 'marketToTimezone', redundant as Yahoo returns timezone in info.
 marketToTimezone = {}
 marketToTimezone["gb_market"] = ZoneInfo('Europe/London')
 marketToTimezone["us_market"] = ZoneInfo('US/Eastern')

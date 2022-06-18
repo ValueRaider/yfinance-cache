@@ -304,7 +304,6 @@ class Test_USMarket_Schedules(unittest.TestCase):
             elif answer_day.weekday() == 5:
                 answer_day -= timedelta(days=1)
 
-            interval_td = intervalToTimedelta[interval]
             answer = {}
             answer["interval_open"]  = datetime.combine(answer_day, time(9, 30), self.market_tz)
             answer["interval_close"] = datetime.combine(answer_day, time(16, 0), self.market_tz)
@@ -330,7 +329,6 @@ class Test_USMarket_Schedules(unittest.TestCase):
             elif answer_day.weekday() == 5:
                 answer_day -= timedelta(days=1)
 
-            interval_td = intervalToTimedelta[interval]
             answer = {}
             answer["interval_open"]  = datetime.combine(answer_day, time(9, 30), self.market_tz)
             answer["interval_close"] = datetime.combine(answer_day, time(16, 0), self.market_tz)
@@ -596,7 +594,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     pprint(answer)
                     raise
 
-        ## If in afternoon after market close, next interval next session first interval:
+        ## If in afternoon after market close, next interval is next session first interval:
         intervals = []
         intervals.append(Interval.Mins1)
         intervals.append(Interval.Mins2)
