@@ -1,18 +1,17 @@
 import unittest
 from pprint import pprint
 
+import yfinance as yf
+
+from .context import yfc_dat as yfcd
+from .context import yfc_time as yfct
+
 from datetime import datetime, date, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests_cache
 
 import sys
-
-# sys.path.insert(0,"/home/gonzo/ReposForks/yfinance")
-import yfinance as yf
-
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-from yfc_time import *
 
 class TestYfAssumptions(unittest.TestCase):
 	def setUp(self):
@@ -39,9 +38,9 @@ class TestYfAssumptions(unittest.TestCase):
 		## For minute data must use dates within last 30 days
 		day = datetime.today().date()
 		day -= timedelta(days=1)
-		while not ExchangeOpenOnDay(self.exchange, day):
+		while not yfct.ExchangeOpenOnDay(self.exchange, day):
 			day -= timedelta(days=1)
-		sched = GetExchangeSchedule(self.exchange, day, day)
+		sched = yfct.GetExchangeSchedule(self.exchange, day, day)
 
 		startDt = sched["market_open"][0]
 		endDt   = sched["market_open"][0]+timedelta(minutes=1)

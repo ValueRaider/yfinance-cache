@@ -11,10 +11,8 @@ import numpy as np
 def np_not(x):
 	return np.logical_not(x)
 
-
-import yfc_dat as yfcd
-import yfc_cache_manager as yfcm
-
+from . import yfc_dat as yfcd
+from . import yfc_cache_manager as yfcm
 
 # Cache mcal schedules, 10x speedup:
 ## Performance TODO: convert nexted dicts to dict of tables (one per exchange). Prepend/append rows if requested date(s) out-of-range

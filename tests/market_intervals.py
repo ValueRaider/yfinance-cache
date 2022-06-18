@@ -1,8 +1,7 @@
 import unittest
 
-import sys
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-from yfc_time import *
+from .context import yfc_dat as yfcd
+from .context import yfc_time as yfct
 
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
@@ -40,7 +39,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 for t in times:
                     ## dt at start of interval:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                     answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)}
                     answer["interval_close"] = answer["interval_open"]+interval_td
                     if answer["interval_close"].time() > self.market_close_time:
@@ -62,7 +61,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     market_close_dt = datetime.combine(dt.date(), self.market_close_time, self.market_tz)
                     if dt >= market_close_dt:
                         dt = market_close_dt - timedelta(minutes=1)
-                    intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                     answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)}
                     answer["interval_close"] = answer["interval_open"]+interval_td
                     if answer["interval_close"].time() > self.market_close_time:
@@ -90,7 +89,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             for weekday in range(5):
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                     if interval == yfcd.Interval.Days1:
                         answer = {"interval_open":datetime.combine(self.monday+timedelta(days=weekday), time(hour=9, minute=30), self.market_tz)}
                         answer["interval_close"] = datetime.combine(self.monday+timedelta(days=weekday), time(hour=16), self.market_tz)
@@ -130,7 +129,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             for weekday in [0,1,2,3,4]:
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -161,7 +160,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             for weekday in [5,6]:
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -186,7 +185,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
         for i in range(len(intervals)):
             interval = intervals[i]
             for dt in dates:
-                intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:
@@ -207,7 +206,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
         for i in range(len(intervals)):
             interval = intervals[i]
             for dt in dates:
-                intervalRange = GetTimestampCurrentInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:
@@ -221,7 +220,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
     def test_GetTimestampMostRecentInterval_closed(self):
         ## Only test when market closed now, because if open then 
-        ## GetTimestampMostRecentInterval() = GetTimestampCurrentInterval()
+        ## yfct.GetTimestampMostRecentInterval() = yfct.GetTimestampCurrentInterval()
 
         t = time(hour=9, minute=29)
         intervals = []
@@ -247,7 +246,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 answer = {"interval_close":datetime.combine(answer_day, time(16, 0), self.market_tz)}
                 answer["interval_open"] = answer["interval_close"] - interval_td
 
-                intervalRange = GetTimestampMostRecentInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampMostRecentInterval(self.exchange, dt, interval)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:
@@ -282,7 +281,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 answer = {"interval_close":datetime.combine(answer_day, time(16, 0), self.market_tz)}
                 answer["interval_open"] = answer["interval_close"] - interval_td
 
-                intervalRange = GetTimestampMostRecentInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampMostRecentInterval(self.exchange, dt, interval)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:
@@ -308,7 +307,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             answer["interval_open"]  = datetime.combine(answer_day, time(9, 30), self.market_tz)
             answer["interval_close"] = datetime.combine(answer_day, time(16, 0), self.market_tz)
 
-            intervalRange = GetTimestampMostRecentInterval(self.exchange, dt, interval)
+            intervalRange = yfct.GetTimestampMostRecentInterval(self.exchange, dt, interval)
             try:
                 self.assertEqual(intervalRange, answer)
             except:
@@ -333,7 +332,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             answer["interval_open"]  = datetime.combine(answer_day, time(9, 30), self.market_tz)
             answer["interval_close"] = datetime.combine(answer_day, time(16, 0), self.market_tz)
 
-            intervalRange = GetTimestampMostRecentInterval(self.exchange, dt, interval)
+            intervalRange = yfct.GetTimestampMostRecentInterval(self.exchange, dt, interval)
             try:
                 self.assertEqual(intervalRange, answer)
             except:
@@ -361,7 +360,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             answer["interval_close"] = datetime.combine(answer_week_end_day,   time(16, 0), self.market_tz)
 
             for interval in intervals:
-                intervalRange = GetTimestampMostRecentInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampMostRecentInterval(self.exchange, dt, interval)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:
@@ -393,7 +392,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                 for t in times:
                     ## dt at start of interval:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
                     answer = {}
                     answer["interval_open"] = dt+interval_td
                     answer["interval_close"] = answer["interval_open"]+interval_td
@@ -416,7 +415,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                     market_close_dt = datetime.combine(dt.date(), self.market_close_time, self.market_tz)
                     if dt >= market_close_dt:
                         dt = market_close_dt - timedelta(minutes=1)
-                    intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
                     answer = {}
                     answer["interval_open"] = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz) +interval_td
                     answer["interval_close"] = answer["interval_open"]+interval_td
@@ -444,7 +443,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             answer_t = answers[i]
             for weekday in range(5):
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
                 answer = {}
                 answer["interval_open"]  = datetime.combine(self.monday+timedelta(days=weekday), answer_t["interval_open"], self.market_tz)
                 answer["interval_close"] = datetime.combine(self.monday+timedelta(days=weekday), answer_t["interval_close"], self.market_tz)
@@ -480,7 +479,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             for weekday in range(5):
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
 
                     next_day = dt.date() + timedelta(days=1)
                     if next_day.weekday() == 5:
@@ -516,7 +515,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             for weekday in range(4):
                 for t in times:
                     dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                    intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
                     answer = {}
                     if interval == yfcd.Interval.Days1:
                         # Next day
@@ -538,7 +537,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
                         raise
             weekday = 5
             dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-            intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+            intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
             answer = {}
             answer["interval_open"]  = datetime.combine(self.monday+timedelta(days=7), time(hour=9, minute=30), self.market_tz)
             if interval == yfcd.Interval.Days1:
@@ -572,7 +571,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
 
                 answer_day = dt.date()
                 answer = {}
@@ -611,7 +610,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             interval_td = yfcd.intervalToTimedelta[interval]
             for weekday in range(5):
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
 
                 answer_day = dt.date()+timedelta(days=1)
                 if answer_day.weekday() == 5:
@@ -648,7 +647,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
             interval = intervals[i]
             for dt in dates:
                 dt = datetime.combine(self.monday+timedelta(days=weekday), t, self.market_tz)
-                intervalRange = GetTimestampNextInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
                 answer = {}
                 answer["interval_open"]  = datetime.combine(self.monday+timedelta(days=7), time(hour=9, minute=30), self.market_tz)
                 answer["interval_close"] = datetime.combine(self.friday+timedelta(days=7), time(hour=16, minute=0), self.market_tz)

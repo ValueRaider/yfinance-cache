@@ -1,9 +1,9 @@
 import yfinance as yf
 
-import yfc_cache_manager as yfcm
-import yfc_dat as yfcd
-import yfc_utils as yfcu
-import yfc_time as yfct
+from . import yfc_cache_manager as yfcm
+from . import yfc_dat as yfcd
+from . import yfc_utils as yfcu
+from . import yfc_time as yfct
 
 import pandas as pd
 import datetime, time

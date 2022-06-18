@@ -6,8 +6,8 @@ from enum import Enum
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import yfc_dat as yfcd
-import yfc_utils as yfcu
+from . import yfc_dat as yfcd
+from . import yfc_utils as yfcu
 
 # To reduce #files in cache, store some YF objects together into same file (including metadata)
 packed_data_cats = {}

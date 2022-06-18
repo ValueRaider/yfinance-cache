@@ -1,8 +1,6 @@
 import unittest
 
-import sys
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-from yfc_time import *
+from .context import yfc_time as yfct
 
 import datetime
 from zoneinfo import ZoneInfo
@@ -18,7 +16,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
         # Weekdays
         for d in [10, 11, 12, 13, 14]:
             dt = datetime.date(year=2022, month=1, day=d)
-            response = ExchangeOpenOnDay(self.exchange, dt)
+            response = yfct.ExchangeOpenOnDay(self.exchange, dt)
             answer = True
             try:
                 self.assertEqual(response, answer)
@@ -31,7 +29,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
         ## Weekend
         for d in [15, 16]:
             dt = datetime.date(year=2022, month=1, day=d)
-            response = ExchangeOpenOnDay(self.exchange, dt)
+            response = yfct.ExchangeOpenOnDay(self.exchange, dt)
             answer = False
             try:
                 self.assertEqual(response, answer)
@@ -43,7 +41,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         ## Thanksgiving Day
         dt = datetime.date(year=2022, month=11, day=24)
-        response = ExchangeOpenOnDay(self.exchange, dt)
+        response = yfct.ExchangeOpenOnDay(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -56,7 +54,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_IsTimestampInActiveSession_marketTz(self):
         # Before open
         dt = datetime.datetime(year=2022, month=1, day=10, hour=7, tzinfo=self.market_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -68,7 +66,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # During session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=10, tzinfo=self.market_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = True
         try:
             self.assertEqual(response, answer)
@@ -80,7 +78,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Right on close
         dt = datetime.datetime(year=2022, month=1, day=10, hour=17, tzinfo=self.market_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -92,7 +90,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # After close
         dt = datetime.datetime(year=2022, month=1, day=10, hour=22, tzinfo=self.market_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -104,7 +102,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Weekend:
         dt = datetime.datetime(year=2022, month=2, day=7, hour=7, tzinfo=self.market_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -115,10 +113,10 @@ class Test_USMarket_Schedules(unittest.TestCase):
             raise
 
     def test_IsTimestampInActiveSession_localTz(self):
-        local_tz = GetSystemTz()
+        local_tz = yfct.GetSystemTz()
         # Before open
         dt = datetime.datetime(year=2022, month=1, day=10, hour=13, tzinfo=local_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -130,7 +128,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # During session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=15, tzinfo=local_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = True
         try:
             self.assertEqual(response, answer)
@@ -142,7 +140,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Right on close
         dt = datetime.datetime(year=2022, month=1, day=10, hour=21, tzinfo=local_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -154,7 +152,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # After close
         dt = datetime.datetime(year=2022, month=1, day=10, hour=22, tzinfo=local_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -166,7 +164,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Weekend:
         dt = datetime.datetime(year=2022, month=2, day=7, hour=10, tzinfo=local_tz)
-        response = IsTimestampInActiveSession(self.exchange, dt)
+        response = yfct.IsTimestampInActiveSession(self.exchange, dt)
         answer = False
         try:
             self.assertEqual(response, answer)
@@ -180,7 +178,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_GetTimestampCurrentSession(self):
         # During session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=10, tzinfo=self.market_tz)
-        response = GetTimestampCurrentSession(self.exchange, dt)
+        response = yfct.GetTimestampCurrentSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=10, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=10, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -200,7 +198,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Before session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=8, tzinfo=self.market_tz)
-        response = GetTimestampCurrentSession(self.exchange, dt)
+        response = yfct.GetTimestampCurrentSession(self.exchange, dt)
         answer = None
         try:
             self.assertEqual(response, answer)
@@ -212,7 +210,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # After session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=20, tzinfo=self.market_tz)
-        response = GetTimestampCurrentSession(self.exchange, dt)
+        response = yfct.GetTimestampCurrentSession(self.exchange, dt)
         answer = None
         try:
             self.assertEqual(response, answer)
@@ -225,7 +223,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_GetTimestampMostRecentSession(self):
         # Before open
         dt = datetime.datetime(year=2022, month=1, day=10, hour=7, tzinfo=self.market_tz)
-        response = GetTimestampMostRecentSession(self.exchange, dt)
+        response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=7, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=7, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -245,7 +243,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # During session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=10, tzinfo=self.market_tz)
-        response = GetTimestampMostRecentSession(self.exchange, dt)
+        response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=10, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=10, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -265,7 +263,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # After session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=20, tzinfo=self.market_tz)
-        response = GetTimestampMostRecentSession(self.exchange, dt)
+        response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=10, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=10, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -285,7 +283,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # Weekend
         dt = datetime.datetime(year=2022, month=1, day=15, hour=20, tzinfo=self.market_tz)
-        response = GetTimestampMostRecentSession(self.exchange, dt)
+        response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=14, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=14, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -306,7 +304,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def test_GetTimestampNextSession(self):
         # Before open
         dt = datetime.datetime(year=2022, month=1, day=10, hour=7, tzinfo=self.market_tz)
-        response = GetTimestampNextSession(self.exchange, dt)
+        response = yfct.GetTimestampNextSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=10, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=10, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -326,7 +324,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # During session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=10, tzinfo=self.market_tz)
-        response = GetTimestampNextSession(self.exchange, dt)
+        response = yfct.GetTimestampNextSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=11, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=11, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -346,7 +344,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # After session
         dt = datetime.datetime(year=2022, month=1, day=10, hour=20, tzinfo=self.market_tz)
-        response = GetTimestampNextSession(self.exchange, dt)
+        response = yfct.GetTimestampNextSession(self.exchange, dt)
         answer_open  = datetime.datetime(year=2022, month=1, day=11, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=11, hour=16, minute=0, tzinfo=self.market_tz)
         try:
@@ -366,7 +364,7 @@ class Test_USMarket_Schedules(unittest.TestCase):
 
         # On Weekend
         dt = datetime.datetime(year=2022, month=1, day=15, hour=20, tzinfo=self.market_tz)
-        response = GetTimestampNextSession(self.exchange, dt)
+        response = yfct.GetTimestampNextSession(self.exchange, dt)
         # Monday 17th is holiday
         answer_open  = datetime.datetime(year=2022, month=1, day=18, hour=9, minute=30, tzinfo=self.market_tz)
         answer_close = datetime.datetime(year=2022, month=1, day=18, hour=16, minute=0, tzinfo=self.market_tz)

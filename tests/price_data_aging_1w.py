@@ -1,9 +1,7 @@
 import unittest
 
-import sys
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-import yfc_dat as yfcd
-import yfc_time as yfct
+from .context import yfc_dat as yfcd
+from .context import yfc_time as yfct
 
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo

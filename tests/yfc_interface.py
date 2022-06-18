@@ -1,15 +1,14 @@
 import unittest
-import pandas as pd
 from pprint import pprint
 
-import sys
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-import yfc_ticker as yfc
-import yfc_cache_manager as yfcm
-import yfc_time as yfct
+from .context import yfc_dat as yfcd
+from .context import yfc_time as yfct
+from .context import yfc_cache_manager as yfcm
+from .context import yfc_ticker as yfc
 
 import tempfile
 
+import pandas as pd
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import os

@@ -1,10 +1,8 @@
 import unittest
 
-import sys
-sys.path.append("/home/gonzo/Repos/yfinance-cache/src/yfinance_cache")
-import yfc_ticker as yfc
-import yfc_cache_manager as yfcm
-import yfc_utils as yfcu
+from .context import yfc_cache_manager as yfcm
+from .context import yfc_dat as yfcd
+from .context import yfc_utils as yfcu
 
 import os, shutil, tempfile
 import json, pickle
