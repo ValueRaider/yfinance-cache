@@ -35,5 +35,5 @@ Defaults to half of interval. Refresh also triggered if market closed since last
 Code is being actively developed so some features missing:
 
 - only price data is checked if refresh needed
-- `Tickers` class and `download()` not available - use Ticker.history()
+- `Tickers` class and `download()` not available - use `Ticker.history()`
 - pre/post price data not available
