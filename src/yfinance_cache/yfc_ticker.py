@@ -46,7 +46,6 @@ class Ticker:
 
 		self._yf_lag = None
 
-		# self._history = None
 		self._history = {}
 
 		self._info = None
@@ -165,27 +164,22 @@ class Ticker:
 			self._history[interval] = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
 			h = self._history[interval]
 
+		if (not h is None):
+			if not ("Dividends" in h.columns and "Stock splits" in h.columns):
+				## Force a fetch
+				h = None
+
 		if h is None:
 			# Intercept these arguments:
-			# - actions - always store 'dividends' and 'stock splits', drop columns on retrieval
 			# - auto_adjust - call yfinance auto_adjust() on DataFrame
 			# - back_adjust - call yfinance back_adjust() on DataFrame
 			# - rounding - round on retrieval using _np.round()
-			# - tz - call Pandas tz_localize() on DataFrame
-
-			## Left with one data dimension: interval
-
-			# print("YF query:")
-			# print("- period={0}".format(pstr))
-			# print("- interval={0}".format(istr))
-			# print("- start={0}".format(start))
-			# print("- end={0}".format(end))
-			# print("")
 
 			h = self.dat.history(period=pstr, 
 								interval=istr, 
 								start=start, end=end, 
-								prepost=prepost, actions=actions,
+								prepost=prepost, 
+								actions=True, # Always fetch
 								auto_adjust=auto_adjust, back_adjust=back_adjust,
 								proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
 			h["FetchDate"] = pd.Timestamp.now()
@@ -198,84 +192,82 @@ class Ticker:
 			## Performance TODO: mark appropriate rows as final
 			## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)
 
-			self._history[interval] = h
-			yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
-			return h
+		else:
+			## Performance TODO: only check expiry on datapoints not marked 'final'
+			## - need to improve 'expiry check' performance, is 3-4x slower than fetching from YF
 
-		## Performance TODO: only check expiry on datapoints not marked 'final'
-		## - need to improve 'expiry check' performance, is 3-4x slower than fetching from YF
+			h_intervals = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
+			fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
+			expired = yfct.IsPriceDatapointExpired_batch(h_intervals, fetch_dts, datetime.timedelta(minutes=30), self.info['exchange'], interval, yf_lag=self.yf_lag)
+			if sum(expired) > 0:
+				f = np_not(expired)
+				h = h[f]
+				h_intervals = np.array(h_intervals)[f]
+				fetch_dts = np.array(fetch_dts)[f]
 
-		h_intervals = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
-		fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
-		expired = yfct.IsPriceDatapointExpired_batch(h_intervals, fetch_dts, datetime.timedelta(minutes=30), self.info['exchange'], interval, yf_lag=self.yf_lag)
-		if sum(expired) > 0:
-			f = np_not(expired)
-			h = h[f]
-			h_intervals = np.array(h_intervals)[f]
-			fetch_dts = np.array(fetch_dts)[f]
+			sched = yfct.GetExchangeSchedule(self.info['exchange'], start.date(), end.date())
 
-		sched = yfct.GetExchangeSchedule(self.info['exchange'], start.date(), end.date())
+			intervals = yfct.GetScheduleIntervals(sched, interval, start, end)
 
-		intervals = yfct.GetScheduleIntervals(sched, interval, start, end)
+			ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.info['exchange'], start, end, interval, h_intervals, minDistanceThreshold=5)
+			if ranges_to_fetch is None:
+				ranges_to_fetch = []
 
-		ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.info['exchange'], start, end, interval, h_intervals, minDistanceThreshold=5)
-		if ranges_to_fetch is None:
-			ranges_to_fetch = []
+			interval_td = yfcd.intervalToTimedelta[interval]
 
-		interval_td = yfcd.intervalToTimedelta[interval]
+			if len(ranges_to_fetch) > 0:
+				for r in ranges_to_fetch:
+					firstInterval = r[0]
+					lastInterval = r[1]
 
-		if len(ranges_to_fetch) > 0:
-			for r in ranges_to_fetch:
-				firstInterval = r[0]
-				lastInterval = r[1]
+					istart = firstInterval
+					s = yfct.GetTimestampCurrentSession(self.info['exchange'], lastInterval)
+					iend = lastInterval + interval_td
+					iend = min(iend, s["market_close"])
 
-				istart = firstInterval
-				s = yfct.GetTimestampCurrentSession(self.info['exchange'], lastInterval)
-				iend = lastInterval + interval_td
-				iend = min(iend, s["market_close"])
+					## Intercept these arguments:
+					# - auto_adjust - call yfinance auto_adjust() on DataFrame
+					# - back_adjust - call yfinance back_adjust() on DataFrame
+					# - rounding - round on retrieval, using _np.round()
 
-				# print("Will fetch {0} -> {1} (tz={2})".format(istart, iend, tz))
+					h2 = self.dat.history(period=pstr, 
+										interval=istr, 
+										start=istart, end=iend, 
+										prepost=prepost, 
+										actions=True, # Always fetch
+										auto_adjust=auto_adjust, back_adjust=back_adjust,
+										proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
+					h2["FetchDate"] = pd.Timestamp.now()
 
-				## Intercept these arguments:
-				# - actions - always store 'dividends' and 'stock splits', drop columns on retrieval
-				# - auto_adjust - call yfinance auto_adjust() on DataFrame
-				# - back_adjust - call yfinance back_adjust() on DataFrame
-				# - rounding - round on retrieval, using _np.round()
-				# - tz - call Pandas tz_localize() on DataFrame
-				## Left with one data dimension: interval
+					## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
+					## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
+					if h2.index[-1] > end:
+						h2 = h2[0:h2.shape[0]-1]
 
-				h2 = self.dat.history(period=pstr, 
-									interval=istr, 
-									start=istart, end=iend, 
-									prepost=prepost, actions=actions,
-									auto_adjust=auto_adjust, back_adjust=back_adjust,
-									proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
-				h2["FetchDate"] = pd.Timestamp.now()
+					## Performance TODO: mark appropriate rows as final				
+					## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)
 
-				## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
-				## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
-				if h2.index[-1] > end:
-					h2 = h2[0:h2.shape[0]-1]
+					## If a timepoint is in both h and h2, drop from h:
+					f_duplicate = h.index.isin(h2.index)
+					h = h[np_not(f_duplicate)]
 
-				## Performance TODO: mark appropriate rows as final				
-				## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)
+					h = pd.concat([h, h2])
 
-				## If a timepoint is in both h and h2, drop from h:
-				f_duplicate = h.index.isin(h2.index)
-				h = h[np_not(f_duplicate)]
-
-				h = pd.concat([h, h2])
-
-			h.sort_index(inplace=True)
-			self._history[interval] = h
-			yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
+				h.sort_index(inplace=True)
 
 		if h is None:
 			raise Exception("history() is exiting without price data")
-
 		h_in_range = h[np.logical_and(h.index>=start, h.index<=end)]
 		if h_in_range.shape[0] == 0:
-			raise Exception("history() exiting without price data in range")
+			raise Exception("history() exiting without price data in date range")
+
+		# Cache
+		self._history[interval] = h
+		yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
+		
+		# Clean table
+		if not actions:
+			h = h.drop(["Dividends","Stock splits"], axis=1)
 		return h_in_range
 
 	@property

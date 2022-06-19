@@ -90,6 +90,23 @@ class Test_Yfc_Interface(unittest.TestCase):
             print("")
             raise
 
+        ## Daily with actions
+        df1 = self.dat.history(interval="1d", start=self.monday, end=self.tuesday, actions=True)
+        self.assertTrue("Dividends" in df1.columns.values)
+        self.assertTrue("Stock splits" in df1.columns.values)
+        self.assertEqual(df1.shape[0], 2)
+        df2 = self.dat.history(interval="1d", start=self.monday, end=self.tuesday, actions=True)
+        try:
+            self.assertTrue(df1.equals(df2))
+        except:
+            print("df1:")
+            print(df1)
+            print("")
+            print("df2:")
+            print(df2)
+            print("")
+            raise
+
         ## Hourly
         df1 = self.dat.history(interval="1h", start=self.monday, end=self.tuesday)
         self.assertEqual(df1.shape[0], 14)
