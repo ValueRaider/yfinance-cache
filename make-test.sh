@@ -4,29 +4,28 @@ _make() (
 	set -e
 	set -u
 
-	# _name=yfinance-cache
 	_name=yfinance-cache2
-	_nameu=`echo "$_name" | sed "s/-/_/g"`
-
 	_ver=`cat version-test`
-	
+	_ddir=dist-test
+
 	cp setup.cfg.template setup.cfg
 	sed -i "s/<NAME>/$_name/g" setup.cfg
 	sed -i "s/<VERSION>/$_ver/g" setup.cfg
 
+	_nameu=`echo "$_name" | sed "s/-/_/g"`
 	if [ -d src/"$_nameu".egg-info ]; then
 		rm -r src/"$_nameu".egg-info
 	fi
 
-	_ddir="dist-test/$_ver"
-	mkdir -p "$_ddir"
-	rm -f "$_ddir"/*
-	python3 -m build --outdir "$_ddir"
+	_outdir="$_ddir/$_ver"
+	if [ -d "$_outdir" ]; then rm -r "$_outdir" ; fi
+	mkdir -p "$_outdir"
+	python -m build --outdir "$_outdir"
 
 	if [ -d src/"$_nameu".egg-info ]; then
 		rm -r src/"$_nameu".egg-info
 	fi
-	python3 -m twine upload --repository testpypi "$_ddir"/*
+	python -m twine upload --repository testpypi "$_outdir"/*
 )
 
 _make
