@@ -1,7 +1,7 @@
 from enum import Enum
 import os
 from datetime import datetime, timedelta
-
+import re
 
 class OperatingSystem(Enum):
 	Windows = 1
@@ -44,3 +44,35 @@ def JsonDecodeDict(value):
 				pass
 	return value
 
+
+def GetSigFigs(n):
+	if n == 0:
+		return 0
+	n_str = str(n).replace('.', '')
+	m = re.match( r'0*[1-9](\d*[1-9])?', n_str)
+	sf = len(m.group())
+
+	return sf
+
+
+def GetMagnitude(n):
+	m = 0
+	if n >= 1.0:
+		while n >= 1.0:
+			n *= 0.1
+			m += 1
+	else:
+		while n < 1.0:
+			n *= 10.0
+			m -= 1
+
+	return m
+
+
+def CalculateRounding(n, sigfigs):
+	if GetSigFigs(round(n)) >= sigfigs:
+		return 0
+	elif round(n,0)==n:
+		return 0
+	else:
+		return sigfigs - GetSigFigs(round(n))

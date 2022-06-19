@@ -6,6 +6,7 @@ from . import yfc_utils as yfcu
 from . import yfc_time as yfct
 
 import pandas as pd
+import numpy as np
 import datetime, time
 from zoneinfo import ZoneInfo
 
@@ -135,6 +136,9 @@ class Ticker:
 		if (not period is None) and (not start is None):
 			raise Exception("Don't set both 'period' and 'start' arguments")
 
+		if auto_adjust and back_adjust:
+			raise Exception("Only enable one of 'auto_adjust' and 'back_adjust")
+
 		# 'prepost' not doing anything in yfinance
 
 		if max_age is None:
@@ -170,18 +174,16 @@ class Ticker:
 				h = None
 
 		if h is None:
-			# Intercept these arguments:
-			# - auto_adjust - call yfinance auto_adjust() on DataFrame
-			# - back_adjust - call yfinance back_adjust() on DataFrame
-			# - rounding - round on retrieval using _np.round()
-
 			h = self.dat.history(period=pstr, 
 								interval=istr, 
 								start=start, end=end, 
 								prepost=prepost, 
 								actions=True, # Always fetch
-								auto_adjust=auto_adjust, back_adjust=back_adjust,
-								proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
+								auto_adjust=False, # store raw data, adjust myself
+								back_adjust=False, # store raw data, adjust myself
+								proxy=proxy, 
+								rounding=False, # store raw data, round myself
+								tz=tz, kwargs=kwargs)
 			h["FetchDate"] = pd.Timestamp.now()
 
 			## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
@@ -225,18 +227,16 @@ class Ticker:
 					iend = lastInterval + interval_td
 					iend = min(iend, s["market_close"])
 
-					## Intercept these arguments:
-					# - auto_adjust - call yfinance auto_adjust() on DataFrame
-					# - back_adjust - call yfinance back_adjust() on DataFrame
-					# - rounding - round on retrieval, using _np.round()
-
 					h2 = self.dat.history(period=pstr, 
 										interval=istr, 
 										start=istart, end=iend, 
 										prepost=prepost, 
 										actions=True, # Always fetch
-										auto_adjust=auto_adjust, back_adjust=back_adjust,
-										proxy=proxy, rounding=rounding, tz=tz, kwargs=kwargs)
+										auto_adjust=False, # store raw data, adjust myself
+										back_adjust=False, # store raw data, adjust myself
+										proxy=proxy, 
+										rounding=False, # store raw data, round myself
+										tz=tz, kwargs=kwargs)
 					h2["FetchDate"] = pd.Timestamp.now()
 
 					## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
@@ -257,18 +257,29 @@ class Ticker:
 
 		if h is None:
 			raise Exception("history() is exiting without price data")
-		h_in_range = h[np.logical_and(h.index>=start, h.index<=end)]
-		if h_in_range.shape[0] == 0:
-			raise Exception("history() exiting without price data in date range")
 
 		# Cache
 		self._history[interval] = h
 		yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
-		
-		# Clean table
+
+		# Present table for user:
+		h = h[np.logical_and(h.index>=start, h.index<=end)].copy()
+		if h.shape[0] == 0:
+			raise Exception("history() exiting without price data in date range")
 		if not actions:
 			h = h.drop(["Dividends","Stock splits"], axis=1)
-		return h_in_range
+		else:
+			if not "Dividends" in h.columns:
+				raise Exception("Dividends column missing from table")
+		if auto_adjust:
+			h[["Open","Close","Low","High","Volume"]] = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]].copy())
+		elif back_adjust:
+			h[["Open","Close","Low","High","Volume"]] = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
+		if rounding:
+			# Round to 4 sig-figs
+			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
+
+		return h
 
 	@property
 	def info(self):
