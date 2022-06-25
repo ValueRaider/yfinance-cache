@@ -187,9 +187,17 @@ class Ticker:
 			## Performance TODO: only check expiry on datapoints not marked 'final'
 			## - need to improve 'expiry check' performance, is 3-4x slower than fetching from YF
 
+			f_final = h["Final?"].values
+			n = h.shape[0]
+
 			h_interval_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
-			fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
-			expired = yfct.IsPriceDatapointExpired_batch(h_interval_dts, fetch_dts, max_age, exchange, interval, yf_lag=self.yf_lag)
+			# fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
+			# expired = yfct.IsPriceDatapointExpired_batch(h_interval_dts, fetch_dts, max_age, exchange, interval, yf_lag=self.yf_lag)
+			expired = [False]*n
+			for idx in np.where(~f_final)[0]:
+				h_interval_dt = yfct.ConvertToDatetime(h.index[idx], tz=tz_exchange)
+				fetch_dt = yfct.ConvertToDatetime(h["FetchData"].values[idx], tz=tz_exchange)
+				expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 			if isinstance(expired, list):
 				expired = np.array(expired)
 			if sum(expired) > 0:
@@ -197,19 +205,16 @@ class Ticker:
 				h_interval_dts = np.array(h_interval_dts)[~expired]
 				fetch_dts = np.array(fetch_dts)[~expired]
 
-			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, allowLateDailyData=True) for idt in h_interval_dts])
+			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
+			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = [x["interval_open"] for x in h_intervals]
-
 			sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date())
-
 			intervals = yfct.GetScheduleIntervals(sched, interval, start, end)
-
 			ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_intervals, minDistanceThreshold=5)
 			if ranges_to_fetch is None:
 				ranges_to_fetch = []
 
 			interval_td = yfcd.intervalToTimedelta[interval]
-
 			if len(ranges_to_fetch) > 0:
 				for r in ranges_to_fetch:
 					firstInterval = r[0]
@@ -271,6 +276,8 @@ class Ticker:
 		exchange = self.dat.info["exchange"]
 		istr = yfcd.intervalToString[interval]
 
+		# print("{}: fetching {} -> {}".format(self.ticker, start, end))
+
 		df = self.dat.history(period=pstr, 
 							interval=istr, 
 							start=start, end=end, 
@@ -281,7 +288,7 @@ class Ticker:
 							proxy=proxy, 
 							rounding=False, # store raw data, round myself
 							tz=tz, kwargs=kwargs)
-		df["FetchDate"] = pd.Timestamp.now()
+		fetch_dt = pd.Timestamp.now().tz_localize("UTC")
 
 		## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
 		## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
@@ -289,21 +296,28 @@ class Ticker:
 			df = df[0:df.shape[0]-1]
 
 		## Verify that all datetimes match up with actual intervals:
-		intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, allowLateDailyData=True) for i in df.index])
+		intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for i in df.index])
 		f_na = intervals==None
 		if sum(f_na) > 0:
 			for idx in np.where(f_na)[0]:
 				dt = df.index[idx]
 				print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
 			raise Exception("Problem with dates returned by Yahoo, see above")
+		interval_closes = np.array([i["interval_close"] for i in intervals])
 
-		## TODO: replace df.index with intervals. Currently getting errors
+		## TODO: replace df.index with 'interval opens'. But currently getting errors wth this:
 		# df.index = [i["interval_open"] for i in intervals]
 
-		## Performance TODO: mark appropriate rows as final				
-		## - requires knowing YF lag. Calibration is best, once per exchange (e.g. LSE is 15min)
+		n = df.shape[0]
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+			# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
+			# but with daily candles it can. So treat midnight as threshold for final data.
+			data_final = np.array([fetch_dt.date() > intervals[i]["interval_close"].date() for i in range(n)])
+		else:
+			data_final = fetch_dt >= (interval_closes+self.yf_lag)
+		df["Final?"] = data_final
 
-		df["FetchDate"] = pd.Timestamp.now()
+		df["FetchDate"] = fetch_dt
 
 		return df
 

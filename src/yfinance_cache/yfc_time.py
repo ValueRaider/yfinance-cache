@@ -18,6 +18,7 @@ from . import yfc_cache_manager as yfcm
 # Cache mcal schedules, 10x speedup:
 ## Performance TODO: convert nexted dicts to dict of tables (one per exchange). Prepend/append rows if requested date(s) out-of-range
 # mcalScheduleCache = {}
+xcalScheduleCache = {}
 
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
@@ -76,14 +77,24 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	# 	else:
 	# 		mcalScheduleCache[exchange] = {}
 	# 		yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=yfcd.Interval.Days1)
-	## Disable cache, not sure I need it with exchange_calendars
+	global xcalScheduleCache
+	if not exchange in xcalScheduleCache:
+		o = yfcm.ReadCacheDatum("exchange-"+exchange, "xcalScheduleCache")
+		if not o is None:
+			xcalScheduleCache[exchange] = o
+		else:
+			xcalScheduleCache[exchange] = {}
+			yfcm.StoreCacheDatum("exchange-"+exchange, "xcalScheduleCache", xcalScheduleCache[exchange], expiry=yfcd.Interval.Days1)
 
 	## Lazy-load from cache:
 	# if exchange in mcalScheduleCache:
 	# 	if start_d in mcalScheduleCache[exchange]:
 	# 		if end_d in mcalScheduleCache[exchange][start_d]:
 	# 			return mcalScheduleCache[exchange][start_d][end_d]
-	## Disable cache, not sure I need it with exchange_calendars
+	if exchange in xcalScheduleCache:
+		if start_d in xcalScheduleCache[exchange]:
+			if end_d in xcalScheduleCache[exchange][start_d]:
+				return xcalScheduleCache[exchange][start_d][end_d]
 
 
 	# if not exchange in yfcd.exchangeToMcalExchange:
@@ -93,10 +104,13 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
 	xcal_name = yfcd.exchangeToXcalExchange[exchange]
-	if start_d == end_d:
-		sched = xcal.get_calendar(xcal_name, start=start_d-timedelta(days=1), end=end_d).schedule.loc[start_d:end_d]
-	else:
-		sched = xcal.get_calendar(xcal_name, start=start_d, end=end_d).schedule
+	try:
+		if start_d == end_d:
+			sched = xcal.get_calendar(xcal_name, start=start_d-timedelta(days=1), end=end_d).schedule.loc[start_d:end_d]
+		else:
+			sched = xcal.get_calendar(xcal_name, start=start_d, end=end_d).schedule
+	except xcal.errors.NoSessionsError:
+		return None
 
 	if sched.shape[0] == 0:
 		sched = None
@@ -116,7 +130,12 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	# 	mcalScheduleCache[exchange][start_d] = {}
 	# mcalScheduleCache[exchange][start_d][end_d] = sched
 	# yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange])
-	## Disable cache, not sure I need it with exchange_calendars
+	if not exchange in xcalScheduleCache:
+		xcalScheduleCache[exchange] = {}
+	if not start_d in xcalScheduleCache[exchange]:
+		xcalScheduleCache[exchange][start_d] = {}
+	xcalScheduleCache[exchange][start_d][end_d] = sched
+	yfcm.StoreCacheDatum("exchange-"+exchange, "xcalScheduleCache", xcalScheduleCache[exchange])
 
 	return sched
 

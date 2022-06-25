@@ -1,8 +1,14 @@
 import json, pickle
 import os
 
+import pandas as pd
+import numpy as np
+
 from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
+from . import yfc_time as yfct
+from . import yfc_dat as yfcd
+from . import yfc_ticker as yfc
 
 def merge_files():
 	## To reduce filesystem load, merge files and unpack in memory
@@ -175,6 +181,80 @@ def clean_metadata():
 					with open(fp, 'wb') as outData:
 						pickle.dump(pkl, outData, 4)
 
-merge_files()
 
-clean_metadata()
+def price_history():
+	## 1) unpack pickle to a simple {"data":..., "metadata":...} structure
+	## 2) add 'Final?' column
+
+
+
+ 	## Add 'Final?' column to price histories
+	d = yfcm.GetCacheDirpath()
+
+	for tkr in os.listdir(d):
+		tkrd = os.path.join(d, tkr)
+		for f in os.listdir(tkrd):
+			fp = os.path.join(tkrd, f)
+			f_pieces = f.split('.')
+			ext = f_pieces[-1]
+
+			f_base = '.'.join(f_pieces[:-1])
+
+			if ("history" in f_base) and (ext == "pkl"):
+				with open(fp, 'rb') as inData:
+					pkl = pickle.load(inData)
+
+				pkl_changed = False
+				if not "data" in pkl:
+					if f_base in pkl and "data" in pkl[f_base]:
+						pkl = pkl[f_base]
+						pkl_changed = True
+
+				if not "data" in pkl:
+					print("Expected '{}' to contain {'data':...}, instead it is:".format(fp))
+					print(pkl)
+					raise Exception("look above")
+
+				df = pkl["data"]
+				if not isinstance(df, pd.DataFrame):
+					raise Exception("Expected '{}' to contain a pd.DataFrame".format(fp))
+
+				if not "Final?" in df.columns:
+					interval = None
+					for i,istr in yfcd.intervalToString.items():
+						if f_base.endswith(istr):
+							interval = i
+							break
+					if interval is None:
+						raise Exception("Failed to map '{}' to Interval".format(fp_base))
+					n = df.shape[0]
+
+					exchange = yfc.Ticker(tkr).info["exchange"]
+					intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for i in df.index])
+					f_na = intervals==None
+					if sum(f_na) > 0:
+						for idx in np.where(f_na)[0]:
+							dt = df.index[idx]
+							print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
+						raise Exception("Problem with dates returned by Yahoo, see above")
+					if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+						# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
+						# but with daily candles it can. So treat midnight as threshold for final data.
+						data_final = df["FetchDate"].dt.date.values >= np.array([intervals[i]["interval_close"].date() for i in range(n)])
+					else:
+						data_final = df["FetchDate"].values >= (interval_closes+self.yf_lag)
+
+					df["Final?"] = data_final
+					pkl["data"] = df
+					pkl_changed = True
+
+				if pkl_changed:
+					with open(fp, 'wb') as outData:
+						pickle.dump(pkl, outData, 4)
+
+
+# merge_files()
+
+# clean_metadata()
+
+price_history()

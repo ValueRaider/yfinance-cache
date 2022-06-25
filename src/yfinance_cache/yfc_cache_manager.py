@@ -14,8 +14,6 @@ packed_data_cats = {}
 # packed_data_cats["info"] = ["info"]
 packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
 packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials"]
-for i in yfcd.intervalToString.values():
-	packed_data_cats["history-"+i] = ["history-"+i]
 
 quarterly_objects = packed_data_cats["quarterlys"]
 annual_objects    = packed_data_cats["annuals"]
