@@ -265,8 +265,8 @@ class TestTimeUtils(unittest.TestCase):
     def test_dt_flooring_5d(self):
         intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
 
+        weekdays = [0,1,2,3,4,5,6]
         answer = datetime.combine(self.week_start, time(hour=9, minute=30), tzinfo=self.market_tz)
-        weekdays = [0,1,2,3,4]
         dates = []
         for wd in weekdays:
             week_dt = self.week_start+timedelta(days=wd)

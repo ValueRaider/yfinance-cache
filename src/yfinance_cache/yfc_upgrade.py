@@ -1,4 +1,8 @@
-import yfc_cache_manager as yfcm
+import json, pickle
+import os
+
+from . import yfc_cache_manager as yfcm
+from . import yfc_utils as yfcu
 
 def merge_files():
 	## To reduce filesystem load, merge files and unpack in memory
@@ -21,7 +25,7 @@ def merge_files():
 						cData = pickle.load(inData)
 					mdfp = os.path.join(d, tkr, c+".metadata")
 					with open(mdfp, 'rb') as inData:
-						metaData = json.load(inData, object_hook=JsonDecodeDict)
+						metaData = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 
 					qData[c] = {"data":cData, "metadata":metaData}
 
@@ -49,7 +53,7 @@ def merge_files():
 						cData = pickle.load(inData)
 					mdfp = os.path.join(d, tkr, c+".metadata")
 					with open(mdfp, 'rb') as inData:
-						metaData = json.load(inData, object_hook=JsonDecodeDict)
+						metaData = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 
 					aData[c] = {"data":cData, "metadata":metaData}
 
@@ -71,9 +75,9 @@ def merge_files():
 		# 	imfp = os.path.join(d, tkr, "info.metadata")
 		# 	if os.path.isfile(ijfp):
 		# 		with open(ijfp, 'r')as inData:
-		# 			info = json.load(inData, object_hook=JsonDecodeDict)
+		# 			info = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 		# 		with open(imfp, 'r') as inData:
-		# 			md = json.load(inData, object_hook=JsonDecodeDict)
+		# 			md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 		# 		data = {"info":{"data":info, "metadata":md}}
 		# 		with open(ipfp, 'wb') as outData:
 		# 			pickle.dump(data, outData, 4)
@@ -90,16 +94,16 @@ def merge_files():
 			data = pkl["data"]
 			md   = pkl["metadata"]
 			with open(ijfp, 'w') as outData:
-				json.dump({"data":data,"metadata":md}, outData, default=JsonEncodeValue)
+				json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
 			os.remove(ipfp)
 		elif os.path.isfile(ijfp) and os.path.isfile(imfp):
 			# Merge
 			with open(ijfp, 'r') as inData:
-				data = json.load(inData, object_hook=JsonDecodeDict)
+				data = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 			with open(imfp, 'r') as inData:
-				md = json.load(inData, object_hook=JsonDecodeDict)
+				md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 			with open(ijfp, 'w') as outData:
-				json.dump({"data":data,"metadata":md}, outData, default=JsonEncodeValue)
+				json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
 			os.remove(imfp)
 
 		for i in yfc_time.intervalToString.values():
@@ -109,7 +113,7 @@ def merge_files():
 			if os.path.isfile(hmfp):
 				# Merge into pkl
 				with open(hmfp, 'r') as inData:
-					md = json.load(inData, object_hook=JsonDecodeDict)
+					md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 				with open(hpkp, 'rb') as inData:
 					pkl = pickle.load(inData)
 				with open(hpkp, 'wb') as outData:
@@ -118,10 +122,10 @@ def merge_files():
 
 
 def clean_metadata():
-	# Remove fields: FileType, LastAccess
+	# Remove fields: FileType, LastAccess, LastWrite
 	d = yfcm.GetCacheDirpath()
 
-	fields = ["FileType", "LastAccess"]
+	fields = ["FileType", "LastAccess", "LastWrite"]
 
 	for tkr in os.listdir(d):
 		tkrd = os.path.join(d, tkr)
@@ -136,7 +140,7 @@ def clean_metadata():
 
 			if ext == "json":
 				with open(fp, 'r') as inData:
-					js = json.load(inData, object_hook=JsonDecodeDict)
+					js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
 				md_changed = False
 				for k in fields:
 					if k in js["metadata"].keys():
@@ -144,7 +148,7 @@ def clean_metadata():
 						md_changed = True
 				if md_changed:
 					with open(fp, 'w') as outData:
-						json.dump(js, outData, default=JsonEncodeValue)
+						json.dump(js, outData, default=yfcu.JsonEncodeValue)
 			else:
 				with open(fp, 'rb') as inData:
 					pkl = pickle.load(inData)

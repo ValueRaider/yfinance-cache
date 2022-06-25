@@ -18,6 +18,43 @@ from . import yfc_cache_manager as yfcm
 ## Performance TODO: convert nexted dicts to dict of tables (one per exchange). Prepend/append rows if requested date(s) out-of-range
 mcalScheduleCache = {}
 
+exchangeTzCache = {}
+def GetExchangeTzName(exchange):
+	if not exchange in exchangeTzCache:
+		tz = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
+		if tz is None:
+			raise Exception("Do not know timezone for exchange '{}'".format(exchange))
+		exchangeTzCache[exchange] = tz
+	else:
+		tz = exchangeTzCache[exchange]
+	return tz
+def SetExchangeTzName(exchange, tz):
+	if not isinstance(tz, str):
+		raise Exception("'tz' argument must be str")
+	tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
+	if not tzc is None:
+		if tzc != tz:
+			## Different names but maybe same tz
+			tzc_zi = ZoneInfo(tzc)
+			tz_zi = ZoneInfo(tz)
+			dt = datetime.now()
+			if tz_zi.utcoffset(dt) != tzc_zi.utcoffset(dt):
+				print("tz_zi = {} ({})".format(tz_zi, type(tz_zi)))
+				print("tzc_zi = {} ({})".format(tzc_zi, type(tzc_zi)))
+				raise Exception("For exchange '{}', new tz {} != cached tz {}".format(exchange, tz, tzc))
+	else:
+		exchangeTzCache[exchange] = tz
+		yfcm.StoreCacheDatum("exchange-"+exchange, "tz", tz)
+
+
+def GetExchangeDataDelay(exchange):
+	d = yfcm.ReadCacheDatum("exchange-"+exchange, "yf_lag")
+	if d is None:
+		# Used hardcoded value
+		d = yfcd.exchangeToYfLag[exchange]
+	return d
+
+
 def GetExchangeSchedule(exchange, start_d, end_d):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
@@ -26,8 +63,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	if not (isinstance(end_d, date) and not isinstance(end_d, datetime)):
 		raise Exception("'end_d' must be datetime.date not {0}".format(type(end_d)))
 
-	market = yfcd.exchangeToMarket[exchange]
-	tz = yfcd.marketToTimezone[market]
+	tz = ZoneInfo(GetExchangeTzName(exchange))
 
 	global mcalScheduleCache
 	if not exchange in mcalScheduleCache:
@@ -47,6 +83,8 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 			if end_d in mcalScheduleCache[exchange][start_d]:
 				return mcalScheduleCache[exchange][start_d][end_d]
 
+	if not exchange in yfcd.exchangeToMcalExchange:
+		raise Exception("Need to add mapping of exchange {} to mcal".format(exchange))
 	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
 	sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
 
@@ -90,12 +128,6 @@ def GetScheduleIntervals(schedule, interval, start=None, end=None):
 			iopen += interval_td
 
 	return intervals
-
-
-def GetExchangeTimezone(exchange):
-	if not exchange in yfcd.exchangeToMarket:
-		raise Exception("'{0}' is not an exchange".format(type(exchange)))
-	return yfcd.marketToTimezone[yfcd.exchangeToMarket[exchange]]
 
 
 def IsTimestampInActiveSession(exchange, dt):
@@ -180,8 +212,7 @@ def ExchangeOpenOnDay(exchange, dt):
 	if not (isinstance(dt, date) and not isinstance(dt, datetime)):
 		raise Exception("'dt' must be datetime.date not {0}".format(type(dt)))
 
-	market = yfcd.exchangeToMarket[exchange]
-	tz = yfcd.marketToTimezone[market]
+	tz = ZoneInfo(GetExchangeTzName(exchange))
 
 	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
 	# exchange_days = exchange_cal.valid_days(start_date=dt.date().isoformat(), end_date=dt.date().isoformat())
@@ -192,7 +223,7 @@ def ExchangeOpenOnDay(exchange, dt):
 
 
 
-def GetTimestampCurrentInterval(exchange, dt, interval):
+def GetTimestampCurrentInterval(exchange, dt, interval, allowLateDailyData=False, weeklyUseYahooDef=False):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(dt, datetime):
@@ -201,105 +232,148 @@ def GetTimestampCurrentInterval(exchange, dt, interval):
 		raise Exception("'dt' must be timezone-aware")
 	if not isinstance(interval, yfcd.Interval):
 		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
+
+	debug = False
+	# debug = True
+
+	if debug:
+		print("GetTimestampCurrentInterval(dt={})".format(dt))
+
+	i = None
 
 	if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
-		## Treat week intervals as special case, 
-		## because will treat range as contiguous from Monday open to Friday close, 
-		## even if market closed at current time.
+		# Treat week intervals as special case, contiguous from first market open to last market close.
+		# Unless 'weeklyUseYahooDef' is true, which means range from Monday 00:00 to Friday midnight regardless.
 		dt_weekStart = FloorDatetime(dt, interval)
+		#
 		weekSched = GetExchangeSchedule(exchange, dt_weekStart.date(), (dt_weekStart+timedelta(days=4)).date())
-		intervalStart = weekSched["market_open"][0]
-		intervalEnd = weekSched["market_close"][-1]
-		if dt < intervalStart or dt >= intervalEnd:
-			return None
+		weekSchedStart = weekSched["market_open"][0]
+		weekSchedEnd = weekSched["market_close"][-1]
+		if weeklyUseYahooDef:
+			# Shift start to the Monday regardless of market schedule
+			weekSchedStart -= timedelta(days=weekSchedStart.weekday())
+			tz = ZoneInfo(GetExchangeTzName(exchange))
+			intervalStart = datetime.combine(weekSchedStart.date(), time(0), tz)
+			intervalEnd = datetime.combine(weekSchedEnd.date(), time(23,59,59), tz)
 		else:
-			return {"interval_open":intervalStart, "interval_close":intervalEnd}
+			intervalStart = weekSchedStart
+			intervalEnd = weekSchedEnd
+		if debug:
+			print("- intervalStart = {}".format(intervalStart))
+			print("- intervalEnd = {}".format(intervalEnd))
+		if dt >= intervalStart:
+			if (dt < intervalEnd):
+				i = {"interval_open":intervalStart, "interval_close":intervalEnd}
+			# elif allowLateDailyData:
+			# 	dt_local = dt.astimezone(ZoneInfo(GetExchangeTzName(exchange)))
+			# 	if dt_local.date() <= intervalEnd.date():
+			# 		i = {"interval_open":intervalStart, "interval_close":intervalEnd}
+			## Shouldn't need above 'elif' now I've fixed Yahoo weekly oddity
 
-	if IsTimestampInActiveSession(exchange, dt):
-		s = GetTimestampCurrentSession(exchange, dt)
-		if interval == yfcd.Interval.Days1:
-			intervalStart = s["market_open"]
-			intervalEnd = s["market_close"]
-		else:
-			intervalStart = FloorDatetime(dt, interval, s["market_open"])
-			intervalEnd = intervalStart + yfcd.intervalToTimedelta[interval]
-			intervalEnd = min(intervalEnd, s["market_close"])
 	else:
-		return None
+		if IsTimestampInActiveSession(exchange, dt):
+			s = GetTimestampCurrentSession(exchange, dt)
+			if interval == yfcd.Interval.Days1:
+				intervalStart = s["market_open"]
+				intervalEnd = s["market_close"]
+			else:
+				intervalStart = FloorDatetime(dt, interval, s["market_open"])
+				intervalEnd = intervalStart + yfcd.intervalToTimedelta[interval]
+				intervalEnd = min(intervalEnd, s["market_close"])
+			i = {"interval_open":intervalStart, "interval_close":intervalEnd}
+		elif allowLateDailyData and interval == yfcd.Interval.Days1:
+			if ExchangeOpenOnDay(exchange, dt.date()):
+				daySched = GetExchangeSchedule(exchange, dt.date(), dt.date())
+				i = {"interval_open":daySched["market_open"][0], "interval_close":daySched["market_close"][0]}
 
-	return {"interval_open":intervalStart, "interval_close":intervalEnd}
-
-
-def GetTimestampMostRecentInterval(exchange, dt, interval):
-	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
-	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
-	if dt.tzinfo is None:
-		raise Exception("'dt' must be timezone-aware")
-	if not isinstance(interval, yfcd.Interval):
-		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
-
-	i = GetTimestampCurrentInterval(exchange, dt, interval)
-
-	if not i is None:
-		return i
-	else:
-		interval_td = yfcd.intervalToTimedelta[interval]
-		s = GetTimestampMostRecentSession(exchange, dt)
-		if interval == yfcd.Interval.Days1:
-			intervalStart = s["market_open"]
-			intervalEnd = s["market_close"]
-
-		elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
-			dt_lastWeekStart = FloorDatetime(dt-timedelta(days=2), interval)
-			lastWeekSched = GetExchangeSchedule(exchange, dt_lastWeekStart.date(), (dt_lastWeekStart+timedelta(days=4)).date())
-			intervalStart = lastWeekSched["market_open"][0]
-			intervalEnd = lastWeekSched["market_close"][-1]
-
-		else:
-			# i is None so recent interval is last of previous day
-			intervalStart = s["market_close"] - interval_td
-			intervalEnd = s["market_close"]
-
-	return {"interval_open":intervalStart, "interval_close":intervalEnd}
+	return i
 
 
-def GetTimestampNextInterval(exchange, dt, interval):
-	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
-	if not isinstance(dt, datetime):
-		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
-	if dt.tzinfo is None:
-		raise Exception("'dt' must be timezone-aware")
-	if not isinstance(interval, yfcd.Interval):
-		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
+# def GetTimestampMostRecentInterval(exchange, dt, interval, allowLateDailyData=False, weeklyUseYahooDef=False):
+# 	if not isinstance(exchange, str):
+# 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
+# 	if not isinstance(dt, datetime):
+# 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
+# 	if dt.tzinfo is None:
+# 		raise Exception("'dt' must be timezone-aware")
+# 	if not isinstance(interval, yfcd.Interval):
+# 		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
 
-	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
-		if interval == yfcd.Interval.Days1:
-			s = GetTimestampNextSession(exchange, dt)
-			interval_open  = s["market_open"]
-			interval_close = s["market_close"]
-			# if dt >= int
-		else:
-			## Calculate next Monday to get next week schedule
-			d = dt.date()
-			wd = d.weekday()
-			d += timedelta(days=7-wd)
-			sched = GetExchangeSchedule(exchange, d, d+timedelta(days=4))
-			interval_open  = sched["market_open"][0]
-			interval_close = sched["market_close"][-1]
-		return {"interval_open":interval_open, "interval_close":interval_close}
+# 	i = GetTimestampCurrentInterval(exchange, dt, interval, allowLateDailyData, weeklyUseYahooDef)
+# 	if not i is None:
+# 		return i
 
-	lastInterval = GetTimestampMostRecentInterval(exchange, dt, interval)
-	lastIntervalStart = lastInterval["interval_open"]
-	interval_td = yfcd.intervalToTimedelta[interval]
-	next_interval_start = lastIntervalStart + interval_td
-	if not IsTimestampInActiveSession(exchange, next_interval_start):
-		s = GetTimestampNextSession(exchange, next_interval_start)
-		next_interval_start = s["market_open"]
-	next_interval_end = next_interval_start+interval_td
-	return {"interval_open":next_interval_start, "interval_close":next_interval_end}
+# 	interval_td = yfcd.intervalToTimedelta[interval]
+# 	s = GetTimestampMostRecentSession(exchange, dt)
+# 	if interval == yfcd.Interval.Days1:
+# 		intervalStart = s["market_open"]
+# 		intervalEnd = s["market_close"]
+
+# 	elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+# 		weekStartDt = FloorDatetime(dt, interval)
+# 		weekSched = GetExchangeSchedule(exchange, weekStartDt.date(), weekStartDt.date()+timedelta(days=4))
+# 		intervalStart = weekSched["market_open"][0]
+# 		if weeklyUseYahooDef:
+# 			tz = ZoneInfo(GetExchangeTzName(exchange))
+# 			intervalStart = datetime.combine(intervalStart.date(), time(0), tz)
+# 		if dt < intervalStart:
+# 			weekStartDt = FloorDatetime(dt-timedelta(days=2), interval)
+# 			weekSched = GetExchangeSchedule(exchange, weekStartDt.date(), weekStartDt.date()+timedelta(days=4))
+# 			intervalStart = weekSched["market_open"][0]
+# 		intervalEnd = weekSched["market_close"][-1]
+# 		if intervalStart.date() == intervalEnd.date():
+# 			raise Exception("Current weekly interval should not start and end on same day")
+# 		if weeklyUseYahooDef:
+# 			intervalStart = datetime.combine(intervalStart.date(), time(0), tz)
+# 			intervalEnd = datetime.combine(intervalEnd.date(), time(23,59,59), tz)
+
+# 	else:
+# 		# i is None so recent interval is last of previous day
+# 		intervalStart = s["market_close"] - interval_td
+# 		intervalEnd = s["market_close"]
+
+# 	return {"interval_open":intervalStart, "interval_close":intervalEnd}
+
+
+# def GetTimestampNextInterval(exchange, dt, interval, weeklyUseYahooDef=False):
+# 	if not isinstance(exchange, str):
+# 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
+# 	if not isinstance(dt, datetime):
+# 		raise Exception("'dt' must be datetime.datetime not {0}".format(type(dt)))
+# 	if dt.tzinfo is None:
+# 		raise Exception("'dt' must be timezone-aware")
+# 	if not isinstance(interval, yfcd.Interval):
+# 		raise Exception("'interval' must be yfcd.Interval not {0}".format(type(interval)))
+
+# 	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+# 		if interval == yfcd.Interval.Days1:
+# 			s = GetTimestampNextSession(exchange, dt)
+# 			interval_open  = s["market_open"]
+# 			interval_close = s["market_close"]
+# 			# if dt >= int
+# 		else:
+# 			## Calculate next Monday to get next week schedule
+# 			d = dt.date()
+# 			wd = d.weekday()
+# 			d += timedelta(days=7-wd)
+# 			sched = GetExchangeSchedule(exchange, d, d+timedelta(days=4))
+# 			interval_open  = sched["market_open"][0]
+# 			interval_close = sched["market_close"][-1]
+# 			if weeklyUseYahooDef:
+# 				tz = ZoneInfo(GetExchangeTzName(exchange))
+# 				interval_open = datetime.combine(interval_open.date(), time(0), tz)
+# 				interval_close = datetime.combine(interval_close.date(), time(23,59,59), tz)
+# 		return {"interval_open":interval_open, "interval_close":interval_close}
+
+# 	lastInterval = GetTimestampMostRecentInterval(exchange, dt, interval)
+# 	lastIntervalStart = lastInterval["interval_open"]
+# 	interval_td = yfcd.intervalToTimedelta[interval]
+# 	next_interval_start = lastIntervalStart + interval_td
+# 	if not IsTimestampInActiveSession(exchange, next_interval_start):
+# 		s = GetTimestampNextSession(exchange, next_interval_start)
+# 		next_interval_start = s["market_open"]
+# 	next_interval_end = next_interval_start+interval_td
+# 	return {"interval_open":next_interval_start, "interval_close":next_interval_end}
 
 
 def FloorDatetime(dt, interval, firstIntervalStart=None):
@@ -374,11 +448,11 @@ def FloorDatetime(dt, interval, firstIntervalStart=None):
 	return dtf
 
 
-def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
-	if not isinstance(intervalStart_dt, datetime):
-		raise Exception("'intervalStart_dt' must be datetime.datetime not {0}".format(type(intervalStart_dt)))
-	if intervalStart_dt.tzinfo is None:
-		raise Exception("'intervalStart_dt' must be timezone-aware")
+def IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=None, dt_now=None):
+	if not isinstance(interval_dt, datetime):
+		raise Exception("'interval_dt' must be datetime.datetime not {0}".format(type(interval_dt)))
+	if interval_dt.tzinfo is None:
+		raise Exception("'interval_dt' must be timezone-aware")
 	if not isinstance(fetch_dt, datetime):
 		raise Exception("'fetch_dt' must be datetime.datetime not {0}".format(type(fetch_dt)))
 	if fetch_dt.tzinfo is None:
@@ -405,53 +479,90 @@ def IsPriceDatapointExpired(intervalStart_dt, fetch_dt, max_age, exchange, inter
 	# debug = True
 
 	if debug:
-		print("IsPriceDatapointExpired(intervalStart_dt={0}, fetch_dt={1}, max_age={2}, dt_now={3})".format(intervalStart_dt, fetch_dt, max_age, dt_now))
-
-	target_interval = GetTimestampCurrentInterval(exchange, intervalStart_dt, interval)
-	if target_interval is None:
-		raise Exception("intervalStart_dt is not in an interval")
-	intervalEnd_dt = target_interval["interval_close"]
-	if debug:
-		print("intervalEnd_dt = {0}".format(intervalEnd_dt))
-	if fetch_dt > intervalEnd_dt:
-		## yfcd.Interval already closed before fetch, nothing to do.
-		if debug:
-			print("fetch_dt > intervalEnd_dt so return FALSE")
-		return False
+		print("IsPriceDatapointExpired(interval_dt={0}, fetch_dt={1}, max_age={2}, dt_now={3})".format(interval_dt, fetch_dt, max_age, dt_now))
 
 	if dt_now is None:
 		dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+
+	if yf_lag is None:
+		yf_lag = GetExchangeDataDelay(exchange)
 	if debug:
-		print("dt_now = {0}".format(dt_now))
+		print("yf_lag = {}".format(yf_lag))
+
+	# Data sanity check: (fetch_dt - interval_dt) should roughly equal yf_lag
+	delay = fetch_dt - interval_dt
+	if delay < yf_lag:
+		diff = yf_lag - delay
+		if diff > timedelta(minutes=1):
+			print("interval_dt = {}".format(interval_dt))
+			print("fetch_dt = {}".format(fetch_dt))
+			print("delay = {}".format(delay))
+			print("diff = {}".format(diff))
+			print("yf_lag = {}".format(yf_lag))
+			raise Exception("Data delay less than expected: interval_dt={}, fetch_dt={}, expected delay={}, actual delay={}".format(interval_dt, fetch_dt, yf_lag, delay))
+
+	irange = GetTimestampCurrentInterval(exchange, interval_dt, interval, allowLateDailyData=True)
+	if debug:
+		print("- irange = {}".format(irange))
+
+	if irange is None:
+		print("market open? = {}".format(IsTimestampInActiveSession(exchange, interval_dt)))
+		raise Exception("Failed to map '{}'' to '{}' interval range".format(interval_dt, interval))
+
+	intervalEnd_dt = irange["interval_close"]
+	if debug:
+		print("- intervalEnd_dt = {0}".format(intervalEnd_dt))
+
+	# Decide if was fetched after last Yahoo update
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
+		# but with daily candles it can. So treat midnight as threshold for final data.
+		if fetch_dt.date() > intervalEnd_dt.date():
+			## interval already closed before fetch, nothing to do.
+			if debug:
+				print("- fetch_dt > intervalEnd_dt so return FALSE")
+			return False
+	else:
+		if fetch_dt > (intervalEnd_dt+yf_lag):
+			## interval already closed before fetch, nothing to do.
+			if debug:
+				print("- fetch_dt > intervalEnd_dt so return FALSE")
+			return False
 
 	expire_dt = fetch_dt+max_age
 	if debug:
-		print("expire_dt = {0}".format(expire_dt))
-
-	if expire_dt < intervalEnd_dt and expire_dt <= dt_now:
+		print("- expire_dt = {0}".format(expire_dt))
+	if expire_dt < (intervalEnd_dt+yf_lag) and expire_dt <= dt_now:
 		if debug:
-			print("expire_dt < intervalEnd_dt and expire_dt <= dt_now so return TRUE")
+			print("- expire_dt < intervalEnd_dt and expire_dt <= dt_now so return TRUE")
 		return True
 
 	if triggerExpiryOnClose:
-		if yf_lag is None:
-			yf_lag = timedelta(minutes=1)
-		if dt_now >= (intervalEnd_dt+yf_lag):
+		if debug:
+			print("- checking if triggerExpiryOnClose ...")
+		if dt_now >= (intervalEnd_dt+yf_lag) and fetch_dt < (intervalEnd_dt+yf_lag):
 			## Even though fetched data hasn't fully aged, the candle has since closed so treat as expired
 			if debug:
-				print("triggerExpiryOnClose and interval closed so return TRUE")
+				print("- triggerExpiryOnClose and interval closed so return TRUE")
 			return True
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+			## If last fetch was anytime within interval, even post-market, 
+			## and dt_now is next day (or later) then trigger
+			if fetch_dt.date() <= intervalEnd_dt.date() and dt_now.date() > intervalEnd_dt.date():
+				if debug:
+					print("- triggerExpiryOnClose and interval midnight passed since fetch so return TRUE")
+				return True
 
 	if debug:
-		print("reached end of function, returning FALSE")
+		print("- reached end of function, returning FALSE")
 	return False
 
 
-def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=timedelta(seconds=15), dt_now=None):
-	if not isinstance(intervalStart_dts, list) and not isinstance(intervalStart_dts[0], datetime):
-		raise Exception("'intervalStart_dts' must be list of datetime.datetime not {0}".format(type(intervalStart_dts[0])))
-	if intervalStart_dts[0].tzinfo is None:
-		raise Exception("'intervalStart_dts' must be timezone-aware")
+def IsPriceDatapointExpired_batch(interval_dts, fetch_dts, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=None, dt_now=None):
+	if not isinstance(interval_dts, list) and not isinstance(interval_dts[0], datetime):
+		raise Exception("'interval_dts' must be list of datetime.datetime not {0}".format(type(interval_dts[0])))
+	if interval_dts[0].tzinfo is None:
+		raise Exception("'interval_dts' must be timezone-aware")
 	if not isinstance(fetch_dts, list) and not isinstance(fetch_dts[0], datetime):
 		raise Exception("'fetch_dts' must be list of datetime.datetime not {0}".format(type(fetch_dts[0])))
 	if fetch_dts[0].tzinfo is None:
@@ -477,49 +588,77 @@ def IsPriceDatapointExpired_batch(intervalStart_dts, fetch_dts, max_age, exchang
 	debug = False
 	# debug = True
 
+	if debug:
+		print("IsPriceDatapointExpired_batch(max_age={})".format(max_age))
+
+	if yf_lag is None:
+		yf_lag = GetExchangeDataDelay(exchange)
+
 	n = len(fetch_dts)
 
 	expired = np.array([False]*n)
+	interval_dts = np.array(interval_dts)
 	fetch_dts = np.array(fetch_dts)
-	# print(expired)
 
 	if dt_now is None:
-		dt_now = datetime.now().astimezone()
+		dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
-	intervals = list(map(GetTimestampCurrentInterval, [exchange]*n, intervalStart_dts, [interval]*n))
-	interval_closes = np.array([i["interval_close"] for i in intervals])
+	# Data sanity check: (fetch_dt - interval_dt) should roughly equal yf_lag
+	delay = fetch_dts - interval_dts
+	f = delay < yf_lag
+	if sum(f) > 0:
+		diff = yf_lag - delay
+		f2 = diff > timedelta(minutes=1)
+		if sum(f2) > 0:
+			for idx in np.where(f2)[0]:
+				print("fetch_dt={}, interval_dt={}, actual delay={}, expected delay={}".format(
+					fetch_dts[idx], interval_dts[idx], delay[idx], yf_lag))
+			raise Exception("Actual data delay less than expected, see above")
 
-	# interval_fetched_after_close = list(map(lambda x,y: GetTimestampCurrentInterval(exchange,x,interval)["interval_close"] <= y, intervalStart_dts, fetch_dts))
-	interval_fetched_after_close = interval_closes <= fetch_dts
+	iranges = np.array([GetTimestampCurrentInterval(exchange, idt, interval, allowLateDailyData=True) for idt in interval_dts])
+	f_na = iranges == None
+	if sum(f_na) > 0:
+		for idx in np.where(f_na)[0]:
+			print("interval_dt={}".format(interval_dts[idx]))
+		raise Exception("Failed to map interval_dts to {} interval ranges, see above".format(interval))
+
+	interval_closes = np.array(list(map(lambda x:x["interval_close"] if not x is None else None, iranges)))
+
+	# Decide if was fetched after last Yahoo update
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
+		# but with daily candles it can. So treat midnight as threshold for final data.
+		data_final = np.array([fetch_dts[i].date() > interval_dts[i].date() for i in range(n)])
+	else:
+		data_final = interval_closes <= fetch_dts
 	if debug:
-		print("interval_fetched_after_close: {0}".format(interval_fetched_after_close))
-		# intervals = list(map(GetTimestampCurrentInterval, [exchange]*n,intervalStart_dts,[interval]*n))
-		# print("intervals:")
-		# print(intervals)
+		print("data_final: {0}".format(data_final))
 
-	# candleClosed = interval_closes <= dt_now
-	if yf_lag is None:
-		yf_lag = timedelta(minutes=1)
-	candleClosed = (interval_closes+yf_lag) <= dt_now
-	candleClosedSinceFetch = np.logical_and(np.logical_not(interval_fetched_after_close), candleClosed)
-
-	## TODO: MAYBE improve performance of below by using 'interval_fetched_after_close' as a mask
-
-	# Is expiry before now?
 	expire_dts = fetch_dts + max_age
 	expiry_in_past = expire_dts <= dt_now
-
+	expiry_in_interval = expire_dts < (interval_closes+yf_lag)
+	expired = np.logical_and(expiry_in_past, expiry_in_interval)
 	if debug:
 		print("expire_dts: {0}".format(expire_dts))
 		print("expiry_in_past: {0}".format(expiry_in_past))
+		print("expiry_in_interval: {0}".format(expiry_in_interval))
+		print("expired: {}".format(expired))
 
-	expiry_before_candle_close = expire_dts < interval_closes
-	if debug:
-		print("expiry_before_candle_close: {0}".format(expiry_before_candle_close))
-
-	should_refetch = np.logical_and(expiry_in_past, expiry_before_candle_close)
 	if triggerExpiryOnClose:
-		should_refetch = np.logical_or(candleClosedSinceFetch, should_refetch)
+		trigger = np.logical_and( dt_now >= interval_closes+yf_lag , fetch_dts < interval_closes+yf_lag)
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+			fetched_within_days = np.array([fetch_dts[i].date() <= interval_closes[i].date() for i in range(n)])
+			now_is_after = [dt_now.date()>i.date() for i in interval_closes]
+			t = np.logical_and(fetched_within_days, now_is_after)
+			trigger = np.logical_or(t, trigger)
+		if debug:
+			print("trigger: {}".format(trigger))
+	else:
+		trigger = np.array([False]*n)
+
+	should_refetch = np.logical_and(~data_final , np.logical_or(expired, trigger))
+
+	## TODO: MAYBE improve performance of below by using 'data_final' as a mask
 
 	return list(should_refetch)
 
@@ -531,7 +670,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervals
 		raise Exception("'start' must be datetime.datetime not not {0}".format(type(start)))
 	if not isinstance(end, datetime):
 		raise Exception("'end' must be datetime.datetime not not {0}".format(type(end)))
-	if knownIntervals != None:
+	if not knownIntervals is None:
 		if not isinstance(knownIntervals, list) and not isinstance(knownIntervals, np.ndarray):
 			raise Exception("'knownIntervals' must be list or numpy array not {0}".format(type(knownIntervals)))
 		if not isinstance(knownIntervals[0], datetime):
