@@ -293,7 +293,8 @@ class Ticker:
 		f_na = intervals==None
 		if sum(f_na) > 0:
 			for idx in np.where(f_na)[0]:
-				print("Failed to map {}".format(df.index[idx]))
+				dt = df.index[idx]
+				print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
 			raise Exception("Problem with dates returned by Yahoo, see above")
 
 		## TODO: replace df.index with intervals. Currently getting errors

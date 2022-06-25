@@ -4,7 +4,8 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
 import holidays
-import pandas_market_calendars as mcal
+# import pandas_market_calendars as mcal
+import exchange_calendars as xcal
 
 import pandas as pd
 import numpy as np
@@ -16,7 +17,7 @@ from . import yfc_cache_manager as yfcm
 
 # Cache mcal schedules, 10x speedup:
 ## Performance TODO: convert nexted dicts to dict of tables (one per exchange). Prepend/append rows if requested date(s) out-of-range
-mcalScheduleCache = {}
+# mcalScheduleCache = {}
 
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
@@ -65,45 +66,57 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 
-	global mcalScheduleCache
-	if not exchange in mcalScheduleCache:
-		## Load from file cache. If missing, init with 7-day expiry
-		## Performance TODO: when dict replaced with tables, remove expiry entirely
-		o = yfcm.ReadCacheDatum("exchange-"+exchange, "mcalScheduleCache")
-		if not o is None:
-			mcalScheduleCache[exchange] = o
-		else:
-			mcalScheduleCache[exchange] = {}
-			yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=yfcd.Interval.Days1)
-
+	## Load from file cache. If missing, init with 7-day expiry
+	## Performance TODO: when dict replaced with tables, remove expiry entirely
+	# global mcalScheduleCache
+	# if not exchange in mcalScheduleCache:
+	# 	o = yfcm.ReadCacheDatum("exchange-"+exchange, "mcalScheduleCache")
+	# 	if not o is None:
+	# 		mcalScheduleCache[exchange] = o
+	# 	else:
+	# 		mcalScheduleCache[exchange] = {}
+	# 		yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange], expiry=yfcd.Interval.Days1)
+	## Disable cache, not sure I need it with exchange_calendars
 
 	## Lazy-load from cache:
-	if exchange in mcalScheduleCache:
-		if start_d in mcalScheduleCache[exchange]:
-			if end_d in mcalScheduleCache[exchange][start_d]:
-				return mcalScheduleCache[exchange][start_d][end_d]
+	# if exchange in mcalScheduleCache:
+	# 	if start_d in mcalScheduleCache[exchange]:
+	# 		if end_d in mcalScheduleCache[exchange][start_d]:
+	# 			return mcalScheduleCache[exchange][start_d][end_d]
+	## Disable cache, not sure I need it with exchange_calendars
 
-	if not exchange in yfcd.exchangeToMcalExchange:
-		raise Exception("Need to add mapping of exchange {} to mcal".format(exchange))
-	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
-	sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
+
+	# if not exchange in yfcd.exchangeToMcalExchange:
+	# 	raise Exception("Need to add mapping of exchange {} to mcal".format(exchange))
+	# exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
+	# sched = exchange_cal.schedule(start_date=start_d.isoformat(), end_date=end_d.isoformat())
+	if not exchange in yfcd.exchangeToXcalExchange:
+		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
+	xcal_name = yfcd.exchangeToXcalExchange[exchange]
+	if start_d == end_d:
+		sched = xcal.get_calendar(xcal_name, start=start_d-timedelta(days=1), end=end_d).schedule.loc[start_d:end_d]
+	else:
+		sched = xcal.get_calendar(xcal_name, start=start_d, end=end_d).schedule
 
 	if sched.shape[0] == 0:
 		sched = None
 	else:
-		opens = [d.to_pydatetime().astimezone(tz) for d in sched["market_open" ]]
-		closes = [d.to_pydatetime().astimezone(tz) for d in sched["market_close"]]
-		## Note: don't attempt to put datetime into pd.DataFrame, Pandas pukes
+		# opens = [d.to_pydatetime().astimezone(tz) for d in sched["market_open" ]]
+		# closes = [d.to_pydatetime().astimezone(tz) for d in sched["market_close"]]
+		opens = [d.to_pydatetime().astimezone(tz) for d in sched["open" ]]
+		closes = [d.to_pydatetime().astimezone(tz) for d in sched["close"]]
+
+		## Note: don't attempt to put schedule into a pd.DataFrame, Pandas pukes
 		sched = {"market_open":opens, "market_close":closes}
 
 	## Cache:
-	if not exchange in mcalScheduleCache:
-		mcalScheduleCache[exchange] = {}
-	if not start_d in mcalScheduleCache[exchange]:
-		mcalScheduleCache[exchange][start_d] = {}
-	mcalScheduleCache[exchange][start_d][end_d] = sched
-
-	yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange])
+	# if not exchange in mcalScheduleCache:
+	# 	mcalScheduleCache[exchange] = {}
+	# if not start_d in mcalScheduleCache[exchange]:
+	# 	mcalScheduleCache[exchange][start_d] = {}
+	# mcalScheduleCache[exchange][start_d][end_d] = sched
+	# yfcm.StoreCacheDatum("exchange-"+exchange, "mcalScheduleCache", mcalScheduleCache[exchange])
+	## Disable cache, not sure I need it with exchange_calendars
 
 	return sched
 
@@ -214,12 +227,16 @@ def ExchangeOpenOnDay(exchange, dt):
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 
-	exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
-	# exchange_days = exchange_cal.valid_days(start_date=dt.date().isoformat(), end_date=dt.date().isoformat())
-	exchange_days = exchange_cal.valid_days(start_date=dt.isoformat(), end_date=dt.isoformat())
+	# exchange_cal = mcal.get_calendar(yfcd.exchangeToMcalExchange[exchange])
+	# exchange_days = exchange_cal.valid_days(start_date=dt.isoformat(), end_date=dt.isoformat())
 
-	# return dt in [ed.replace(tzinfo=tz) for ed in exchange_days]
-	return dt in [date(year=ed.year, month=ed.month, day=ed.day) for ed in exchange_days]
+	try:
+		exchange_cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange], start=dt-timedelta(days=1), end=dt)
+	except xcal.errors.NoSessionsError:
+		return False
+
+	# return dt in [date(year=ed.year, month=ed.month, day=ed.day) for ed in exchange_days]
+	return dt in exchange_cal.schedule.index.date
 
 
 

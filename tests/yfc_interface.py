@@ -201,6 +201,25 @@ class Test_Yfc_Interface(unittest.TestCase):
                         print("aa={}, ba={}, c={}".format(aa, ba, c))
                         raise
 
+    def test_matches_yf_daily_bug1(self):
+        tkr = "PANR.L"
+        start_day_str = "2022-05-27"
+        end_day_str = "2022-06-06"
+
+        dat_yf = yf.Ticker(tkr, session=self.session)
+        dat_yfc = yfc.Ticker(tkr, session=self.session)
+
+        df_yf  = dat_yf.history( start=start_day_str, end=end_day_str)
+        df_yfc = dat_yfc.history(start=start_day_str, end=end_day_str)
+
+        data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+        for c in data_cols:
+            try:
+                self.assertTrue(df_yf[c].equals(df_yfc[c]))
+            except:
+                print("aa={}, ba={}, c={}".format(aa, ba, c))
+                raise
+
 
     def test_history_live(self):
         # Fetch during live trading session
