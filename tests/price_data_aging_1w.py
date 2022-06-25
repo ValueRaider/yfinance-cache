@@ -140,6 +140,78 @@ class Test_PriceDataAging_1W(unittest.TestCase):
                     pprint(response)
                     raise
 
+    ## Test different day same week with exchange data delay
+    def test_sameWeek_diffDay_delay(self):
+        exchange = "LSE" # 20min delay
+        yf_lag = timedelta(minutes=20)
+        market_tz = ZoneInfo("Europe/London")
+        interval = yfcd.Interval.Week
+        market_open = time(8)
+        market_close = time(16, 30)
+
+        ## Just before market close, but with data delay appears as after close:
+        fetch_dt = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=1)
+        ## ... as interval is live then Yahoo returns current time as interval start:
+        interval_dt = fetch_dt-yf_lag
+        max_age = timedelta(minutes=10)
+        dt_now = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=14)
+        expire_on_candle_close = False
+        answer = True
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("interval_dt: {}".format(interval_dt))
+            print("fetch_dt: {}".format(fetch_dt))
+            print("dt_now: {}".format(dt_now))
+            print("result: {}".format(result))
+            print("answer: {}".format(answer))
+            raise
+        #
+        dt_now = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=2)
+        answer = False
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        ## Check that 'expire-on-candle-close' still works:
+        dt_now = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        max_age = timedelta(hours=1)
+        expire_on_candle_close = True
+        answer = True
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        ## Just after market close + data delay:
+        fetch_dt = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        interval_dt = datetime.combine(self.friday, market_open, market_tz)
+        max_age = timedelta(minutes=10)
+        dt_now = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=14)
+        expire_on_candle_close = False
+        answer = False
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
     ## Test weekend following week
     def test_sameWeek_weekend(self):
         interval_start_dt = datetime.combine(self.monday, self.market_open_time, self.market_tz)

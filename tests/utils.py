@@ -30,19 +30,19 @@ class TestUtils(unittest.TestCase):
 
 
     def test_calculateRounding(self):
-        self.assertEqual(yfcu.CalculateRounding(12345, sf=4), 0)
-        self.assertEqual(yfcu.CalculateRounding(1234, sf=4), 0)
-        self.assertEqual(yfcu.CalculateRounding(123, sf=4), 0)
+        self.assertEqual(yfcu.CalculateRounding(12345, 4), 0)
+        self.assertEqual(yfcu.CalculateRounding(1234, 4), 0)
+        self.assertEqual(yfcu.CalculateRounding(123, 4), 0)
 
-        self.assertEqual(yfcu.CalculateRounding(123.4, sf=4), 1)
-        self.assertEqual(yfcu.CalculateRounding(12.34, sf=4), 2)
-        self.assertEqual(yfcu.CalculateRounding(1.234, sf=4), 3)
-        self.assertEqual(yfcu.CalculateRounding(.1234, sf=4), 4)
+        self.assertEqual(yfcu.CalculateRounding(123.4, 4), 1)
+        self.assertEqual(yfcu.CalculateRounding(12.34, 4), 2)
+        self.assertEqual(yfcu.CalculateRounding(1.234, 4), 3)
+        self.assertEqual(yfcu.CalculateRounding(.1234, 4), 4)
 
-        self.assertEqual(yfcu.CalculateRounding(123.4, sf=3), 0)
-        self.assertEqual(yfcu.CalculateRounding(12.34, sf=3), 1)
-        self.assertEqual(yfcu.CalculateRounding(1.234, sf=3), 2)
-        self.assertEqual(yfcu.CalculateRounding(.1234, sf=3), 3)
+        self.assertEqual(yfcu.CalculateRounding(123.4, 3), 0)
+        self.assertEqual(yfcu.CalculateRounding(12.34, 3), 1)
+        self.assertEqual(yfcu.CalculateRounding(1.234, 3), 2)
+        self.assertEqual(yfcu.CalculateRounding(.1234, 3), 3)
 
 
 if __name__ == '__main__':

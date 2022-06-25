@@ -71,24 +71,34 @@ intervalToTimedelta[Interval.Week] = timedelta(days=7)
 # intervalToTimedelta[Interval.Months1] = None ## irregular time interval
 # intervalToTimedelta[Interval.Months3] = None ## irregular time interval
 
-exchangeToMarket = {}
-exchangeToMarket["LSE"] = "gb_market"
-exchangeToMarket["NMS"] = "us_market"
-exchangeToMarket["NYQ"] = "us_market"
-
-## TODO: remove 'marketToTimezone', redundant as Yahoo returns timezone in info.
-marketToTimezone = {}
-marketToTimezone["gb_market"] = ZoneInfo('Europe/London')
-marketToTimezone["us_market"] = ZoneInfo('US/Eastern')
-
 exchangeToMcalExchange = {}
+exchangeToMcalExchange["AMS"] = "XAMS"
+exchangeToMcalExchange["ASE"] = "NYSE"
+exchangeToMcalExchange["EBS"] = "SIX"
+exchangeToMcalExchange["IOB"] = "LSE"
+exchangeToMcalExchange["JNB"] = "XJSE"
 exchangeToMcalExchange["LSE"] = "LSE"
+exchangeToMcalExchange["NCM"] = "NASDAQ"
+exchangeToMcalExchange["NGM"] = "NASDAQ"
 exchangeToMcalExchange["NMS"] = "NASDAQ"
 exchangeToMcalExchange["NYQ"] = "NYSE"
+exchangeToMcalExchange["PAR"] = "XPAR"
+exchangeToMcalExchange["PNK"] = "NYSE"
+exchangeToMcalExchange["TOR"] = "TSX"
 
 ## Yahoo specify data delays here:
 ## https://help.yahoo.com/kb/SLN2310.html?guccounter=1
 exchangeToYfLag = {}
-exchangeToYfLag["LSE"] = timedelta(minutes=15)
+exchangeToYfLag["AMS"] = timedelta(minutes=15)
+exchangeToYfLag["ASE"] = timedelta(seconds=0)
+exchangeToYfLag["EBS"] = timedelta(minutes=30)
+exchangeToYfLag["IOB"] = timedelta(minutes=20)
+exchangeToYfLag["JNB"] = timedelta(minutes=15)
+exchangeToYfLag["LSE"] = timedelta(minutes=20)
+exchangeToYfLag["NCM"] = timedelta(seconds=0)
+exchangeToYfLag["NGM"] = timedelta(seconds=0)
 exchangeToYfLag["NMS"] = timedelta(seconds=0)
 exchangeToYfLag["NYQ"] = timedelta(seconds=0)
+exchangeToYfLag["PAR"] = timedelta(minutes=15)
+exchangeToYfLag["PNK"] = timedelta(minutes=15)
+exchangeToYfLag["TOR"] = timedelta(seconds=0)

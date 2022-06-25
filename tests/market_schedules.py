@@ -10,7 +10,9 @@ class Test_USMarket_Schedules(unittest.TestCase):
     def setUp(self):
         self.market = "us_market"
         self.exchange = "NMS"
-        self.market_tz = ZoneInfo('US/Eastern')
+        self.tz = 'US/Eastern'
+        self.market_tz = ZoneInfo(self.tz)
+        yfct.SetExchangeTzName(self.exchange, self.tz)
 
     def test_ExchangeOpenOnDay(self):
         # Weekdays
@@ -50,6 +52,10 @@ class Test_USMarket_Schedules(unittest.TestCase):
             print("response = {0}".format(response))
             print("answer = {0}".format(answer))
             raise
+
+    def test_ExchangeTimezone(self):
+        tz2 = yfct.GetExchangeTzName(self.exchange)
+        self.assertEqual(self.tz, tz2)
 
     def test_IsTimestampInActiveSession_marketTz(self):
         # Before open

@@ -101,6 +101,75 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                 pprint(response)
                 raise
 
+    def test_duringDay_delay(self):
+        exchange = "LSE" # 20min delay
+        yf_lag = timedelta(minutes=20)
+        market_tz = ZoneInfo("Europe/London")
+        interval = yfcd.Interval.Hours1
+        market_open = time(8)
+        market_close = time(16, 30)
+
+        ## Just before interval close, but with data delay was fetched after close:
+        fetch_dt = datetime.combine(self.monday, time(15), market_tz)+timedelta(minutes=1)
+        interval_dt = fetch_dt-yf_lag
+        max_age = timedelta(minutes=10)
+        dt_now = datetime.combine(self.monday, time(15), market_tz)+timedelta(minutes=14)
+        expire_on_candle_close = False
+        answer = True
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+        #
+        dt_now = datetime.combine(self.monday, time(15), market_tz)+timedelta(minutes=2)
+        answer = False
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        ## Check that 'expire-on-candle-close' still works:
+        dt_now = datetime.combine(self.monday, time(16,1), market_tz)+yf_lag
+        max_age = timedelta(hours=1)
+        expire_on_candle_close = True
+        answer = True
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        ## Just after interval close + data delay:
+        fetch_dt = datetime.combine(self.monday, time(16,1), market_tz)+yf_lag
+        interval_dt = datetime.combine(self.monday, time(15), market_tz)
+        max_age = timedelta(minutes=10)
+        dt_now = datetime.combine(self.monday, time(16), market_tz)+yf_lag+timedelta(minutes=14)
+        expire_on_candle_close = False
+        answer = False
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
     ## 1h interval end-of-day, fetched during interval, tested during | soon after | next morning
     def test_endOfDay(self):
         interval = yfcd.Interval.Hours1
@@ -266,6 +335,48 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                 pprint(responses[i])
                 raise
 
+    ## Batch test 1h interval, during interval, on exchange with data delay
+    def test_duringDay_dtDuringInterval_delay_batch(self):
+        exchange = "LSE" # 20min delay
+        yf_lag = timedelta(minutes=20)
+        market_tz = ZoneInfo("Europe/London")
+        interval = yfcd.Interval.Days1
+        market_open = time(8)
+        market_close = time(16, 30)
+
+        interval = yfcd.Interval.Hours1
+        interval_start_dt = datetime.combine(self.monday, time(15), market_tz)
+
+        max_age = timedelta(minutes=10)
+        expire_on_candle_close = False
+        dt_now = interval_start_dt+yf_lag+timedelta(minutes=55)
+
+        interval_dts = []
+        fetch_dts = []
+        #
+        fetch_dt = interval_start_dt+yf_lag+timedelta(minutes=30)
+        interval_dt = fetch_dt-yf_lag
+        interval_dts.append(interval_dt) ; fetch_dts.append(fetch_dt)
+        #
+        fetch_dt = interval_start_dt+yf_lag+timedelta(minutes=50)
+        interval_dt = fetch_dt-yf_lag
+        interval_dts.append(interval_dt) ; fetch_dts.append(fetch_dt)
+
+        responses = yfct.IsPriceDatapointExpired_batch(interval_dts, fetch_dts, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        for i in range(len(responses)):
+            answer = yfct.IsPriceDatapointExpired(interval_dts[i], fetch_dts[i], max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            try:
+                self.assertEqual(responses[i], answer)
+            except:
+                print("interval = {0}".format(interval))
+                print("max_age = {0}".format(max_age))
+                print("interval_dt = {0}".format(interval_dts[i]))
+                print("dt_now = {0}".format(dt_now))
+                print("fetch_dt: {}".format(fetch_dts[i]))
+                print("answer:{}".format(answer))
+                print("response:{}".format(responses[i]))
+                raise
+
     ## Batch test 1h interval, soon after interval
     def test_duringDay_dtAfterInterval_batch1(self):
         interval = yfcd.Interval.Hours1
@@ -378,7 +489,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         interval_start_dt = datetime.combine(self.monday, time(hour=15, minute=30), self.market_tz)
 
         max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = None
+        expire_on_candle_close = False ; yf_lag = timedelta(0)
         dt_now = datetime.combine(self.monday, time(hour=16, minute=0), self.market_tz)
 
         interval_start_dts = []

@@ -216,7 +216,6 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 					raise Exception("Pickled file lacks metadata: {0}".format(fp))
 				md = pkl["metadata"]
 
-	md["LastWrite"] = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 	if not expiry is None:
 		md["Expiry"] = expiry
 
@@ -249,10 +248,9 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None):
 
 	dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 	if not objectName in packedData.keys():
-		packedData[objectName] = {"data":datum, "metadata":{"LastWrite":dt}}
+		packedData[objectName] = {"data":datum, "metadata":{}}
 	else:
 		packedData[objectName]["data"] = datum
-		packedData[objectName]["metadata"]["LastWrite"] = dt
 	if not expiry is None:
 		packedData[objectName]["metadata"]["Expiry"] = expiry
 	with open(fp, 'wb') as outData:
