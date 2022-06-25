@@ -6,6 +6,8 @@ from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_ticker as yfc
 
+import yfinance as yf
+
 import tempfile
 
 import pandas as pd
@@ -173,6 +175,33 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.assertTrue(df3.equals(pd.concat([df1.iloc[0:1], df2])))
 
 
+    def test_matches_yf_daily(self):
+        dat_yf = yf.Ticker(self.tkr, session=self.session)
+
+        start_day_str = "2022-06-20"
+        end_day_str = "2022-06-24"
+
+        start_dt = datetime.combine(date(2022,6,20), self.market_open_time)
+        end_dt = datetime.combine(date(2022,6,24), self.market_close_time)
+
+        for aa in [False,True]:
+            for ba in [False,True]:
+                if aa and ba:
+                    continue
+
+                df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=ba)
+
+                df_yfc = self.dat.history(start=start_dt, end=end_dt, auto_adjust=aa, back_adjust=ba)
+
+                data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+                for c in data_cols:
+                    try:
+                        self.assertTrue(df_yf[c].equals(df_yfc[c]))
+                    except:
+                        print("aa={}, ba={}, c={}".format(aa, ba, c))
+                        raise
+
+
     def test_history_live(self):
         # Fetch during live trading session
         tkr_candidates = ["IMP.JO", "INTC"]
@@ -234,8 +263,25 @@ class Test_Yfc_Interface(unittest.TestCase):
                     print(df3)
                     raise
 
+                ## Finally, check it matches YF:
+                dat_yf = yf.Ticker(self.tkr, session=self.session)
+                df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
+                data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+                for c in data_cols:
+                    try:
+                        self.assertTrue(df_yf[c].equals(df3[c]))
+                    except:
+                        print("Difference in column {}".format(c))
+                        print("")
+                        print("df_yf:")
+                        print(df_yf)
+                        print("")
+                        print("df_yfc:")
+                        print(df3)
+                        print("")
+                        raise
 
-    def test_history_1d_evening(self):
+    def test_history_live_1d_evening(self):
         # Fetch during evening after active session
         tkr_candidates = ["IMP.JO", "INTC"]
         interval = yfcd.Interval.Days1
@@ -264,7 +310,25 @@ class Test_Yfc_Interface(unittest.TestCase):
                     df1 = dat.history(interval="1d", start=start_dt.date(), end=end_dt.date())
                     self.assertTrue(np.array_equal(expected_interval_dates, df1.index.date))
 
-    def test_history_1w_evening(self):
+                    ## Finally, check it matches YF:
+                    dat_yf = yf.Ticker(self.tkr, session=self.session)
+                    df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
+                    data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+                    for c in data_cols:
+                        try:
+                            self.assertTrue(df_yf[c].equals(df1[c]))
+                        except:
+                            print("Difference in column {}".format(c))
+                            print("")
+                            print("df_yf:")
+                            print(df_yf)
+                            print("")
+                            print("df_yfc:")
+                            print(df1)
+                            print("")
+                            raise
+
+    def test_history_live_1w_evening(self):
         # Fetch during evening after active session
         tkr_candidates = ["IMP.JO", "INTC"]
         interval = yfcd.Interval.Week
@@ -303,6 +367,24 @@ class Test_Yfc_Interface(unittest.TestCase):
                         print("df1:")
                         print(df1)
                         raise
+
+                    ## Finally, check it matches YF:
+                    dat_yf = yf.Ticker(self.tkr, session=self.session)
+                    df_yf = dat_yf.history(interval="1wk", start=start_dt.date(), end=end_dt.date())
+                    data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+                    for c in data_cols:
+                        try:
+                            self.assertTrue(df_yf[c].equals(df1[c]))
+                        except:
+                            print("Difference in column {}".format(c))
+                            print("")
+                            print("df_yf:")
+                            print(df_yf)
+                            print("")
+                            print("df_yfc:")
+                            print(df1)
+                            print("")
+                            raise
 
 
 if __name__ == '__main__':

@@ -118,7 +118,7 @@ class Ticker:
 			elif not isinstance(start, datetime.datetime):
 				raise Exception("Argument 'start' must be str, date or datetime")
 			if start.tzinfo is None:
-				raise Exception("Argument 'start' tzinfo must be tz-aware")
+				start = start.replace(tzinfo=tz_exchange)
 			if start.dst() is None:
 				raise Exception("Argument 'start' tzinfo must be DST-aware")
 
@@ -131,7 +131,7 @@ class Ticker:
 			elif not isinstance(end, datetime.datetime):
 				raise Exception("Argument 'end' must be str, date or datetime")
 			if end.tzinfo is None:
-				raise Exception("Argument 'end' tzinfo must be tz-aware")
+				end = end.replace(tzinfo=tz_exchange)
 			if end.dst() is None:
 				raise Exception("Argument 'end' tzinfo must be DST-aware")
 
@@ -254,9 +254,13 @@ class Ticker:
 			if not "Dividends" in h.columns:
 				raise Exception("Dividends column missing from table")
 		if auto_adjust:
-			h[["Open","Close","Low","High","Volume"]] = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]].copy())
+			df = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
+			for c in ["Open","Close","Low","High","Volume"]:
+				h[c] = df[c]
 		elif back_adjust:
-			h[["Open","Close","Low","High","Volume"]] = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
+			df = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
+			for c in ["Open","Close","Low","High","Volume"]:
+				h[c] = df[c]
 		if rounding:
 			# Round to 4 sig-figs
 			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
