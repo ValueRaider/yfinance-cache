@@ -125,9 +125,9 @@ class Ticker:
 		if not end is None:
 			if isinstance(end, str):
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
-				end = datetime.datetime.combine(end_d, datetime.time(23, 59), tz_exchange)
+				end = datetime.datetime.combine(end_d+datetime.timedelta(days=1), datetime.time(0), tz_exchange)
 			elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
-				end = datetime.datetime.combine(end, datetime.time(23, 59), tz_exchange)
+				end = datetime.datetime.combine(end+datetime.timedelta(days=1), datetime.time(0), tz_exchange)
 			elif not isinstance(end, datetime.datetime):
 				raise Exception("Argument 'end' must be str, date or datetime")
 			if end.tzinfo is None:
@@ -191,25 +191,19 @@ class Ticker:
 			n = h.shape[0]
 
 			h_interval_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
-			# fetch_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h["FetchDate"]]
-			# expired = yfct.IsPriceDatapointExpired_batch(h_interval_dts, fetch_dts, max_age, exchange, interval, yf_lag=self.yf_lag)
-			expired = [False]*n
+			expired = np.array([False]*n)
 			for idx in np.where(~f_final)[0]:
 				h_interval_dt = yfct.ConvertToDatetime(h.index[idx], tz=tz_exchange)
-				fetch_dt = yfct.ConvertToDatetime(h["FetchData"].values[idx], tz=tz_exchange)
+				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"].values[idx], tz=tz_exchange)
 				expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
-			if isinstance(expired, list):
-				expired = np.array(expired)
 			if sum(expired) > 0:
 				h = h[~expired]
 				h_interval_dts = np.array(h_interval_dts)[~expired]
-				fetch_dts = np.array(fetch_dts)[~expired]
 
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
-			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for idt in h_interval_dts])
+			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = [x["interval_open"] for x in h_intervals]
-			sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date())
-			intervals = yfct.GetScheduleIntervals(sched, interval, start, end)
+			intervals = yfct.GetExchangeScheduleIntervals(exchange, interval, start, end)
 			ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_intervals, minDistanceThreshold=5)
 			if ranges_to_fetch is None:
 				ranges_to_fetch = []
@@ -217,25 +211,19 @@ class Ticker:
 			interval_td = yfcd.intervalToTimedelta[interval]
 			if len(ranges_to_fetch) > 0:
 				for r in ranges_to_fetch:
-					firstInterval = r[0]
-					lastInterval = r[1]
-
-					istart = firstInterval
-					s = yfct.GetTimestampCurrentSession(exchange, lastInterval)
-					iend = lastInterval + interval_td
-					iend = min(iend, s["market_close"])
+					istart = r[0]
+					iend = r[1]
+					if isinstance(istart, datetime.date):
+						istart = datetime.datetime.combine(istart, datetime.time(0), tz_exchange)
+					if isinstance(iend, datetime.date):
+						iend = datetime.datetime.combine(iend, datetime.time(0), tz_exchange)
 
 					h2 = self._fetchYfHistory(pstr, interval, istart, iend, prepost, proxy, tz, kwargs)
 
-					## If a timepoint is in both h and h2, drop from h:
+					## If a timepoint is in both h and h2, drop from h. This is possible because of 
+					## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
+					## if it reduces total number of web requests
 					f_duplicate = h.index.isin(h2.index)
-					## Actually, why?
-					if sum(f_duplicate) > 0:
-						print("h:")
-						print(h)
-						print("h2:")
-						print(h2)
-						raise Exception("Duplicate dates between cached df and newly fetched data")
 					h = h[np_not(f_duplicate)]
 
 					h = pd.concat([h, h2])
@@ -276,7 +264,7 @@ class Ticker:
 		exchange = self.dat.info["exchange"]
 		istr = yfcd.intervalToString[interval]
 
-		# print("{}: fetching {} -> {}".format(self.ticker, start, end))
+		# print("{}: fetching {} {} -> {}".format(self.ticker, interval, start, end))
 
 		df = self.dat.history(period=pstr, 
 							interval=istr, 
@@ -292,11 +280,11 @@ class Ticker:
 
 		## Sometimes Yahoo appends most recent price to table. Remove any out-of-range data:
 		## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
-		if df.index[-1] > end:
+		if df.index[-1].astimezone("UTC").to_pydatetime() > end:
 			df = df[0:df.shape[0]-1]
 
 		## Verify that all datetimes match up with actual intervals:
-		intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for i in df.index])
+		intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, weeklyUseYahooDef=True) for i in df.index])
 		f_na = intervals==None
 		if sum(f_na) > 0:
 			for idx in np.where(f_na)[0]:
@@ -309,12 +297,8 @@ class Ticker:
 		# df.index = [i["interval_open"] for i in intervals]
 
 		n = df.shape[0]
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
-			# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
-			# but with daily candles it can. So treat midnight as threshold for final data.
-			data_final = np.array([fetch_dt.date() > intervals[i]["interval_close"].date() for i in range(n)])
-		else:
-			data_final = fetch_dt >= (interval_closes+self.yf_lag)
+		lastDataDts = np.array([yfct.CalcIntervalLastDataDt(exchange, df.index[i], interval) for i in range(n)])
+		data_final = fetch_dt >= lastDataDts
 		df["Final?"] = data_final
 
 		df["FetchDate"] = fetch_dt

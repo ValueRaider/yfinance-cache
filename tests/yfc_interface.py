@@ -228,10 +228,10 @@ class Test_Yfc_Interface(unittest.TestCase):
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         for tkr in tkr_candidates:
-            dat = yfc.Ticker(tkr, session=None)
+            dat = yfc.Ticker(tkr, session=self.session)
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
-            if not yfct.GetTimestampCurrentInterval(exchange, dt_now, interval) is None:
+            if yfct.IsTimestampInActiveSession(exchange, dt_now):
                 print("Testing tkr {}".format(tkr))
 
                 start_dt = dt_now - timedelta(days=7)
@@ -290,7 +290,6 @@ class Test_Yfc_Interface(unittest.TestCase):
                     try:
                         self.assertTrue(df_yf[c].equals(df3[c]))
                     except:
-                        print("Difference in column {}".format(c))
                         print("")
                         print("df_yf:")
                         print(df_yf)
@@ -298,6 +297,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                         print("df_yfc:")
                         print(df3)
                         print("")
+                        print("Difference in column {}".format(c))
                         raise
 
     def test_history_live_1d_evening(self):
@@ -306,12 +306,13 @@ class Test_Yfc_Interface(unittest.TestCase):
         interval = yfcd.Interval.Days1
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
-            if yfct.ExchangeOpenOnDay(exchange, dt_now.date()):
-                sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date())
+            if yfct.ExchangeOpenOnDay(exchange, d_now):
+                sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
                     print("Testing tkr {}".format(tkr))
 
@@ -330,14 +331,13 @@ class Test_Yfc_Interface(unittest.TestCase):
                     self.assertTrue(np.array_equal(expected_interval_dates, df1.index.date))
 
                     ## Finally, check it matches YF:
-                    dat_yf = yf.Ticker(self.tkr, session=self.session)
+                    dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
                     data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
                     for c in data_cols:
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
                         except:
-                            print("Difference in column {}".format(c))
                             print("")
                             print("df_yf:")
                             print(df_yf)
@@ -345,6 +345,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                             print("df_yfc:")
                             print(df1)
                             print("")
+                            print("Difference in column {}".format(c))
                             raise
 
     def test_history_live_1w_evening(self):
@@ -353,12 +354,13 @@ class Test_Yfc_Interface(unittest.TestCase):
         interval = yfcd.Interval.Week
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
-            if yfct.ExchangeOpenOnDay(exchange, dt_now.date()):
-                sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date())
+            if yfct.ExchangeOpenOnDay(exchange, d_now):
+                sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
                     print("Testing tkr {}".format(tkr))
 
@@ -388,7 +390,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                         raise
 
                     ## Finally, check it matches YF:
-                    dat_yf = yf.Ticker(self.tkr, session=self.session)
+                    dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1wk", start=start_dt.date(), end=end_dt.date())
                     data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
                     for c in data_cols:

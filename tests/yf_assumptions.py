@@ -40,7 +40,7 @@ class TestYfAssumptions(unittest.TestCase):
 		day -= timedelta(days=1)
 		while not yfct.ExchangeOpenOnDay(self.exchange, day):
 			day -= timedelta(days=1)
-		sched = yfct.GetExchangeSchedule(self.exchange, day, day)
+		sched = yfct.GetExchangeSchedule(self.exchange, day, day+timedelta(days=1))
 
 		startDt = sched["market_open"][0]
 		endDt   = sched["market_open"][0]+timedelta(minutes=1)
