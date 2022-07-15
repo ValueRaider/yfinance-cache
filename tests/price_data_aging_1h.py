@@ -36,13 +36,13 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=35), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.monday, time(hour=13, minute=4),  self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
         fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=35), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.monday, time(hour=13, minute=5),  self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(True)
 
         fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=35), self.market_tz))
@@ -185,19 +185,19 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=35), self.market_tz))
         max_ages.append(timedelta(minutes=20))
         dt_nows.append(  datetime.combine(self.monday, time(hour=15, minute=54), self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
         fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=35), self.market_tz))
         max_ages.append(timedelta(minutes=20))
         dt_nows.append(  datetime.combine(self.monday, time(hour=15, minute=55), self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(True)
 
         fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=35), self.market_tz))
         max_ages.append(timedelta(minutes=60))
         dt_nows.append(  datetime.combine(self.monday, time(hour=15, minute=59), self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
         
         fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=35), self.market_tz))
@@ -235,6 +235,8 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                 print("fetch_dt = {0}".format(fetch_dt))
                 print("max_age = {0}".format(max_age))
                 print("dt_now = {0}".format(dt_now))
+                print("expire_on_candle_close = {}".format(expire_on_candle_close))
+                print("yf_lag = {}".format(yf_lag))
                 print("answer:")
                 pprint(answer)
                 print("response:")
@@ -256,13 +258,13 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         fetch_dts.append(datetime.combine(self.friday, time(hour=15, minute=31), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.friday, time(hour=16, minute=1),  self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
         fetch_dts.append(datetime.combine(self.friday, time(hour=15, minute=31), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.friday, time(hour=16, minute=0),  self.market_tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(None)
+        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
         fetch_dts.append(datetime.combine(self.friday, time(hour=15, minute=31), self.market_tz))
@@ -298,308 +300,6 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                 print("response:")
                 pprint(response)
                 raise
-
-    ## Batch test 1h interval, during interval
-    def test_duringDay_dtDuringInterval_batch(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=12, minute=30), self.market_tz)
-        
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = None
-        dt_now = datetime.combine(self.monday, time(hour=13, minute=15), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=45), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=46), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-
-    ## Batch test 1h interval, during interval, on exchange with data delay
-    def test_duringDay_dtDuringInterval_delay_batch(self):
-        exchange = "LSE" # 20min delay
-        yf_lag = timedelta(minutes=20)
-        market_tz = ZoneInfo("Europe/London")
-        interval = yfcd.Interval.Days1
-        market_open = time(8)
-        market_close = time(16, 30)
-
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(15), market_tz)
-
-        max_age = timedelta(minutes=10)
-        expire_on_candle_close = False
-        dt_now = interval_start_dt+yf_lag+timedelta(minutes=55)
-
-        interval_dts = []
-        fetch_dts = []
-        #
-        fetch_dt = interval_start_dt+yf_lag+timedelta(minutes=30)
-        interval_dt = fetch_dt-yf_lag
-        interval_dts.append(interval_dt) ; fetch_dts.append(fetch_dt)
-        #
-        fetch_dt = interval_start_dt+yf_lag+timedelta(minutes=50)
-        interval_dt = fetch_dt-yf_lag
-        interval_dts.append(interval_dt) ; fetch_dts.append(fetch_dt)
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_dts, fetch_dts, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_dts[i], fetch_dts[i], max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_dt = {0}".format(interval_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt: {}".format(fetch_dts[i]))
-                print("answer:{}".format(answer))
-                print("response:{}".format(responses[i]))
-                raise
-
-    ## Batch test 1h interval, soon after interval
-    def test_duringDay_dtAfterInterval_batch1(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=12, minute=30), self.market_tz)
-        
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = None
-        dt_now = datetime.combine(self.monday, time(hour=13, minute=30), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=40), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=13, minute=20), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-    ## - candle close triggers expiry, no YF lag
-    def test_duringDay_dtAfterInterval_batch2(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=12, minute=30), self.market_tz)
-        
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = True ; yf_lag = timedelta(minutes=0)
-        dt_now = datetime.combine(self.monday, time(hour=13, minute=30), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=40), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=13, minute=20), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-    ## - candle close triggers expiry, with 1 minute YF lag
-    def test_duringDay_dtAfterInterval_batch3(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=12, minute=30), self.market_tz)
-        
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = True ; yf_lag = timedelta(minutes=1)
-        dt_now = datetime.combine(self.monday, time(hour=13, minute=30), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=12, minute=40), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=13, minute=20), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-
-    ## Batch test 1h interval, after market close
-    def test_endOfDay_evening_batch(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=15, minute=30), self.market_tz)
-
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = timedelta(0)
-        dt_now = datetime.combine(self.monday, time(hour=16, minute=0), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=30), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=59), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=16, minute=0), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-
-    ## Batch test 1h interval, next morning
-    def test_endOfDay_nextMorning_batch(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.monday, time(hour=15, minute=30), self.market_tz)
-
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = None
-        dt_now = datetime.combine(self.tuesday, time(hour=10, minute=45), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=30), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=59), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.monday, time(hour=16, minute=0), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-
-    ## Batch test 1h Friday interval, next Saturday
-    def test_endOfFriday_batch(self):
-        interval = yfcd.Interval.Hours1
-        interval_start_dt = datetime.combine(self.friday, time(hour=15, minute=30), self.market_tz)
-
-        max_age = timedelta(minutes=30)
-        expire_on_candle_close = False ; yf_lag = None
-        dt_now = datetime.combine(self.friday+timedelta(days=1), time(hour=10, minute=45), self.market_tz)
-
-        interval_start_dts = []
-        fetch_dts = []
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.friday, time(hour=15, minute=30), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.friday, time(hour=15, minute=45), self.market_tz))
-        #
-        interval_start_dts.append(interval_start_dt)
-        fetch_dts.append(datetime.combine(self.friday, time(hour=16, minute=0), self.market_tz))
-
-        responses = yfct.IsPriceDatapointExpired_batch(interval_start_dts, fetch_dts, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-        for i in range(len(responses)):
-            answer = yfct.IsPriceDatapointExpired(interval_start_dts[i], fetch_dts[i], max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(responses[i], answer)
-            except:
-                print("interval = {0}".format(interval))
-                print("max_age = {0}".format(max_age))
-                print("interval_start_dt = {0}".format(interval_start_dts[i]))
-                print("dt_now = {0}".format(dt_now))
-                print("fetch_dt:")
-                pprint(fetch_dts[i])
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(responses[i])
-                raise
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,6 +2,7 @@ from enum import Enum
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
+
 class Period(Enum):
 	Days1 = 0
 	Days5 = 1
@@ -71,34 +72,91 @@ intervalToTimedelta[Interval.Week] = timedelta(days=7)
 # intervalToTimedelta[Interval.Months1] = None ## irregular time interval
 # intervalToTimedelta[Interval.Months3] = None ## irregular time interval
 
-exchangeToMcalExchange = {}
-exchangeToMcalExchange["AMS"] = "XAMS"
-exchangeToMcalExchange["ASE"] = "NYSE"
-exchangeToMcalExchange["EBS"] = "SIX"
-exchangeToMcalExchange["IOB"] = "LSE"
-exchangeToMcalExchange["JNB"] = "XJSE"
-exchangeToMcalExchange["LSE"] = "LSE"
-exchangeToMcalExchange["NCM"] = "NASDAQ"
-exchangeToMcalExchange["NGM"] = "NASDAQ"
-exchangeToMcalExchange["NMS"] = "NASDAQ"
-exchangeToMcalExchange["NYQ"] = "NYSE"
-exchangeToMcalExchange["PAR"] = "XPAR"
-exchangeToMcalExchange["PNK"] = "NYSE"
-exchangeToMcalExchange["TOR"] = "TSX"
+
+# exchangeToMcalExchange = {}
+# exchangeToMcalExchange["AMS"] = "XAMS"
+# exchangeToMcalExchange["ASE"] = "NYSE"
+# exchangeToMcalExchange["EBS"] = "SIX"
+# exchangeToMcalExchange["IOB"] = "LSE"
+# exchangeToMcalExchange["JNB"] = "XJSE"
+# exchangeToMcalExchange["LSE"] = "LSE"
+# exchangeToMcalExchange["NCM"] = "NASDAQ"
+# exchangeToMcalExchange["NGM"] = "NASDAQ"
+# exchangeToMcalExchange["NMS"] = "NASDAQ"
+# exchangeToMcalExchange["NYQ"] = "NYSE"
+# exchangeToMcalExchange["PAR"] = "XPAR"
+# exchangeToMcalExchange["PNK"] = "NYSE"
+# exchangeToMcalExchange["TOR"] = "TSX"
+exchangeToXcalExchange = {}
+# USA:
+exchangeToXcalExchange["NYQ"] = "XNYS"
+exchangeToXcalExchange["ASE"] = exchangeToXcalExchange["NYQ"]
+exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]
+exchangeToXcalExchange["NCM"] = "NASDAQ"
+exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
+exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
+# Canada:
+exchangeToXcalExchange["TOR"] = "XTSE" # Toronto
+exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"] # TSX Venture
+# Europe:
+exchangeToXcalExchange["LSE"] = "XLON" # London
+exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
+exchangeToXcalExchange["AMS"] = "XAMS" # Amsterdam
+exchangeToXcalExchange["EBS"] = "XSWX" # Zurich
+exchangeToXcalExchange["MIL"] = "XMIL" # Milan
+exchangeToXcalExchange["OSL"] = "XOSL" # Oslo
+exchangeToXcalExchange["PAR"] = "XPAR" # Paris
+# Other:
+exchangeToXcalExchange["JNB"] = "XJSE" # Johannesburg
+exchangeToXcalExchange["JPX"] = "JPX"  # Tokyo
+exchangeToXcalExchange["ASX"] = "ASX" # Australia
+exchangeToXcalExchange["NZE"] = "XNZE" # New Zealand
 
 ## Yahoo specify data delays here:
 ## https://help.yahoo.com/kb/SLN2310.html?guccounter=1
 exchangeToYfLag = {}
-exchangeToYfLag["AMS"] = timedelta(minutes=15)
-exchangeToYfLag["ASE"] = timedelta(seconds=0)
-exchangeToYfLag["EBS"] = timedelta(minutes=30)
-exchangeToYfLag["IOB"] = timedelta(minutes=20)
-exchangeToYfLag["JNB"] = timedelta(minutes=15)
-exchangeToYfLag["LSE"] = timedelta(minutes=20)
-exchangeToYfLag["NCM"] = timedelta(seconds=0)
-exchangeToYfLag["NGM"] = timedelta(seconds=0)
-exchangeToYfLag["NMS"] = timedelta(seconds=0)
+# USA:
 exchangeToYfLag["NYQ"] = timedelta(seconds=0)
-exchangeToYfLag["PAR"] = timedelta(minutes=15)
+exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
+exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
+# Canada:
 exchangeToYfLag["TOR"] = timedelta(seconds=0)
+exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
+# Europe:
+exchangeToYfLag["LSE"] = timedelta(minutes=20)
+exchangeToYfLag["IOB"] = timedelta(minutes=20)
+exchangeToYfLag["AMS"] = timedelta(minutes=15)
+exchangeToYfLag["EBS"] = timedelta(minutes=30)
+exchangeToYfLag["MIL"] = timedelta(minutes=20)
+exchangeToYfLag["OSL"] = timedelta(minutes=15)
+exchangeToYfLag["PAR"] = timedelta(minutes=15)
+# Other:
+exchangeToYfLag["JNB"] = timedelta(minutes=15)
+exchangeToYfLag["JPX"] = timedelta(minutes=20)
+exchangeToYfLag["ASX"] = timedelta(minutes=20)
+exchangeToYfLag["NZE"] = timedelta(minutes=20)
+
+
+class NoIntervalsInRangeException(Exception):
+	def __init__(self,interval,start_dt,end_dt,*args):
+		super().__init__(args)
+		self.interval = interval
+		self.start_dt = start_dt
+		self.end_dt = end_dt
+
+	def __str__(self):
+		return ("No {} intervals found between {}->{}".format(self.interval, self.start_dt, self.end_dt))
+		
+class NoPriceDataInRangeException(Exception):
+	def __init__(self,tkr,interval,start_dt,end_dt,*args):
+		super().__init__(args)
+		self.tkr = tkr
+		self.interval = interval
+		self.start_dt = start_dt
+		self.end_dt = end_dt
+
+	def __str__(self):
+		return ("No {}-price data fetched for ticker {} between dates {} -> {}".format(self.interval, self.tkr, self.start_dt, self.end_dt))

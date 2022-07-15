@@ -14,8 +14,6 @@ packed_data_cats = {}
 # packed_data_cats["info"] = ["info"]
 packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
 packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials"]
-for i in yfcd.intervalToString.values():
-	packed_data_cats["history-"+i] = ["history-"+i]
 
 quarterly_objects = packed_data_cats["quarterlys"]
 annual_objects    = packed_data_cats["annuals"]
@@ -37,14 +35,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
 	global cacheDirpath
-	_os = yfcu.GetOperatingSystem()
-	if _os == yfcu.OperatingSystem.Windows:
-		cacheDirpath = os.getenv("APPDATA") + "\\yfinance-cache"
-		raise Exception("Not tested. Does this make sense as cache dir in Windows? - {0}".format(cacheDirpath))
-	elif _os == yfcu.OperatingSystem.Linux:
-		cacheDirpath = os.path.join(os.getenv("HOME"), ".cache", "yfinance-cache")
-	else:
-		raise Exception("Not implemented: cache dirpath under OS '{0}'".format(_os))
+	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
 
 
 def SetCacheDirpath(dp):
