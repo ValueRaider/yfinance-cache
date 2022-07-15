@@ -106,8 +106,10 @@ exchangeToXcalExchange["EBS"] = "XSWX" # Zurich
 exchangeToXcalExchange["MIL"] = "XMIL" # Milan
 exchangeToXcalExchange["OSL"] = "XOSL" # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR" # Paris
+exchangeToXcalExchange["GER"] = "XFRA" # Frankfurt. Germany also has XETRA, but that's part of Frankfurt exchange
 # Other:
 exchangeToXcalExchange["JNB"] = "XJSE" # Johannesburg
+exchangeToXcalExchange["SAO"] = "BVMF" # Sao Paulo
 exchangeToXcalExchange["JPX"] = "JPX"  # Tokyo
 exchangeToXcalExchange["ASX"] = "ASX" # Australia
 exchangeToXcalExchange["NZE"] = "XNZE" # New Zealand
@@ -130,11 +132,13 @@ exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
+exchangeToYfLag["GER"] = timedelta(minutes=15)
 exchangeToYfLag["MIL"] = timedelta(minutes=20)
 exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
 # Other:
 exchangeToYfLag["JNB"] = timedelta(minutes=15)
+exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)
 exchangeToYfLag["NZE"] = timedelta(minutes=20)
