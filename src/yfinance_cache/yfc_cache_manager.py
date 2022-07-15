@@ -35,14 +35,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
 	global cacheDirpath
-	_os = yfcu.GetOperatingSystem()
-	if _os == yfcu.OperatingSystem.Windows:
-		cacheDirpath = os.getenv("APPDATA") + "\\yfinance-cache"
-		raise Exception("Not tested. Does this make sense as cache dir in Windows? - {0}".format(cacheDirpath))
-	elif _os == yfcu.OperatingSystem.Linux:
-		cacheDirpath = os.path.join(os.getenv("HOME"), ".cache", "yfinance-cache")
-	else:
-		raise Exception("Not implemented: cache dirpath under OS '{0}'".format(_os))
+	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
 
 
 def SetCacheDirpath(dp):

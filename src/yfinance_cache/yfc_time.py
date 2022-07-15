@@ -22,12 +22,21 @@ def TypeCheckBool(var, varName):
 	if not isinstance(var, bool):
 		raise Exception("'{}' must be bool not {}".format(varName, type(var)))
 def TypeCheckDateEasy(var, varName):
+	if isinstance(var, pd.Timestamp):
+		# While Pandas missing support for 'zoneinfo' must deny
+		raise Exception("'{}' must be date not {}".format(varName, type(var)))
 	if not (isinstance(var, date) or isinstance(var, datetime)):
 		raise Exception("'{}' must be date not {}".format(varName, type(var)))
 def TypeCheckDateStrict(var, varName):
+	if isinstance(var, pd.Timestamp):
+		# While Pandas missing support for 'zoneinfo' must deny
+		raise Exception("'{}' must be date not {}".format(varName, type(var)))
 	if not (isinstance(var, date) and not isinstance(var, datetime)):
 		raise Exception("'{}' must be date not {}".format(varName, type(var)))
 def TypeCheckDatetime(var, varName):
+	if isinstance(var, pd.Timestamp):
+		# While Pandas missing support for 'zoneinfo' must deny
+		raise Exception("'{}' must be datetime not {}".format(varName, type(var)))
 	if not isinstance(var, datetime):
 		raise Exception("'{}' must be datetime not {}".format(varName, type(var)))
 	if var.tzinfo is None:
@@ -128,7 +137,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	return {"market_open":opens, "market_close":closes}
 
 
-def GetExchangeScheduleIntervals(exchange, interval, start, end):
+def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef=True):
 	TypeCheckStr(exchange, "exchange")
 	if start >= end:
 		raise Exception("start={} must be < end={}".format(start, end))
@@ -151,19 +160,19 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end):
 		start_d = start
 	else:
 		start_dt = start
-		start_d = start.date()
+		start_d = start.astimezone(tz).date()
 	if not isinstance(end, datetime):
 		end_dt = datetime.combine(end, time(0), tz)
 		end_d = end
 	else:
 		end_dt = end
-		end_d = end.date()
+		end_d = end.astimezone(tz).date()
 
 	if debug:
 		print("- start_d={}, end_d={}".format(start_d, end_d))
 
 	istr = yfcd.intervalToString[interval]
-	if istr.endswith('h'):
+	if istr.endswith('h') or istr.endswith('m'):
 		ti = cal.trading_index(start_d.isoformat(), end_d.isoformat(), period=istr, intervals=True, force_close=True)
 		if len(ti) == 0:
 			return None
@@ -176,72 +185,92 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end):
 			times.append((i.left.to_pydatetime().astimezone(tz), i.right.to_pydatetime().astimezone(tz)))
 		return times
 	elif interval == yfcd.Interval.Days1:
-		open_dts = cal.schedule.loc[start_d.isoformat():(end_d-timedelta(days=1)).isoformat()]["open"]
-		if len(open_dts) == 0:
+		s = cal.schedule.loc[start_d.isoformat():(end_d-timedelta(days=1)).isoformat()]
+		if s.shape[0] == 0:
 			return None
-		open_dts = open_dts.dt.date
-		day_ranges = [(open_dts[i], open_dts[i]+timedelta(days=1)) for i in range(len(open_dts))]
-		return day_ranges
+		open_days = [dt.to_pydatetime().astimezone(tz).date() for dt in s["open"]]
+		ranges = [(d, d+timedelta(days=1)) for d in open_days]
+		return ranges
 	elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
 		open_dts = cal.schedule.loc[start_d.isoformat():(end_d-timedelta(days=1)).isoformat()]["open"]
 		if len(open_dts) == 0:
 			return None
+		open_days = [dt.to_pydatetime().astimezone(tz).date() for dt in open_dts]
+		if debug:
+			print("- open_days:")
+			pprint(open_days)
 
 		first_week_start_idx = None
-		if cal.previous_session(open_dts[0].date()).weekday() > open_dts[0].weekday():
+		if cal.previous_session(open_days[0]).weekday() > open_days[0].weekday():
 			# First dt is start of working week
 			first_week_start_idx = 0
 		else:
 			# search for next week
 			inf_loop_ctr = 10
-			for i in range(len(open_dts)):
+			for i in range(len(open_days)):
 				inf_loop_ctr -= 1
 				if inf_loop_ctr == 0:
 					raise Exception("Infinite loop detected")
-				if open_dts[i].weekday() < open_dts[0].weekday():
+				if open_days[i].weekday() < open_days[0].weekday():
 					first_week_start_idx = i
 					break
 		if first_week_start_idx is None:
 			if debug:
 				print("first_week_start_idx is None")
 			return None
-		open_dts = open_dts[first_week_start_idx:]
+		open_days = open_days[first_week_start_idx:]
 
 		last_week_end_idx = None
-		if cal.next_session(open_dts[-1].date()).weekday() < open_dts[-1].weekday():
+		if cal.next_session(open_days[-1]).weekday() < open_days[-1].weekday():
 			# Last dt is end of working week
-			last_week_end_idx = len(open_dts)-1
+			last_week_end_idx = len(open_days)-1
 		else:
 			# search for last week
 			inf_loop_ctr = 10
-			for i in range(len(open_dts)-1, -1, -1):
+			for i in range(len(open_days)-1, -1, -1):
 				inf_loop_ctr -= 1
 				if inf_loop_ctr == 0:
 					raise Exception("Infinite loop detected")
-				if open_dts[i].weekday() > open_dts[-1].weekday():
+				if open_days[i].weekday() > open_days[-1].weekday():
 					last_week_end_idx = i
 					break
 		if last_week_end_idx is None:
 			if debug:
 				print("last_week_end_idx is None")
 			return None
-		open_dts = open_dts[:last_week_end_idx+1]
+		open_days = open_days[:last_week_end_idx+1]
 
 		if debug:
-			print("- open_dts:")
-			print(open_dts)
+			print("- open_days:")
+			print(open_days)
 
 		# Now, open_dts contains only full working weeks
-		days = open_dts.dt.date
 		week_ranges = []
-		week_start = days[0]
+		week_start = open_days[0]
 		week_end = None
-		for i in range(1,len(days)-1):
-			if days[i].weekday() < days[i-1].weekday():
-				week_end = days[i-1]
+		for i in range(1,len(open_days)-1):
+			if open_days[i].weekday() < open_days[i-1].weekday():
+				week_end = open_days[i-1]
 				week_ranges.append((week_start, week_end+timedelta(days=1)))
-				week_start = days[i]
-		week_ranges.append((week_start, days[-1]+timedelta(days=1)))
+				week_start = open_days[i]
+		week_ranges.append((week_start, open_days[-1]+timedelta(days=1)))
+
+		if debug:
+			print("week_ranges:")
+			print(week_ranges)
+
+		if weeklyUseYahooDef:
+			week_ranges2 = []
+			for r in week_ranges:
+				ws = r[0] ; ws -= timedelta(days=ws.weekday())
+				we = r[1] ; we += timedelta(days=5-we.weekday())
+				week_ranges2.append((ws, we))
+			week_ranges = week_ranges2
+
+			if debug:
+				print("week_ranges2:")
+				print(week_ranges2)
+
 		return week_ranges
 
 	else:
@@ -355,12 +384,19 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 
 	elif interval == yfcd.Interval.Days1:
 		if isinstance(ts, datetime):
-			ts_day = ts.date()
+			ts_day = ts.astimezone(tz).date()
 		else:
 			ts_day = ts
+		if debug:
+			print("- ts_day: {}".format(ts_day))
 		if ExchangeOpenOnDay(exchange, ts_day):
+			if debug:
+				print("- exchange open")
 			daySched = GetExchangeSchedule(exchange, ts_day, ts_day+timedelta(days=1))
 			i = {"interval_open":daySched["market_open"][0].date(), "interval_close":daySched["market_close"][0].date()+timedelta(days=1)}
+		else:
+			if debug:
+				print("- exchange closed")
 
 	else:
 		if IsTimestampInActiveSession(exchange, ts):
@@ -403,10 +439,14 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 	if debug:
 		print("- yf_lag = {}".format(yf_lag))
 
+	if debug:
+		print("- calling GetTimestampCurrentInterval()")
 	irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
 	if irange is None:
 		raise Exception("Failed to map {} to interval".format(intervalStart))
 
+	if debug:
+		print("- calling GetExchangeSchedule()")
 	if isinstance(irange["interval_open"],datetime):
 		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"].date(), irange["interval_close"].date()+timedelta(days=1))
 	else:
@@ -530,7 +570,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 	return False
 
 
-def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, minDistanceThreshold=5):
+def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True, minDistanceThreshold=5):
 	if not isinstance(exchange, str):
 		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
 	if not isinstance(start, datetime) and not isinstance(start, date):
@@ -564,9 +604,9 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 		print("- knownIntervalStarts:")
 		pprint(knownIntervalStarts)
 
-	intervals = GetExchangeScheduleIntervals(exchange, interval, start, end)
+	intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef)
 	if intervals is None or len(intervals) == 0:
-		raise Exception("No {} intervals found between {}->{}".format(interval, start, end))
+		raise yfcd.NoIntervalsInRangeException(interval, start, end)
 	if debug:
 		print("- intervals:")
 		pprint(intervals)
@@ -605,25 +645,17 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 			v = intervals_missing_data[i]
 			if v:
 				if start is None:
-					if debug:
-						print("- start is None => start={}".format(i))
 					start = i ; end = i
 				else:
 					if i == (end+1):
-						if debug:
-							print("- inc. end {}->{}".format(end,i))
 						end = i
 					else:
 						r = (intervals[start][0], intervals[end][1])
 						ranges.append(r)
-						if debug:
-							print("- range: {}".format(r))
 						start = i ; end = i
 
 			if i == (len(intervals_missing_data)-1):
 				r = (intervals[start][0], intervals[end][1])
-				if debug:
-					print("- adding final range: {}".format(r))
 				ranges.append(r)
 
 	if debug:
@@ -641,10 +673,11 @@ def ConvertToDatetime(dt, tz=None):
 		dt = pd.Timestamp(dt)
 	if isinstance(dt, pd.Timestamp):
 		dt = dt.to_pydatetime()
-	if tz is None:
-		dt = dt.replace(tzinfo=tz)
-	else:
-		dt = dt.astimezone(tz)
+	if not tz is None:
+		if dt.tzinfo is None:
+			dt = dt.replace(tzinfo=tz)
+		else:
+			dt = dt.astimezone(tz)
 	return dt
 
 
