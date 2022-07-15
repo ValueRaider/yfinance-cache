@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import datetime, time
 from zoneinfo import ZoneInfo
+import pytz
 
 from pprint import pprint
 
@@ -433,10 +434,28 @@ class Ticker:
 			intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, weeklyUseYahooDef=True) for i in intervalStarts])
 			f_na = intervals==None
 			if sum(f_na) > 0:
-				for idx in np.where(f_na)[0]:
-					dt = df.index[idx]
-					print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
-				raise Exception("Problem with dates returned by Yahoo, see above")
+				if not interday:
+					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
+					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
+					sched = yfct.GetExchangeSchedule(exchange, df2["_date"].min(), df2["_date"].max()+datetime.timedelta(days=1))
+					tz = pytz.timezone(self.info["exchangeTimezoneName"])
+					sched["market_open"] = [tz.localize(x.replace(tzinfo=None)) for x in sched["market_open"]]
+					sched["market_close"] = [tz.localize(x.replace(tzinfo=None)) for x in sched["market_close"]]
+					sched_days = [x.date() for x in sched["market_open"]]
+					sched_df = pd.DataFrame(data=sched, index=sched_days) ; sched_df["_date"] = sched_df.index
+					df2 = df2.merge(sched_df, on="_date")
+					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
+					if sum(f_drop) > 0:
+						intervalStarts = intervalStarts[~f_drop]
+						intervals = intervals[~f_drop]
+						df = df[~f_drop]
+						n = df.shape[0]
+						f_na = intervals==None
+				if sum(f_na) > 0:
+					for idx in np.where(f_na)[0]:
+						dt = df.index[idx]
+						print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
+					raise Exception("Problem with dates returned by Yahoo, see above")
 			interval_closes = np.array([i["interval_close"] for i in intervals])
 
 		lastDataDts = np.array([yfct.CalcIntervalLastDataDt(exchange, intervalStarts[i], interval) for i in range(n)])
