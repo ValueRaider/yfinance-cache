@@ -712,6 +712,34 @@ class Test_Yfc_Interface(unittest.TestCase):
                             print("")
                             raise
 
+    def test_history_jse_is_weird(self):
+        # JSE market closes at 5pm local time, but if request 1h data 
+        # including today then it returns a row with timestamp today@5pm and 0 volume.
+        # This mysterious row disappears tomorrow.
+        interval = "1h"
+        tkr = "IMP.JO"
+
+        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        d_now = dt_now.date()
+        dat = yfc.Ticker(tkr, session=None)
+        exchange = dat.info["exchange"]
+        yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
+        if yfct.ExchangeOpenOnDay(exchange, d_now):
+            sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
+            if (not sched is None) and dt_now > sched["market_close"][0]:
+                start_dt = dt_now - timedelta(days=7)
+                end_dt = dt_now
+                tz = ZoneInfo(dat.info["exchangeTimezoneName"])
+
+                ## Test is simple. Fetch should complete, and no 5pm in table
+                df = dat.history(start=d_now, interval="1h")
+                try:
+                    self.assertEqual(df.shape[0], 8)
+                    self.assertEqual(df.index[-1].time(), time(16))
+                except:
+                    print(df)
+                    raise
+
     def test_usa_public_holidays_1w(self):
         # Reproduces bug where 'refetch algorithm' broke if 
         # date range included a public holiday:
