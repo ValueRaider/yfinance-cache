@@ -115,7 +115,7 @@ def merge_files():
 				json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
 			os.remove(imfp)
 
-		for i in yfc_time.intervalToString.values():
+		for i in yfcd.intervalToString.values():
 			hstr = "history-"+i
 			hpkp = os.path.join(d, tkr, hstr+".pkl")
 			hmfp = os.path.join(d, tkr, hstr+".metadata")
@@ -128,6 +128,37 @@ def merge_files():
 				with open(hpkp, 'wb') as outData:
 					pickle.dump({"data":pkl,"metadata":md}, outData, 4)
 				os.remove(hmfp)
+
+
+def fix_bad_info_merge():
+	d = yfcm.GetCacheDirpath()
+
+	for tkr in os.listdir(d):
+		tkrd = os.path.join(d, tkr)
+		for f in os.listdir(tkrd):
+			fp = os.path.join(tkrd, f)
+			f_pieces = f.split('.')
+			ext = f_pieces[-1]
+
+			f_base = '.'.join(f_pieces[:-1])
+
+			if ext == "json":
+				with open(fp, 'r') as inData:
+					js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
+
+				data = js["data"]
+				md = js["metadata"]
+				changed = False
+				if set(data.keys()) == set(["data","metadata"]):
+					md2 = data["metadata"]
+					data = data["data"]
+					changed = True
+					if len(md2.keys()) > len(md.keys()):
+						md = md2
+
+				if changed:
+					with open(fp, 'w') as outData:
+						json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
 
 
 def clean_metadata():
@@ -464,6 +495,8 @@ def price_history_cleanup_tz_mess():
 
 
 # merge_files()
+
+fix_bad_info_merge()
 
 # clean_metadata()
 
