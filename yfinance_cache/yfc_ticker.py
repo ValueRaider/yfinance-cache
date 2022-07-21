@@ -363,14 +363,39 @@ class Ticker:
 							kwargs=kwargs)
 
 		fetch_dt_utc = datetime.datetime.utcnow()
+
+		n = df.shape[0]
+		if n == 0 and (end-start) < datetime.timedelta(days=7):
+			## If a very short date range was requested, it is possible that 
+			## for each day no volume occurred. In this scenario Yahoo returns nothing.
+			## To solve, slightly extend the date range, then Yahoo will return empty rows
+			## for the 0-volume days.
+			start2 = start - datetime.timedelta(days=3)
+			end2 = end + datetime.timedelta(days=3)
+			df = self.dat.history(period=pstr, 
+								interval=istr, 
+								start=start2, end=end2, 
+								prepost=prepost, 
+								actions=True,
+								keepna=True, 
+								auto_adjust=False,
+								back_adjust=False,
+								proxy=proxy, 
+								rounding=False,
+								tz=None,
+								kwargs=kwargs)
+			fetch_dt_utc = datetime.datetime.utcnow()
+			if interday:
+				df = df[(df.index.date >= start) & (df.index.date < end)]
+			else:
+				df = df[(df.index >= start) & (df.index < end)]
+			n = df.shape[0]
 		fetch_dt = fetch_dt_utc.replace(tzinfo=ZoneInfo("UTC"))
 
 		if debug:
 			print("YFC: YF returned table:")
 			with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.precision', 3, ):
 				print(df)
-
-		n = df.shape[0]
 
 		if n > 0:
 			## Remove any out-of-range data:
