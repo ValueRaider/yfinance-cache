@@ -399,8 +399,7 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_history_final(self):
         # Test 'Final?' column
-        # tkr_candidates = ["IMP.JO", "INTC", "MEL.NZ"]
-        tkr_candidates = ["INTC"]
+        tkr_candidates = ["IMP.JO", "INTC", "MEL.NZ"]
         interval = yfcd.Interval.Days1
 
         dt_now_utc = datetime.utcnow()
@@ -426,15 +425,13 @@ class Test_Yfc_Interface(unittest.TestCase):
                     print(df1)
                     raise
 
-        return
- 
         # Second, check while exchange closed
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if not yfct.IsTimestampInActiveSession(exchange, dt_now):
-                df1 = dat.history(interval="1d", start=start_dt.date(), end=end_d)
+                df1 = dat.history(interval="1d", start=start_d, end=end_d)
                 n = df1.shape[0]
                 self.assertTrue((df1["Final?"]==True).all())
 
@@ -447,7 +444,8 @@ class Test_Yfc_Interface(unittest.TestCase):
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         start_dt = dt_now - timedelta(days=7)
         end_dt = dt_now+timedelta(days=1)
-        end_d = end_dt.date()+timedelta(days=1)
+        start_d = start_dt.date()
+        end_d = end_dt.date()
 
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -467,7 +465,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                     d += timedelta(days=1)
 
                 ## Check that table covers expected date range
-                df1 = dat.history(interval="1d", start=start_dt.date(), end=end_d)
+                df1 = dat.history(interval="1d", start=start_d, end=end_d)
                 try:
                     self.assertTrue(np.array_equal(expected_interval_dates, df1.index))
                 except:
@@ -484,7 +482,7 @@ class Test_Yfc_Interface(unittest.TestCase):
 
                 # Refetch before data aged, should return identical table
                 sleep(1)
-                df2 = dat.history(interval="1d", start=start_dt.date(), end=end_d, max_age=timedelta(minutes=1))
+                df2 = dat.history(interval="1d", start=start_d, end=end_d, max_age=timedelta(minutes=1))
                 try:
                     self.assertTrue(df1.equals(df2))
                 except:
@@ -502,12 +500,11 @@ class Test_Yfc_Interface(unittest.TestCase):
                     print(df2)
                     print("df2 cols: {}".format(["'{}'".format(x) for x in df2.columns]))
                     raise
-                return
 
                 # Refetch after data aged, last row should be different
                 sleep(10)
                 n = df1.shape[0]
-                df3 = dat.history(interval="1d", start=start_dt.date(), end=end_d, max_age=timedelta(seconds=1))
+                df3 = dat.history(interval="1d", start=start_d, end=end_d, max_age=timedelta(seconds=1))
                 try:
                     self.assertTrue(np.array_equal(expected_interval_dates, df3.index))
                 except:
@@ -528,7 +525,7 @@ class Test_Yfc_Interface(unittest.TestCase):
 
                 ## Check it matches YF:
                 dat_yf = yf.Ticker(tkr, session=self.session)
-                df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_d)
+                df_yf = dat_yf.history(interval="1d", start=start_d, end=end_d)
                 data_cols = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
                 for c in data_cols:
                     try:

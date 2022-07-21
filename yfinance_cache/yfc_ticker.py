@@ -376,15 +376,26 @@ class Ticker:
 			## Remove any out-of-range data:
 			tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
 			## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
-			dt = df.index[-1]
 			end_dt = end if isinstance(end,datetime.datetime) else datetime.datetime.combine(end, datetime.time(0), tz_exchange)
-			if df.index[-1] > end_dt:
+			drop_last = False
+			if interday:
+				end_d = end_dt.astimezone(tz_exchange).date()
+				drop_last = df.index[-1].date() > end_d
+			else:
+				drop_last = df.index[-1] > end_dt
+			if drop_last:
 				df = df[0:n-1]
 				n -= 1
 			#
 			# And again for pre-start data:
 			start_dt = start if isinstance(start,datetime.datetime) else datetime.datetime.combine(start, datetime.time(0), tz_exchange)
-			if df.index[0] < start_dt:
+			drop_first = False
+			if interday:
+				start_d = start_dt.astimezone(tz_exchange).date()
+				drop_first = df.index[0].date() < start_d
+			else:
+				drop_first = df.index[0] < start_dt
+			if drop_first:
 				df = df[1:n]
 				n -= 1
 

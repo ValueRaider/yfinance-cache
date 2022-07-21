@@ -21,6 +21,8 @@ annual_objects    = packed_data_cats["annuals"]
 verbose=False
 # verbose=True
 
+## TODO: store DataFrames as CSV, don't need the metadata
+
 global cacheDirpath
 
 class Attributes(Enum):
