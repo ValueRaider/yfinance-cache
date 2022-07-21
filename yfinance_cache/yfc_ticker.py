@@ -1,4 +1,3 @@
-import sys ; sys.path.insert(0,"/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
 import yfinance as yf
 
 from . import yfc_cache_manager as yfcm
