@@ -814,8 +814,13 @@ class Ticker:
 			print("df_1mins:")
 			print(df_1mins)
 			raise Exception("{}: calculated YF lag as {}, seems negative".format(self.ticker, lag))
+		expiry_td = datetime.timedelta(days=28)
 		if (lag > (2*specified_lag)) and (lag-specified_lag)>datetime.timedelta(minutes=2):
-			raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+			if df_1mins["Volume"][df_1mins.shape[0]-1] == 0:
+				## Ticker has low volume, ignore larger-than-expected lag. Just reduce the expiry, in case tomorrow has more volume
+				expiry_td = datetime.timedelta(days=1)
+			else:
+				raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
 		self._yf_lag = lag
-		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+datetime.timedelta(days=28))
+		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+expiry_td)
 		return self._yf_lag
