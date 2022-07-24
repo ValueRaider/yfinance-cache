@@ -1,5 +1,3 @@
-import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
-
 import unittest
 from pprint import pprint
 
