@@ -98,13 +98,16 @@ def GetExchangeDataDelay(exchange):
 	return d
 
 
+def GetCalendar(exchange):
+	return xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange], start=str(yfcd.yf_min_year))
+
 def ExchangeOpenOnDay(exchange, d):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDateStrict(d, "d")
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	return d.isoformat() in cal.schedule.index
 
@@ -119,14 +122,11 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	sched = None
-	try:
-		## loc[] is inclusive, but end_d should be treated as exclusive:
-		sched = cal.schedule[start_d:end_d-timedelta(days=1)]
-	except:
-		return None
+	## loc[] is inclusive, but end_d should be treated as exclusive:
+	sched = cal.schedule[start_d:end_d-timedelta(days=1)]
 	if (sched is None) or sched.shape[0] == 0:
 		return None
 
@@ -152,7 +152,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	if not isinstance(start, datetime):
@@ -281,7 +281,7 @@ def IsTimestampInActiveSession(exchange, ts):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDatetime(ts, "ts")
 
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 	try:
 		s = cal.schedule.loc[ts.date().isoformat()]
 	except:
@@ -293,7 +293,7 @@ def GetTimestampCurrentSession(exchange, ts):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDatetime(ts, "ts")
 
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 	try:
 		s = cal.schedule.loc[ts.date().isoformat()]
 	except:
@@ -402,7 +402,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 		if IsTimestampInActiveSession(exchange, ts):
 			td = yfcd.intervalToTimedelta[interval]
 			## Try with exchange_calendars
-			cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+			cal = GetCalendar(exchange)
 			dt_utc = ts.astimezone(ZoneInfo("UTC"))
 			tis = cal.trading_index(dt_utc-td, dt_utc+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
 			idx = -1
