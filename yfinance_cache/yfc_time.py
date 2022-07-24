@@ -59,7 +59,9 @@ def TypeCheckIntervalDt(dt, interval, varName, strict=True):
 def TypeCheckPeriod(var, varName):
 	if not isinstance(var, yfcd.Period):
 		raise Exception("'{}' must be yfcd.Period not {}".format(varName, type(var)))
-
+def TypeCheckNpArray(var, varName):
+	if not isinstance(var, np.ndarray):
+		raise Exception("'{}' must be numpy array not {}".format(varName, type(var)))
 
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
@@ -422,6 +424,105 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 			i = {"interval_open":intervalStart, "interval_close":intervalEnd}
 
 	return i
+
+def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=True):
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckNpArray(ts, "ts")
+	TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
+	TypeCheckInterval(interval, "interval")
+	TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+
+	# For day and week intervals, the time component is ignored (set to 0).
+
+	debug = False
+	# debug = True
+
+	if debug:
+		print("GetTimestampCurrentInterval_batch(interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
+
+	n = len(ts)
+	intervals = [None]*n
+
+	tz = ZoneInfo(GetExchangeTzName(exchange))
+	ts_is_datetimes = isinstance(ts[0],datetime)
+	if ts_is_datetimes:
+		ts_day = [t.astimezone(tz).date() for t in ts]
+	else:
+		ts_day = ts
+
+	if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+		# Treat week intervals as special case, contiguous from first weekday open to last weekday open. 
+		# Not necessarily Monday->Friday because of public holidays.
+		# Unless 'weeklyUseYahooDef' is true, which means range from Monday to Friday.
+		weekStart = [ts_day[i] - timedelta(days=ts[i].weekday()) for i in range(len(ts))]
+		weekSched = [GetExchangeSchedule(exchange, ws, ws+timedelta(days=6)) for ws in weekStart]
+		weekSchedStart = [ws["market_open"][0] for ws in weekSched]
+		weekSchedEnd = [ws["market_close"][-1] for ws in weekSched]
+		if weeklyUseYahooDef:
+			# Shift start to the Monday regardless of market schedule
+			weekSchedStart = [ws - timedelta(days=ws.weekday()) for ws in weekSchedStart]
+			intervalStart = [datetime.combine(ws.date(), time(0), tz) for ws in weekSchedStart]
+			intervalEnd = [datetime.combine(ws.date(), time(23,59,59), tz) for ws in weekSchedEnd]
+		else:
+			intervalStart = weekSchedStart
+			intervalEnd = weekSchedEnd
+		intervalStart = [d.date() for d in intervalStart]
+		intervalEnd = [d.date()+timedelta(days=1) for d in intervalEnd]
+		f = (ts_day >= intervalStart) & (ts_day < intervalEnd)
+		for i in np.where(f)[0]:
+			intervals[i] = {"interval_open":intervalStart[i], "interval_close":intervalEnd[i]}
+
+	elif interval == yfcd.Interval.Days1:
+		# for i in range(n):
+		# 	td = ts_day[i]
+		# 	if ExchangeOpenOnDay(exchange, td):
+		# 		daySched = GetExchangeSchedule(exchange, td, td+timedelta(days=1))
+		# 		intervals[i] = {"interval_open":daySched["market_open"][0].date(), 
+		# 						"interval_close":daySched["market_close"][0].date()+timedelta(days=1)}
+		t0 = ts_day[0]
+		tl = ts_day[len(ts_day)-1]
+		sched = GetExchangeSchedule(exchange, t0, tl+timedelta(days=1))
+		i_t = 0 ; i_s = 0
+		while i_t < n:
+			td = ts_day[i_t]
+			if i_s >= len(sched["market_open"]):
+				raise Exception("Ran out of schedule({}). n={}, i_t={}".format(len(sched["market_open"]), n, i_t))
+			if td == sched["market_open"][i_s].date():
+				# Match
+				intervals[i_t] = {"interval_open":sched["market_open"][i_s].date(), 
+								"interval_close":sched["market_close"][i_s].date()+timedelta(days=1)}
+				i_t += 1
+			elif td < sched["market_open"][i_s].date():
+				i_t += 1
+			else:
+				i_s += 1
+
+	else:
+		td = yfcd.intervalToTimedelta[interval]
+		cal = GetCalendar(exchange)
+		for i in range(n):
+			t = ts[i]
+			if IsTimestampInActiveSession(exchange, t):
+				dt_utc = t.astimezone(ZoneInfo("UTC"))
+				tis = cal.trading_index(dt_utc-td, dt_utc+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
+				idx = -1
+				for i2 in range(len(tis)):
+					if tis[i2].left <= t and t < tis[i2].right:
+						idx = i2
+						break
+				if idx == -1:
+					return None
+				intervalStart = tis[idx].left.to_pydatetime().astimezone(tz)
+				intervalEnd = tis[idx].right.to_pydatetime().astimezone(tz)
+				intervals[i] = {"interval_open":intervalStart, "interval_close":intervalEnd}
+		# t0 = ts[0].astimezone(ZoneInfo("UTC"))
+		# tl = ts[len(ts)-1].astimezone(ZoneInfo("UTC"))
+		# tis = cal.trading_index(t0-td, t1+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
+		# print("tis:")
+		# print(tis)
+		# raise Exception("fin")
+
+	return np.array(intervals)
 
 
 def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):

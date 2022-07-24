@@ -5,6 +5,7 @@ from . import yfc_dat as yfcd
 from . import yfc_utils as yfcu
 from . import yfc_time as yfct
 
+from time import perf_counter
 import pandas as pd
 import numpy as np
 import datetime, time
@@ -255,11 +256,17 @@ class Ticker:
 				h_interval_dt = h_interval_dts[idx]
 				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
 				expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+			h_interval_dts = np.array(h_interval_dts)
 			if sum(expired) > 0:
 				h = h[~expired]
-				h_interval_dts = np.array(h_interval_dts)[~expired]
+				h_interval_dts = h_interval_dts[~expired]
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
-			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
+			# t0 = perf_counter()
+			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
+			# t1 = perf_counter()
+			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
+			# t2 = perf_counter()
+			# print("Baseline t = {:.5f} vs batch t = {:.5f}".format(t1-t0, t2-t1))
 			f_na = h_intervals == None
 			if sum(f_na) > 0:
 				print(h)
