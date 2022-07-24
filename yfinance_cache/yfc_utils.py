@@ -1,6 +1,6 @@
 from enum import Enum
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import re
 
 class OperatingSystem(Enum):
@@ -31,7 +31,7 @@ def GetUserCacheDirpath():
 
 
 def JsonEncodeValue(value):
-	if isinstance(value, datetime):
+	if isinstance(value, date):
 		return value.isoformat()
 	elif isinstance(value, timedelta):
 		e = "timedelta-{0}".format(value.total_seconds())
@@ -50,10 +50,20 @@ def JsonDecodeDict(value):
 			except:
 				pass
 		else:
+			## TODO: add suffix "date-" or "datetime-". Will need to upgrade existing cache
+			decoded = False
 			try:
-				value[k] = datetime.fromisoformat(v)
+				value[k] = date.fromisoformat(v)
+				decoded = True
 			except:
 				pass
+			if not decoded:
+				try:
+					value[k] = datetime.fromisoformat(v)
+					decoded = True
+				except:
+					pass
+
 	return value
 
 

@@ -1,6 +1,7 @@
 from pprint import pprint
 
 from datetime import datetime, date, time, timedelta
+from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
 import holidays
@@ -55,6 +56,9 @@ def TypeCheckIntervalDt(dt, interval, varName, strict=True):
 			TypeCheckDateEasy(dt, varName)
 	else:
 		TypeCheckDatetime(dt, varName)
+def TypeCheckPeriod(var, varName):
+	if not isinstance(var, yfcd.Period):
+		raise Exception("'{}' must be yfcd.Period not {}".format(varName, type(var)))
 
 
 exchangeTzCache = {}
@@ -98,13 +102,16 @@ def GetExchangeDataDelay(exchange):
 	return d
 
 
+def GetCalendar(exchange):
+	return xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange], start=str(yfcd.yf_min_year))
+
 def ExchangeOpenOnDay(exchange, d):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDateStrict(d, "d")
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	return d.isoformat() in cal.schedule.index
 
@@ -119,14 +126,11 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	sched = None
-	try:
-		## loc[] is inclusive, but end_d should be treated as exclusive:
-		sched = cal.schedule[start_d:end_d-timedelta(days=1)]
-	except:
-		return None
+	## loc[] is inclusive, but end_d should be treated as exclusive:
+	sched = cal.schedule[start_d:end_d-timedelta(days=1)]
 	if (sched is None) or sched.shape[0] == 0:
 		return None
 
@@ -152,7 +156,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	if not isinstance(start, datetime):
@@ -281,7 +285,7 @@ def IsTimestampInActiveSession(exchange, ts):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDatetime(ts, "ts")
 
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 	try:
 		s = cal.schedule.loc[ts.date().isoformat()]
 	except:
@@ -293,7 +297,7 @@ def GetTimestampCurrentSession(exchange, ts):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDatetime(ts, "ts")
 
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+	cal = GetCalendar(exchange)
 	try:
 		s = cal.schedule.loc[ts.date().isoformat()]
 	except:
@@ -402,7 +406,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 		if IsTimestampInActiveSession(exchange, ts):
 			td = yfcd.intervalToTimedelta[interval]
 			## Try with exchange_calendars
-			cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange])
+			cal = GetCalendar(exchange)
 			dt_utc = ts.astimezone(ZoneInfo("UTC"))
 			tis = cal.trading_index(dt_utc-td, dt_utc+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
 			idx = -1
@@ -571,12 +575,9 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 
 
 def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True, minDistanceThreshold=5):
-	if not isinstance(exchange, str):
-		raise Exception("'exchange' must be str not {0}".format(type(exchange)))
-	if not isinstance(start, datetime) and not isinstance(start, date):
-		raise Exception("'start' must be datetime.datetime/date not {0}".format(type(start)))
-	if not isinstance(end, datetime) and not isinstance(end, date):
-		raise Exception("'end' must be datetime.datetime/date not {0}".format(type(start)))
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckDateEasy(start, "start")
+	TypeCheckDateEasy(end, "end")
 	if start >= end:
 		raise Exception("start={} must be < end={}".format(start, end))
 	if not knownIntervalStarts is None:
@@ -584,14 +585,12 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
 		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
 			## Must be date or datetime
-			if not isinstance(knownIntervalStarts[0], date):
-				raise Exception("'knownIntervalStarts' must be list of datetime.date/datetime not {0}".format(type(knownIntervalStarts[0])))
+			TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
 			if isinstance(knownIntervalStarts[0],datetime) and knownIntervalStarts[0].tzinfo is None:
 				raise Exception("'knownIntervalStarts' datetimes must be timezone-aware")
 		else:
 			## Must be datetime
-			if not isinstance(knownIntervalStarts[0], datetime):
-				raise Exception("'knownIntervalStarts' must be list of datetime.datetime not {0}".format(type(knownIntervalStarts[0])))
+			TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
 			if knownIntervalStarts[0].tzinfo is None:
 				raise Exception("'knownIntervalStarts' dates must be timezone-aware")
 
@@ -679,6 +678,40 @@ def ConvertToDatetime(dt, tz=None):
 		else:
 			dt = dt.astimezone(tz)
 	return dt
+
+
+def DtSubtractPeriod(dt, period):
+	TypeCheckDateEasy(dt, "dt")
+	TypeCheckPeriod(period, "period")
+
+	if period==yfcd.Period.Ytd:
+		if isinstance(dt, datetime):
+			return datetime(dt.year, 1, 1, tzinfo=dt.tzinfo)
+		else:
+			return date(dt.year, 1, 1)
+
+	if period==yfcd.Period.Days1:
+		rd = relativedelta(days=1)
+	elif period==yfcd.Period.Days5:
+		rd = relativedelta(days=7)
+	elif period==yfcd.Period.Months1:
+		rd = relativedelta(months=1)
+	elif period==yfcd.Period.Months3:
+		rd = relativedelta(months=3)
+	elif period==yfcd.Period.Months6:
+		rd = relativedelta(months=6)
+	elif period==yfcd.Period.Years1:
+		rd = relativedelta(years=1)
+	elif period==yfcd.Period.Years2:
+		rd = relativedelta(years=2)
+	elif period==yfcd.Period.Years5:
+		rd = relativedelta(years=5)
+	elif period==yfcd.Period.Years10:
+		rd = relativedelta(years=10)
+	else:
+		raise Exception("Unknown period value '{}'".format(period))
+
+	return dt - rd
 
 
 def GetSystemTz():

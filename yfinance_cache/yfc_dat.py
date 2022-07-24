@@ -3,6 +3,10 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 
+yf_data_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'Dividends', 'Stock Splits']
+yf_min_year = 1950
+
+
 class Period(Enum):
 	Days1 = 0
 	Days5 = 1
@@ -18,15 +22,16 @@ class Period(Enum):
 periodToString = {}
 periodToString[Period.Days1] = "1d"
 periodToString[Period.Days5] = "5d"
-periodToString[Period.Months1] = "1m"
-periodToString[Period.Months3] = "3m"
-periodToString[Period.Months6] = "6m"
+periodToString[Period.Months1] = "1mo"
+periodToString[Period.Months3] = "3mo"
+periodToString[Period.Months6] = "6mo"
 periodToString[Period.Years1] = "1y"
 periodToString[Period.Years2] = "2y"
 periodToString[Period.Years5] = "5y"
 periodToString[Period.Years10] = "10y"
 periodToString[Period.Ytd] = "ytd"
 periodToString[Period.Max] = "max"
+periodStrToEnum = {v:k for k,v in periodToString.items()}
 
 class Interval(Enum):
 	Mins1 = 0
