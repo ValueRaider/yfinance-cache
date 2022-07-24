@@ -488,9 +488,40 @@ class Ticker:
 						n = df.shape[0]
 						f_na = intervals==None
 				if sum(f_na) > 0:
+					## For some national holidays when exchange closed, Yahoo fills in row. Clue is 0 volume.
+					## Solution = drop:
+					f_na_zeroVol = f_na & (df["Volume"]==0)
+					if sum(f_na_zeroVol) > 0:
+						f_drop = f_na_zeroVol
+						intervalStarts = intervalStarts[~f_drop]
+						intervals = intervals[~f_drop]
+						df = df[~f_drop]
+						n = df.shape[0]
+						f_na = intervals==None
+					## TODO ... another clue is row is identical to previous trading day
+					if sum(f_na) > 0:
+						f_drop = np.array([False]*n)
+						for i in np.where(f_na)[0]:
+							if i > 0:
+								dt = df.index[i]
+								last_dt = df.index[i-1]
+								if (df.loc[dt,yfcd.yf_data_cols] == df.loc[last_dt,yfcd.yf_data_cols]).all():
+									f_drop[i] = True
+						if sum(f_drop) > 0:
+							intervalStarts = intervalStarts[~f_drop]
+							intervals = intervals[~f_drop]
+							df = df[~f_drop]
+							n = df.shape[0]
+							f_na = intervals==None
+				if sum(f_na) > 0:
+					ctr = 0
 					for idx in np.where(f_na)[0]:
 						dt = df.index[idx]
-						print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
+						ctr += 1
+						if ctr < 10:
+							print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
+						elif ctr == 10:
+							print("- stopped printing at 10 failures")
 					raise Exception("Problem with dates returned by Yahoo, see above")
 			interval_closes = np.array([i["interval_close"] for i in intervals])
 
