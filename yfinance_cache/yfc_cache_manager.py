@@ -3,7 +3,7 @@ import pickle, json
 from pprint import pprint
 from enum import Enum
 
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
 from . import yfc_dat as yfcd
@@ -89,14 +89,15 @@ def ReadCacheDatum(ticker, objectName):
 		raise Exception("For cached datum '{0}', both a .json and .pkl file exist. Should only be one.".format(objectName))
 
 	exists = False
+	md = None
 	if os.path.isfile(fp_base+".json"):
+		exists = True
 		fp = fp_base+".json"
-		if os.path.isfile(fp):
-			exists = True
-			with open(fp, 'r') as inData:
-				js   = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-				data = js["data"]
-				md   = js["metadata"]
+		with open(fp, 'r') as inData:
+			js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
+			data = js["data"]
+			if "metadata" in js:
+				md = js["metadata"]
 	else:
 		fp = fp_base+".pkl"
 		if os.path.isfile(fp):
@@ -115,10 +116,7 @@ def ReadCacheDatum(ticker, objectName):
 	if not exists:
 		return None
 
-	if md is None:
-		raise Exception("Failed to find metadata in file: "+fp)
-
-	if "Expiry" in md.keys():
+	if (not md is None) and "Expiry" in md.keys():
 		dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 		if dt >= md["Expiry"]:
 			if verbose:
@@ -177,7 +175,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 		os.makedirs(td)
 	fp_base = os.path.join(td, objectName)
 
-	if isinstance(datum, (list,int,float,str,datetime,timedelta)):
+	if isinstance(datum, (list,int,float,str,datetime,date,timedelta)):
 		ext = "json"
 		## Ensure only one of json or pkl exists:
 		if os.path.isfile(fp_base+".pkl"):
@@ -194,14 +192,16 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 	if verbose:
 		print("- storing {} as {} at {}".format(objectName, ext, fp))
 
+	md = None
 	if not os.path.isfile(fp):
 		if verbose:
 			print("- doesn't exist: "+fp)
-		md = {}
 	else:
 		if ext == "json":
 			with open(fp, 'r') as inData:
-				md = json.load(inData, object_hook=yfcu.JsonDecodeDict)["metadata"]
+				d = json.load(inData, object_hook=yfcu.JsonDecodeDict)
+				if "metadata" in d:
+					md = d["metadata"]
 		else:
 			with open(fp, 'rb') as inData:
 				pkl = pickle.load(inData)
@@ -210,11 +210,17 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None):
 				md = pkl["metadata"]
 
 	if not expiry is None:
+		if md is None:
+			md = {}
 		md["Expiry"] = expiry
 
 	if ext == "json":
 		with open(fp, 'w') as outData:
-			json.dump({"data":datum,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
+			if not md is None:
+				jdata = {"data":datum,"metadata":md}
+			else:
+				jdata = {"data":datum}
+			json.dump(jdata, outData, default=yfcu.JsonEncodeValue)
 	else:
 		with open(fp, 'wb') as outData:
 			pickle.dump({"data":datum,"metadata":md}, outData, 4)

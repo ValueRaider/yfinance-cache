@@ -44,9 +44,7 @@ class Test_Yfc_Cache(unittest.TestCase):
 
         with open(fp, 'r') as inData:
             js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-            md = js["metadata"]
             self.assertEqual(js["data"], value)
-            self.assertIsNotNone(js["metadata"], "LastWrite")
 
 
     def test_cache_store_expiry(self):
