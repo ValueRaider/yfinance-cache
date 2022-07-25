@@ -291,7 +291,10 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_history_basics_hour_usa(self):
         # Check fetching single hour
-        start_dt = datetime.combine(date(2022,2,7), time(10, 30), self.usa_market_tz)
+        start_d = date.today() - timedelta(days=1)
+        while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
+            start_d -= timedelta(days=1)
+        start_dt = datetime.combine(start_d, time(10,30), self.usa_market_tz)
         end_dt = start_dt + timedelta(hours=1)
         df1 = self.usa_dat.history(interval="1h", start=start_dt, end=end_dt)
         self.assertEqual(df1.shape[0], 1)
@@ -302,7 +305,10 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_history_basics_hour_nze(self):
         # Check fetching single hour
-        start_dt = datetime.combine(date(2022,2,8), time(10, 0), self.nze_market_tz)
+        start_d = date.today() - timedelta(days=1)
+        while not yfct.ExchangeOpenOnDay(self.nze_exchange, start_d):
+            start_d -= timedelta(days=1)
+        start_dt = datetime.combine(start_d, time(10,0), self.nze_market_tz)
         end_dt = start_dt + timedelta(hours=1)
         df1 = self.nze_dat.history(interval="1h", start=start_dt, end=end_dt)
         self.assertEqual(df1.shape[0], 1)
@@ -790,6 +796,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                 dat_yf = yf.Ticker(tkr, session=self.session)
                 df_yf = dat_yf.history(interval="1d", start=start_d, end=end_d)
                 for c in yfcd.yf_data_cols:
+                    if not c in df_yf.columns:
+                        continue
                     try:
                         self.assertTrue(df_yf[c].equals(df1[c]))
                     except:
@@ -842,6 +850,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1h", start=start_dt, end=end_dt)
                     for c in yfcd.yf_data_cols:
+                        if not c in df_yf.columns:
+                            continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
                         except:
@@ -852,7 +862,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                             print("df_yfc:")
                             print(df1)
                             print("")
-                            print("Difference in column {}".format(c))
+                            print("{}: Difference in column {}".format(tkr, c))
                             raise
 
     def test_history_live_1d_evening(self):
@@ -896,6 +906,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
                     for c in yfcd.yf_data_cols:
+                        if not c in df_yf.columns:
+                            continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
                         except:
@@ -924,7 +936,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
                     start_dt = dt_now - timedelta(days=dt_now.weekday())
-                    end_dt = start_dt+timedelta(days=4)
+                    end_dt = start_dt+timedelta(days=5)
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
 
                     # Add a 2nd week
@@ -945,6 +957,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                     try:
                         self.assertTrue(np.array_equal(expected_interval_dates, df1.index))
                     except:
+                        print("Date range: {} -> {}".format(start_dt, end_dt))
                         print("expected_interval_dates")
                         pprint(expected_interval_dates)
                         print("df1:")
@@ -955,6 +968,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1wk", start=start_dt.date(), end=end_dt.date())
                     for c in yfcd.yf_data_cols:
+                        if not c in df_yf.columns:
+                            continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
                         except:
@@ -1045,3 +1060,10 @@ class Test_Yfc_Interface(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(Test_Yfc_Interface)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)

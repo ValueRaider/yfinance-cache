@@ -362,25 +362,19 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 		# Not necessarily Monday->Friday because of public holidays.
 		# Unless 'weeklyUseYahooDef' is true, which means range from Monday to Friday.
 		if isinstance(ts,datetime):
-			ts_day = ts.date()
+			ts_day = ts.astimezone(tz).date()
 		else:
 			ts_day = ts
-		weekStart = ts_day - timedelta(days=ts.weekday())
+		weekStart = ts_day - timedelta(days=ts_day.weekday())
+		weekEnd = weekStart + timedelta(days=5)
 		if debug:
 			print("- weekStart = {}".format(weekStart))
-		weekSched = GetExchangeSchedule(exchange, weekStart, weekStart+timedelta(days=6))
-		weekSchedStart = weekSched["market_open"][0]
-		weekSchedEnd = weekSched["market_close"][-1]
-		if weeklyUseYahooDef:
-			# Shift start to the Monday regardless of market schedule
-			weekSchedStart -= timedelta(days=weekSchedStart.weekday())
-			intervalStart = datetime.combine(weekSchedStart.date(), time(0), tz)
-			intervalEnd = datetime.combine(weekSchedEnd.date(), time(23,59,59), tz)
-		else:
-			intervalStart = weekSchedStart
-			intervalEnd = weekSchedEnd
-		intervalStart = intervalStart.date()
-		intervalEnd = intervalEnd.date()+timedelta(days=1)
+		if not weeklyUseYahooDef:
+			weekSched = GetExchangeSchedule(exchange, weekStart, weekEnd)
+			weekStart = weekSched["market_open"][0].astimezone(tz).date()
+			weekEnd = weekSched["market_close"][-1].astimezone(tz).date()+timedelta(days=1)
+		intervalStart = weekStart
+		intervalEnd = weekEnd
 		if debug:
 			print("- intervalStart = {}".format(intervalStart))
 			print("- intervalEnd = {}".format(intervalEnd))
@@ -399,7 +393,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 			if debug:
 				print("- exchange open")
 			daySched = GetExchangeSchedule(exchange, ts_day, ts_day+timedelta(days=1))
-			i = {"interval_open":daySched["market_open"][0].date(), "interval_close":daySched["market_close"][0].date()+timedelta(days=1)}
+			i = {"interval_open":daySched["market_open"][0].astimezone(tz).date(), "interval_close":daySched["market_close"][0].astimezone(tz).date()+timedelta(days=1)}
 		else:
 			if debug:
 				print("- exchange closed")
@@ -441,6 +435,7 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		print("GetTimestampCurrentInterval_batch(interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
 
 	n = len(ts)
+	tz = ZoneInfo(GetExchangeTzName(exchange))
 	intervals = [None]*n
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
@@ -454,31 +449,43 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		# Treat week intervals as special case, contiguous from first weekday open to last weekday open. 
 		# Not necessarily Monday->Friday because of public holidays.
 		# Unless 'weeklyUseYahooDef' is true, which means range from Monday to Friday.
-		weekStart = [ts_day[i] - timedelta(days=ts[i].weekday()) for i in range(len(ts))]
-		weekSched = [GetExchangeSchedule(exchange, ws, ws+timedelta(days=6)) for ws in weekStart]
-		weekSchedStart = [ws["market_open"][0] for ws in weekSched]
-		weekSchedEnd = [ws["market_close"][-1] for ws in weekSched]
+		#
+		t0 = ts_day[0]  ; t0 -= timedelta(days=t0.weekday())+timedelta(days=7)
+		tl = ts_day[-1] ; tl += timedelta(days=6-tl.weekday())+timedelta(days=7)
+		sched = GetExchangeSchedule(exchange, t0, tl)
 		if weeklyUseYahooDef:
-			# Shift start to the Monday regardless of market schedule
-			weekSchedStart = [ws - timedelta(days=ws.weekday()) for ws in weekSchedStart]
-			intervalStart = [datetime.combine(ws.date(), time(0), tz) for ws in weekSchedStart]
-			intervalEnd = [datetime.combine(ws.date(), time(23,59,59), tz) for ws in weekSchedEnd]
+			# Monday -> Saturday regardless of exchange schedule
+			weekSchedStart = [d-timedelta(days=d.weekday()) for d in ts_day]
+			weekSchedEnd = [ws+timedelta(days=5) for ws in weekSchedStart]
 		else:
-			intervalStart = weekSchedStart
-			intervalEnd = weekSchedEnd
-		intervalStart = [d.date() for d in intervalStart]
-		intervalEnd = [d.date()+timedelta(days=1) for d in intervalEnd]
-		f = (ts_day >= intervalStart) & (ts_day < intervalEnd)
-		for i in np.where(f)[0]:
-			intervals[i] = {"interval_open":intervalStart[i], "interval_close":intervalEnd[i]}
+			weekSchedStart = np.array([None]*n)
+			weekSchedEnd = np.array([None]*n)
+			i_t = 0 ; i_s = 0
+			td = ts_day[i_t]
+			weekStart = None
+			while i_t < n:
+				if i_s >= len(sched["market_open"]):
+					raise Exception("Ran out of schedule({}). n={}, i_t={}".format(len(sched["market_open"]), n, i_t))
+				if (i_s > 0) and (sched["market_open"][i_s].astimezone(tz).weekday() < sched["market_open"][i_s-1].astimezone(tz).weekday()):
+					# Have moved to new week
+					weekStart = sched["market_open"][i_s].astimezone(tz).date()
+					if not weekSchedStart[i_t] is None:
+						weekSchedEnd[i_t] = sched["market_close"][i_s-1].astimezone(tz).date()+timedelta(days=1)
+						i_t += 1
+						if i_t == n:
+							break
+						td = ts_day[i_t]
+				if sched["market_open"][i_s].astimezone(tz).date() == td:
+					if weekStart is None:
+						raise Exception("weekStart is None")
+					weekSchedStart[i_t] = weekStart
+				i_s += 1
+			for i in range(n):
+				if weekSchedStart[i] is None or weekSchedEnd[i] is None:
+					raise Exception("Failed to map ts {} to schedule".format(i))
+		intervals = [{"interval_open":weekSchedStart[i], "interval_close":weekSchedEnd[i]} for i in range(n)]
 
 	elif interval == yfcd.Interval.Days1:
-		# for i in range(n):
-		# 	td = ts_day[i]
-		# 	if ExchangeOpenOnDay(exchange, td):
-		# 		daySched = GetExchangeSchedule(exchange, td, td+timedelta(days=1))
-		# 		intervals[i] = {"interval_open":daySched["market_open"][0].date(), 
-		# 						"interval_close":daySched["market_close"][0].date()+timedelta(days=1)}
 		t0 = ts_day[0]
 		tl = ts_day[len(ts_day)-1]
 		sched = GetExchangeSchedule(exchange, t0, tl+timedelta(days=1))
@@ -487,12 +494,12 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 			td = ts_day[i_t]
 			if i_s >= len(sched["market_open"]):
 				raise Exception("Ran out of schedule({}). n={}, i_t={}".format(len(sched["market_open"]), n, i_t))
-			if td == sched["market_open"][i_s].date():
+			if td == sched["market_open"][i_s].astimezone(tz).date():
 				# Match
-				intervals[i_t] = {"interval_open":sched["market_open"][i_s].date(), 
-								"interval_close":sched["market_close"][i_s].date()+timedelta(days=1)}
+				intervals[i_t] = {"interval_open":sched["market_open"][i_s].astimezone(tz).date(), 
+								"interval_close":sched["market_close"][i_s].astimezone(tz).date()+timedelta(days=1)}
 				i_t += 1
-			elif td < sched["market_open"][i_s].date():
+			elif td < sched["market_open"][i_s].astimezone(tz).date():
 				i_t += 1
 			else:
 				i_s += 1
@@ -500,27 +507,23 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	else:
 		td = yfcd.intervalToTimedelta[interval]
 		cal = GetCalendar(exchange)
-		for i in range(n):
-			t = ts[i]
-			if IsTimestampInActiveSession(exchange, t):
-				dt_utc = t.astimezone(ZoneInfo("UTC"))
-				tis = cal.trading_index(dt_utc-td, dt_utc+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
-				idx = -1
-				for i2 in range(len(tis)):
-					if tis[i2].left <= t and t < tis[i2].right:
-						idx = i2
-						break
-				if idx == -1:
-					return None
-				intervalStart = tis[idx].left.to_pydatetime().astimezone(tz)
-				intervalEnd = tis[idx].right.to_pydatetime().astimezone(tz)
-				intervals[i] = {"interval_open":intervalStart, "interval_close":intervalEnd}
-		# t0 = ts[0].astimezone(ZoneInfo("UTC"))
-		# tl = ts[len(ts)-1].astimezone(ZoneInfo("UTC"))
-		# tis = cal.trading_index(t0-td, t1+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
-		# print("tis:")
-		# print(tis)
-		# raise Exception("fin")
+		t0 = ts[0].astimezone(ZoneInfo("UTC"))
+		tl = ts[len(ts)-1].astimezone(ZoneInfo("UTC"))
+		tis = cal.trading_index(t0-td, tl+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
+		i_t = 0 ; i_s = 0
+		while i_t < n:
+			t = ts[i_t]
+			if i_s >= len(tis):
+				break
+			if t >= tis[i_s].left and t < tis[i_s].right:
+				# Match
+				intervals[i_t] = {"interval_open":tis[i_s].left.to_pydatetime(), 
+								"interval_close":tis[i_s].right.to_pydatetime()}
+				i_t += 1
+			elif t < tis[i_s].left:
+				i_t += 1
+			else:
+				i_s += 1
 
 	return np.array(intervals)
 
@@ -544,6 +547,8 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 	if debug:
 		print("- yf_lag = {}".format(yf_lag))
 
+	tz = ZoneInfo(GetExchangeTzName(exchange))
+
 	if debug:
 		print("- calling GetTimestampCurrentInterval()")
 	irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
@@ -553,7 +558,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 	if debug:
 		print("- calling GetExchangeSchedule()")
 	if isinstance(irange["interval_open"],datetime):
-		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"].date(), irange["interval_close"].date()+timedelta(days=1))
+		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"].astimezone(tz).date(), irange["interval_close"].astimezone(tz).date()+timedelta(days=1))
 	else:
 		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"], irange["interval_close"])
 
@@ -579,7 +584,76 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 		print("CalcIntervalLastDataDt() returning {}".format(lastDataDt))
 
 	return lastDataDt
-		
+
+def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None):
+	# When does Yahoo stop receiving data for this interval?
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckNpArray(intervalStart, "intervalStart")
+	TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
+	TypeCheckInterval(interval, "interval")
+
+	if not yf_lag is None:
+		TypeCheckTimedelta(yf_lag, "yf_lag")
+	else:
+		yf_lag = GetExchangeDataDelay(exchange)
+
+	n = len(intervalStart)
+	tz = ZoneInfo(GetExchangeTzName(exchange))
+
+	intervals = GetTimestampCurrentInterval_batch(exchange, intervalStart, interval)
+	iopens = [i["interval_open"] for i in intervals]
+	icloses = [i["interval_close"] for i in intervals]
+
+	marketCloses = np.array([None]*n)
+	iopen0 = iopens[0]
+	iclosel = icloses[len(icloses)-1]
+	if isinstance(iopen0, datetime):
+		sched = GetExchangeSchedule(exchange, iopen0.astimezone(tz).date(), iclosel.astimezone(tz).date()+timedelta(days=1))
+	else:
+		sched = GetExchangeSchedule(exchange, iopen0, iclosel+timedelta(days=1))
+	i_t = 0 ; i_s = 0
+	while i_t < n:
+		iopen = iopens[i_t] ; iclose = icloses[i_t]
+		if isinstance(iopen, datetime):
+			iopen = iopen.astimezone(tz).date() ; iclose = iclose.astimezone(tz).date()
+		if i_s >= len(sched["market_open"]):
+			raise Exception("Ran out of schedule({}). n={}, i_t={}".format(len(sched["market_open"]), n, i_t))
+		if iopen <= sched["market_open"][i_s].astimezone(tz).date() and sched["market_close"][i_s].astimezone(tz).date() <= iclose:
+			match = False
+			if i_s == (len(sched["market_close"])-1):
+				match = True
+			elif sched["market_open"][i_s+1].astimezone(tz).date() >= iclose:
+				match = True
+			if match:
+				marketCloses[i_t] = sched["market_close"][i_s]
+				i_t += 1
+			else:
+				i_s += 1
+		elif iclose < sched["market_open"][i_s].astimezone(tz).date():
+			i_t += 1
+		else:
+			i_s += 1
+	if (marketCloses==None).any():
+		raise Exception("Failed to map some intervals to schedule")
+
+	dc0 = icloses[0]
+	if isinstance(dc0, datetime):
+		intervalEnd_dt = icloses
+	else:
+		intervalEnd_dt = [datetime.combine(dc, time(0), tz) for dc in icloses]
+
+	lastDataDt = np.minimum(intervalEnd_dt, marketCloses) +yf_lag
+
+	# For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
+	if exchange in ["JNB"]:
+		late_data_allowance = timedelta(minutes=15)
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+			lastDataDt += late_data_allowance
+		else:
+			lastDataDt[intervalEnd_dt == marketCloses] += late_data_allowance
+
+	return lastDataDt
+
 
 def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=None, dt_now=None):
 	TypeCheckIntervalDt(intervalStart, interval, "intervalStart", strict=False)

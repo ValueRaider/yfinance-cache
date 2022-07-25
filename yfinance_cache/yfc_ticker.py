@@ -178,7 +178,7 @@ class Ticker:
 				tomorrow = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
 				end = tomorrow
 				sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date()+td_1d)
-				if (not sched is None) and (sched.shape[0] > 0) and (dt_now < sched["market_open"][0]):
+				if (not sched is None) and (len(sched["market_open"]) > 0) and (dt_now < sched["market_open"][0]):
 					if debug:
 						print("- decrementing 'end' by 1d")
 					end -= td_1d
@@ -261,12 +261,8 @@ class Ticker:
 				h = h[~expired]
 				h_interval_dts = h_interval_dts[~expired]
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
-			# t0 = perf_counter()
 			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
-			# t1 = perf_counter()
 			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
-			# t2 = perf_counter()
-			# print("Baseline t = {:.5f} vs batch t = {:.5f}".format(t1-t0, t2-t1))
 			f_na = h_intervals == None
 			if sum(f_na) > 0:
 				print(h)
@@ -350,10 +346,12 @@ class Ticker:
 			df = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
 			for c in ["Open","Close","Low","High","Volume"]:
 				h[c] = df[c]
+			h = h.drop(["Adj Close"], axis=1)
 		elif back_adjust:
 			df = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
 			for c in ["Open","Close","Low","High","Volume"]:
 				h[c] = df[c]
+			h = h.drop(["Adj Close"], axis=1)
 		if rounding:
 			# Round to 4 sig-figs
 			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
@@ -550,7 +548,7 @@ class Ticker:
 			else:
 				intervalStarts = df.index.to_pydatetime()
 			#
-			intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, weeklyUseYahooDef=True) for i in intervalStarts])
+			intervals = yfct.GetTimestampCurrentInterval_batch(exchange, intervalStarts, interval, weeklyUseYahooDef=True)
 			f_na = intervals==None
 			if sum(f_na) > 0:
 				if not interday:
@@ -608,7 +606,7 @@ class Ticker:
 					raise Exception("Problem with dates returned by Yahoo, see above")
 			interval_closes = np.array([i["interval_close"] for i in intervals])
 
-		lastDataDts = np.array([yfct.CalcIntervalLastDataDt(exchange, intervalStarts[i], interval) for i in range(n)])
+		lastDataDts = yfct.CalcIntervalLastDataDt_batch(exchange, intervalStarts, interval)
 		data_final = fetch_dt >= lastDataDts
 		df["Final?"] = data_final
 
