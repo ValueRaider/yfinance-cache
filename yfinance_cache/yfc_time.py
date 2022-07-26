@@ -425,6 +425,8 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 
 def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=True):
 	TypeCheckStr(exchange, "exchange")
+	if isinstance(ts,list):
+		ts = np.array(ts)
 	TypeCheckNpArray(ts, "ts")
 	TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
 	TypeCheckInterval(interval, "interval")
@@ -486,24 +488,29 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 						week_mondays.append(current_week_open-timedelta(days=current_week_open.weekday()))
 			week_saturdays = [d+timedelta(days=5) for d in week_mondays]
 			week_sched = pd.DataFrame(data={"open":week_opens, "close":week_closes, "Monday":week_mondays, "Saturday":week_saturdays}, index=week_mondays)
+			week_sched["open_day"] = week_sched["open"].dt.date
+			week_sched["close_day"] = week_sched["close"].dt.date+timedelta(days=1)
 			#
 			i_t = 0 ; i_s = 0
 			td = ts_day[i_t]
 			while i_t < n:
 				if i_s >= week_sched.shape[0]:
-					if td.weekday() > 4:
-						# Is weekend so can ignore fail
-						break
-					raise Exception("Failed to map all intervals to weekly schedules")
-				if td >= week_sched["Saturday"][i_s]:
+					break
+				if td >= week_sched["close_day"][i_s]:
 					i_s += 1
-				elif td < week_sched["Monday"][i_s]:
-					i_t += 1 ; td = ts_day[i_t]
+				elif td < week_sched["open_day"][i_s]:
+					i_t += 1
+					if i_t == n:
+						break
+					td = ts_day[i_t]
 				else:
-					if week_sched["Monday"][i_s] <= td and td < week_sched["Saturday"][i_s]:
-						weekSchedStart[i_t] = week_sched["open"][i_s].date()
-						weekSchedEnd[i_t]   = week_sched["close"][i_s].date()+timedelta(days=1)
-						i_t += 1 ; td = ts_day[i_t]
+					if week_sched["open_day"][i_s] <= td and td < week_sched["close_day"][i_s]:
+						weekSchedStart[i_t] = week_sched["open_day"][i_s]
+						weekSchedEnd[i_t]   = week_sched["close_day"][i_s]
+						i_t += 1
+						if i_t == n:
+							break
+						td = ts_day[i_t]
 					else:
 						raise Exception("Infinite loop")
 		intervals = [{"interval_open":weekSchedStart[i], "interval_close":weekSchedEnd[i]} if (not weekSchedStart[i] is None) else None for i in range(n)]

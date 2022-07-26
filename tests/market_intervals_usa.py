@@ -7,7 +7,6 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
 from pprint import pprint
-import numpy as np
 
 ## 2022 calendar:
 ## X* = day X is USA public holiday that closed NYSE
@@ -346,7 +345,7 @@ class Test_Market_Intervals_USA(unittest.TestCase):
                 dts.append(datetime(2022,2, d, h,30,tzinfo=self.market_tz))
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, np.array(dts), interval)
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
         for i in range(response.shape[0]):
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
             try:
@@ -366,7 +365,7 @@ class Test_Market_Intervals_USA(unittest.TestCase):
                 dts.append(datetime(2022,2, d, h,30,tzinfo=self.market_tz))
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, np.array(dts), interval)
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
         for i in range(response.shape[0]):
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
             try:
@@ -387,7 +386,7 @@ class Test_Market_Intervals_USA(unittest.TestCase):
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
         # weeklyUseYahooDef=True
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, np.array(dts), interval, weeklyUseYahooDef=True)
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=True)
         for i in range(response.shape[0]):
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=True)
             try:
@@ -397,7 +396,7 @@ class Test_Market_Intervals_USA(unittest.TestCase):
                 raise
 
         # weeklyUseYahooDef=False
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, np.array(dts), interval, weeklyUseYahooDef=False)
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=False)
         for i in range(response.shape[0]):
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=False)
             try:
