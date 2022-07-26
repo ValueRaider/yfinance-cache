@@ -472,8 +472,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                 df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                days = [dt.date() for dt in sched["market_open"]]
-                df_yf = df_yf[np.isin(df_yf.index.date, days)]
+                df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
                 df_yf_backup = df_yf.copy()
 
                 df_yfc = dat_yfc.history(period=p, auto_adjust=False)
@@ -596,8 +595,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                 df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                days = [dt.date() for dt in sched["market_open"]]
-                df_yf = df_yf[np.isin(df_yf.index.date, days)]
+                df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
 
                 df_yfc = dat_yfc.history(period=p, auto_adjust=False)
 
@@ -826,8 +824,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
-                    start_dt = sched["market_open"][0]
-                    end_dt = sched["market_close"][0]
+                    start_dt = sched["market_open"][0].to_pydatetime()
+                    end_dt = sched["market_close"][0].to_pydatetime()
 
                     dt = sched["market_open"][0]
                     expected_interval_starts = []
