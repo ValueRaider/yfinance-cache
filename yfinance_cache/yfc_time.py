@@ -470,27 +470,23 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 			# Create a simple weekly schedule:
 			sched["deltaF"] = sched["day"].diff().dt.days
 			sched["deltaB"] = sched["day"].diff(periods=-1).dt.days
-			week_opens = []
-			week_closes = []
-			week_mondays = []
-			weekSchedStart = np.array([None]*n)
-			weekSchedEnd = np.array([None]*n)
-			current_week_open = None
-			for i in range(sched.shape[0]):
-				if sched["deltaF"][i]>1:
-					current_week_open = sched["market_open"][i]
-				elif (sched["deltaB"][i]<-1) and (not current_week_open is None):
-					week_opens.append(current_week_open)
-					week_closes.append(sched["market_close"][i])
-					if isinstance(current_week_open,datetime):
-						week_mondays.append(current_week_open.date()-timedelta(days=current_week_open.weekday()))
-					else:
-						week_mondays.append(current_week_open-timedelta(days=current_week_open.weekday()))
-			week_saturdays = [d+timedelta(days=5) for d in week_mondays]
-			week_sched = pd.DataFrame(data={"open":week_opens, "close":week_closes, "Monday":week_mondays, "Saturday":week_saturdays}, index=week_mondays)
+			sched = sched.drop("day",axis=1)
+			sched = sched[(sched["deltaF"]>1.0) | (sched["deltaB"]<-1.0)]
+			sched["Monday"] = (sched["market_open"] - pd.to_timedelta(sched["market_open"].dt.weekday, unit='d')).dt.date
+			sched_starts = sched[sched["deltaF"] > 1.0].drop(["deltaF","deltaB","market_close"],axis=1)
+			sched_ends = sched[sched["deltaB"] < -1.0].drop(["deltaF","deltaB","market_open"],axis=1)
+			sched_starts.index = sched_starts["Monday"]
+			sched_ends.index = sched_ends["Monday"]
+			sched_starts = sched_starts.drop("Monday",axis=1)
+			sched_ends = sched_ends.drop("Monday",axis=1)
+			week_sched = sched_starts.join(sched_ends, how="inner")
+			week_sched = week_sched.rename(columns={"market_open":"open","market_close":"close"})
+			#
 			week_sched["open_day"] = week_sched["open"].dt.date
 			week_sched["close_day"] = week_sched["close"].dt.date+timedelta(days=1)
 			#
+			weekSchedStart = np.array([None]*n)
+			weekSchedEnd = np.array([None]*n)
 			i_t = 0 ; i_s = 0
 			td = ts_day[i_t]
 			while i_t < n:
@@ -583,23 +579,23 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 		TypeCheckTimedelta(yf_lag, "yf_lag")
 	else:
 		yf_lag = GetExchangeDataDelay(exchange)
-	if debug:
-		print("- yf_lag = {}".format(yf_lag))
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 
-	if debug:
-		print("- calling GetTimestampCurrentInterval()")
 	irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
 	if irange is None:
 		raise Exception("Failed to map {} to interval".format(intervalStart))
-
 	if debug:
-		print("- calling GetExchangeSchedule()")
+		print("- irange:")
+		pprint(irange)
+
 	if isinstance(irange["interval_open"],datetime):
 		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"].astimezone(tz).date(), irange["interval_close"].astimezone(tz).date()+timedelta(days=1))
 	else:
 		intervalSched = GetExchangeSchedule(exchange, irange["interval_open"], irange["interval_close"])
+	if debug:
+		print("- intervalSched:")
+		pprint(intervalSched)
 
 	intervalEnd = irange["interval_close"]
 	if isinstance(intervalEnd, datetime):
@@ -627,6 +623,8 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None):
 	# When does Yahoo stop receiving data for this interval?
 	TypeCheckStr(exchange, "exchange")
+	if isinstance(intervalStart,list):
+		intervalStart = np.array(intervalStart)
 	TypeCheckNpArray(intervalStart, "intervalStart")
 	TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
 	TypeCheckInterval(interval, "interval")

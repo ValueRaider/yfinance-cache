@@ -75,51 +75,6 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.session.close()
 
 
-    ## Test day interval fetched same day
-    def test_yf_lag(self):
-        ## Only use high-volume stocks:
-        tkr_candidates = ["AZN.L", "ASML.AS", "IMP.JO", "INTC", "MEL.NZ"]
-
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-
-        for tkr in tkr_candidates:
-            dat = yfc.Ticker(tkr, session=self.session)
-            if not yfct.IsTimestampInActiveSession(dat.info["exchange"], dt_now):
-                continue
-            expected_lag = yfcd.exchangeToYfLag[dat.info["exchange"]]
-
-            dat = yfc.Ticker(tkr, session=None) # Use live data
-
-            # First call with temp-cache means will calculate lag:
-            lag = dat.yf_lag
-            if lag > expected_lag:
-                diff = lag - expected_lag
-            else:
-                diff = expected_lag - lag
-            tolerance = timedelta(minutes=10)
-            try:
-                self.assertLess(diff, tolerance)
-            except:
-                pprint("lag: {0}".format(lag))
-                pprint("expected_lag: {0}".format(expected_lag))
-                pprint("diff: {0}".format(diff))
-                raise
-
-            # Confirm that fetching from cache returns same value:
-            lag_cache = dat.yf_lag
-            self.assertEqual(lag, lag_cache)
-
-
-    def test_history_backend_usa(self):
-        # index should always be DatetimeIndex
-        intervals = ["30m", "1h", "1d", "1wk"]
-        start_d = date(2022,7,11)
-        end_d = date(2022,7,12)
-        for interval in intervals:
-            df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
-            self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
-
-
     def test_history_basics1_usa(self):
         # A fetch of prices, then another fetch of same prices, should return identical
 
@@ -1057,11 +1012,12 @@ class Test_Yfc_Interface(unittest.TestCase):
             self.assertTrue(np.isnan(df["Close"][idx]))
 
 if __name__ == '__main__':
-    unittest.main()
     # Run tests sequentially:
     # import inspect
     # test_src = inspect.getsource(Test_Yfc_Interface)
     # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
     #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
     # )
+    #
+    unittest.main()
     # unittest.main(verbosity=2)

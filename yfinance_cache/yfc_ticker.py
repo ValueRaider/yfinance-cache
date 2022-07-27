@@ -556,8 +556,8 @@ class Ticker:
 					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
 					sched = yfct.GetExchangeSchedule(exchange, df2["_date"].min(), df2["_date"].max()+td_1d)
 					sched_df = sched
-					sched_df["_date"] = sched_df.index
-					df2 = df2.merge(sched_df, on="_date")
+					sched_df["_date"] = sched_df.index.date
+					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
 					if sum(f_drop) > 0:
 						intervalStarts = intervalStarts[~f_drop]
@@ -924,8 +924,11 @@ class Ticker:
 
 		## Get last hour of 5m price data:
 		start_dt = dt_now-datetime.timedelta(hours=1)
-		df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now)
-		if df_5mins.shape[0] == 0:
+		try:
+			df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now)
+		except:
+			df_5mins = None
+		if (df_5mins is None) or (df_5mins.shape[0] == 0):
 			# raise Exception("Failed to fetch 5m data for tkr={}, start={}".format(self.ticker, start_dt))
 			# print("WARNING: Failed to fetch 5m data for tkr={} so setting yf_lag to hardcoded default".format(self.ticker, start_dt))
 			self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
@@ -933,8 +936,8 @@ class Ticker:
 		df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
 		df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
 
-		## Now 10 minutes of 1m price data around the last 5m candle:
-		dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=5)
+		## Now 15 minutes of 1m price data around the last 5m candle:
+		dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=10)
 		dt2_end = df_5mins_lastDt + datetime.timedelta(minutes=5)
 		df_1mins = self.dat.history(interval="1m", start=dt2_start, end=dt2_end)
 		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
