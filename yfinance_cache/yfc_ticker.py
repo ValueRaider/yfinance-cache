@@ -938,12 +938,13 @@ class Ticker:
 		start_dt = dt_now-datetime.timedelta(hours=1)
 		try:
 			df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now)
+			df_5mins = df_5mins[df_5mins["Volume"]>0]
 		except:
 			df_5mins = None
 		if (df_5mins is None) or (df_5mins.shape[0] == 0):
 			# raise Exception("Failed to fetch 5m data for tkr={}, start={}".format(self.ticker, start_dt))
 			# print("WARNING: Failed to fetch 5m data for tkr={} so setting yf_lag to hardcoded default".format(self.ticker, start_dt))
-			self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
+			self._yf_lag = specified_lag
 			return self._yf_lag
 		df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
 		df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
@@ -969,7 +970,11 @@ class Ticker:
 				## Ticker has low volume, ignore larger-than-expected lag. Just reduce the expiry, in case tomorrow has more volume
 				expiry_td = datetime.timedelta(days=1)
 			else:
-				raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+				#print("df_5mins:")
+				#print(df_5mins)
+				#raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+				self._yf_lag = specified_lag
+				return self._yf_lag
 		self._yf_lag = lag
 		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+expiry_td)
 		return self._yf_lag
