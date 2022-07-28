@@ -345,6 +345,79 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 pprint(answer)
                 raise
 
+    def test_GetTimestampCurrentInterval_hourly_batch(self):
+        interval = yfcd.Interval.Hours1
+
+        dts = []
+        for d in range(4,20):
+            dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
+            for h in range(10,16):
+                dts.append(datetime(2022,4, d, h,30,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d,16, 1,tzinfo=self.market_tz))
+
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
+        for i in range(response.shape[0]):
+            answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
+            try:
+                self.assertEqual(response[i], answer)
+            except:
+                print("Test fail with dt={}".format(dts[i]))
+                raise
+
+    def test_GetTimestampCurrentInterval_daily_batch(self):
+        interval = yfcd.Interval.Days1
+
+        dts = []
+        for d in range(4,20):
+            dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
+            for h in range(10,16):
+                dts.append(datetime(2022,4, d, h,30,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d,16, 1,tzinfo=self.market_tz))
+
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
+        for i in range(response.shape[0]):
+            answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
+            try:
+                self.assertEqual(response[i], answer)
+            except:
+                print("Test fail with dt={}".format(dts[i]))
+                raise
+
+    def test_GetTimestampCurrentInterval_weekly_batch(self):
+        interval = yfcd.Interval.Week
+
+        dts = []
+        for d in range(4,20):
+            dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
+            for h in range(10,16):
+                dts.append(datetime(2022,4, d, h,30,tzinfo=self.market_tz))
+            dts.append(datetime(2022,4, d,16, 1,tzinfo=self.market_tz))
+
+        # weeklyUseYahooDef=True
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=True)
+        for i in range(response.shape[0]):
+            answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=True)
+            try:
+                self.assertEqual(response[i], answer)
+            except:
+                print("Test fail with dt={}".format(dts[i]))
+                raise
+
+        # weeklyUseYahooDef=False
+        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=False)
+        for i in range(response.shape[0]):
+            answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=False)
+            try:
+                self.assertEqual(response[i], answer)
+            except:
+                print("Test fail with dt={}".format(dts[i]))
+                print("Response = {}".format(response[i]))
+                print("Answer = {}".format(answer))
+                raise
+
     def test_GetExchangeScheduleIntervals_hourly(self):
         interval = yfcd.Interval.Hours1
 

@@ -5,6 +5,7 @@ from . import yfc_dat as yfcd
 from . import yfc_utils as yfcu
 from . import yfc_time as yfct
 
+from time import perf_counter
 import pandas as pd
 import numpy as np
 import datetime, time
@@ -113,13 +114,16 @@ class Ticker:
 			interval = yfcd.intervalStrToEnum[interval]
 		if not isinstance(interval, yfcd.Interval):
 			raise Exception("'interval' must be yfcd.Interval")
+		start_d = None ; end_d = None
 		if not start is None:
 			if isinstance(start, str):
-				start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=tz_exchange)
+				start_d = datetime.datetime.strptime(start, "%Y-%m-%d")
+				start = start_d.replace(tzinfo=tz_exchange)
 			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
+				start_d = start
 				start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
 			elif not isinstance(start, datetime.datetime):
-				raise Exception("Argument 'start' must be str, date or datetime")
+				raise Exception("Argument 'start' must be str, date or datetime")#
 			if start.tzinfo is None:
 				start = start.replace(tzinfo=tz_exchange)
 			else:
@@ -132,6 +136,7 @@ class Ticker:
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 				end = datetime.datetime.combine(end_d, datetime.time(0), tz_exchange)
 			elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
+				end_d = end
 				end = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
 			elif not isinstance(end, datetime.datetime):
 				raise Exception("Argument 'end' must be str, date or datetime")
@@ -177,10 +182,11 @@ class Ticker:
 				tomorrow = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
 				end = tomorrow
 				sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date()+td_1d)
-				if (not sched is None) and (sched.shape[0] > 0) and (dt_now < sched["market_open"][0]):
+				if (not sched is None) and (len(sched["market_open"]) > 0) and (dt_now < sched["market_open"][0]):
 					if debug:
 						print("- decrementing 'end' by 1d")
 					end -= td_1d
+				end_d = end.date()
 				if period == yfcd.Period.Max:
 					start = datetime.datetime.combine(datetime.date(yfcd.yf_min_year, 1, 1), datetime.time(0), tz_exchange)
 				else:
@@ -195,19 +201,28 @@ class Ticker:
 					# Search forward instead
 					while not yfct.ExchangeOpenOnDay(exchange, start.date()):
 						start += td_1d
+				start_d = start.date()
 		else:
 			if end is None:
 				end = datetime.datetime.combine(dt_now.date() + td_1d, datetime.time(0), tz_exchange)
 			if start is None:
 				start = datetime.datetime.combine(end.date()-td_1d, datetime.time(0), tz_exchange)
 
-		if (not start is None) and (not end is None):
-			if start.time() == datetime.time(0):
+		if ((start_d is None) or (end_d is None)) and (not start is None) and (not end is None):
+			# if start_d/end_d not set then start/end are datetimes, so need to inspect
+			# schedule opens/closes to determine days
+			sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+datetime.timedelta(days=1))
+			n = sched.shape[0]
+			if start < sched["market_open"][0]:
 				start_d = start.date()
 			else:
-				start_d = start.date() + td_1d
-			end_d = end.date()
-			#
+				start_d = start.date() +datetime.timedelta(days=1)
+			if end >= sched["market_close"][n-1]:
+				end_d = end.date()+datetime.timedelta(days=1)
+			else:
+				end_d = end.date()
+
+		if (not start is None) and (not end is None):
 			listing_date = yfcm.ReadCacheDatum(self.ticker, "listing_date")
 			if (not listing_date is None) and (not isinstance(listing_date, datetime.date)):
 				raise Exception("listing_date = {} ({}) should be a date".format(listing_date, type(listing_date)))
@@ -217,11 +232,6 @@ class Ticker:
 				if start_d < listing_date:
 					start_d = listing_date
 					start = datetime.datetime.combine(listing_date, datetime.time(0), tz_exchange)
-
-			if debug:
-				print("YFC: period = {}".format(period))
-				print("YFC: start = {}({}) , end = {}({})".format(start, type(start), end, type(end)))
-				print("YFC: start_d = {}({}) , end_d = {}({})".format(start_d, type(start_d), end_d, type(end_d)))
 
 		if period is None:
 			pstr = None
@@ -235,7 +245,10 @@ class Ticker:
 		yf_lag = self.yf_lag
 
 		if h is None:
-			h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+			if interday:
+				h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+			else:
+				h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
 
 		else:
 			## Performance TODO: only check expiry on datapoints not marked 'final'
@@ -255,11 +268,13 @@ class Ticker:
 				h_interval_dt = h_interval_dts[idx]
 				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
 				expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+			h_interval_dts = np.array(h_interval_dts)
 			if sum(expired) > 0:
 				h = h[~expired]
-				h_interval_dts = np.array(h_interval_dts)[~expired]
+				h_interval_dts = h_interval_dts[~expired]
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
-			h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
+			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
+			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
 			f_na = h_intervals == None
 			if sum(f_na) > 0:
 				print(h)
@@ -343,10 +358,12 @@ class Ticker:
 			df = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
 			for c in ["Open","Close","Low","High","Volume"]:
 				h[c] = df[c]
+			h = h.drop(["Adj Close"], axis=1)
 		elif back_adjust:
 			df = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
 			for c in ["Open","Close","Low","High","Volume"]:
 				h[c] = df[c]
+			h = h.drop(["Adj Close"], axis=1)
 		if rounding:
 			# Round to 4 sig-figs
 			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
@@ -374,19 +391,19 @@ class Ticker:
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 		td_1d = datetime.timedelta(days=1)
 
-		if debug:
-			if not pstr is None:
-				print("YFC: {}: fetching {} period".format(self.ticker, pstr))
+		# if debug:
+		if not pstr is None:
+			print("YFC: {}: fetching {} period".format(self.ticker, pstr))
+		else:
+			if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
+				start_str = start.strftime("%Y-%m-%d")
 			else:
-				if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
-					start_str = start.strftime("%Y-%m-%d")
-				else:
-					start_str = start.strftime("%Y-%m-%d %H:%M:%S")
-				if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
-					end_str = end.strftime("%Y-%m-%d")
-				else:
-					end_str = end.strftime("%Y-%m-%d %H:%M:%S")
-				print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
+				start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+			if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
+				end_str = end.strftime("%Y-%m-%d")
+			else:
+				end_str = end.strftime("%Y-%m-%d %H:%M:%S")
+			print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
 
 		try:
 			df = self.dat.history(period=pstr, 
@@ -409,7 +426,7 @@ class Ticker:
 				# If date range is one day, then create NaN rows and ignore error
 				if interday and (pstr is None):
 					sched = yfct.GetExchangeSchedule(exchange, start, end)
-					if len(sched["market_open"]) == 1:
+					if sched.shape[0] == 1:
 						df = pd.DataFrame(data={k:[np.nan] for k in yfcd.yf_data_cols}, index=[pd.Timestamp(sched["market_open"][0].date()).tz_localize(self.info["exchangeTimezoneName"])])
 						for c in ["Volume","Dividends","Stock Splits"]:
 							df[c] = 0
@@ -543,19 +560,16 @@ class Ticker:
 			else:
 				intervalStarts = df.index.to_pydatetime()
 			#
-			intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, weeklyUseYahooDef=True) for i in intervalStarts])
+			intervals = yfct.GetTimestampCurrentInterval_batch(exchange, intervalStarts, interval, weeklyUseYahooDef=True)
 			f_na = intervals==None
 			if sum(f_na) > 0:
 				if not interday:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
 					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
 					sched = yfct.GetExchangeSchedule(exchange, df2["_date"].min(), df2["_date"].max()+td_1d)
-					tz = pytz.timezone(self.info["exchangeTimezoneName"])
-					sched["market_open"] = [tz.localize(x.replace(tzinfo=None)) for x in sched["market_open"]]
-					sched["market_close"] = [tz.localize(x.replace(tzinfo=None)) for x in sched["market_close"]]
-					sched_days = [x.date() for x in sched["market_open"]]
-					sched_df = pd.DataFrame(data=sched, index=sched_days) ; sched_df["_date"] = sched_df.index
-					df2 = df2.merge(sched_df, on="_date")
+					sched_df = sched
+					sched_df["_date"] = sched_df.index.date
+					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
 					if sum(f_drop) > 0:
 						intervalStarts = intervalStarts[~f_drop]
@@ -601,7 +615,7 @@ class Ticker:
 					raise Exception("Problem with dates returned by Yahoo, see above")
 			interval_closes = np.array([i["interval_close"] for i in intervals])
 
-		lastDataDts = np.array([yfct.CalcIntervalLastDataDt(exchange, intervalStarts[i], interval) for i in range(n)])
+		lastDataDts = yfct.CalcIntervalLastDataDt_batch(exchange, intervalStarts, interval)
 		data_final = fetch_dt >= lastDataDts
 		df["Final?"] = data_final
 
@@ -922,17 +936,21 @@ class Ticker:
 
 		## Get last hour of 5m price data:
 		start_dt = dt_now-datetime.timedelta(hours=1)
-		df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now)
-		if df_5mins.shape[0] == 0:
+		try:
+			df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now)
+			df_5mins = df_5mins[df_5mins["Volume"]>0]
+		except:
+			df_5mins = None
+		if (df_5mins is None) or (df_5mins.shape[0] == 0):
 			# raise Exception("Failed to fetch 5m data for tkr={}, start={}".format(self.ticker, start_dt))
 			# print("WARNING: Failed to fetch 5m data for tkr={} so setting yf_lag to hardcoded default".format(self.ticker, start_dt))
-			self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
+			self._yf_lag = specified_lag
 			return self._yf_lag
 		df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
 		df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
 
-		## Now 10 minutes of 1m price data around the last 5m candle:
-		dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=5)
+		## Now 15 minutes of 1m price data around the last 5m candle:
+		dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=10)
 		dt2_end = df_5mins_lastDt + datetime.timedelta(minutes=5)
 		df_1mins = self.dat.history(interval="1m", start=dt2_start, end=dt2_end)
 		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
@@ -952,7 +970,11 @@ class Ticker:
 				## Ticker has low volume, ignore larger-than-expected lag. Just reduce the expiry, in case tomorrow has more volume
 				expiry_td = datetime.timedelta(days=1)
 			else:
-				raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+				#print("df_5mins:")
+				#print(df_5mins)
+				#raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+				self._yf_lag = specified_lag
+				return self._yf_lag
 		self._yf_lag = lag
 		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+expiry_td)
 		return self._yf_lag
