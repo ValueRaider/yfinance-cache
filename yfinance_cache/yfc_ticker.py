@@ -114,13 +114,16 @@ class Ticker:
 			interval = yfcd.intervalStrToEnum[interval]
 		if not isinstance(interval, yfcd.Interval):
 			raise Exception("'interval' must be yfcd.Interval")
+		start_d = None ; end_d = None
 		if not start is None:
 			if isinstance(start, str):
-				start = datetime.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=tz_exchange)
+				start_d = datetime.datetime.strptime(start, "%Y-%m-%d")
+				start = start_d.replace(tzinfo=tz_exchange)
 			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
+				start_d = start
 				start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
 			elif not isinstance(start, datetime.datetime):
-				raise Exception("Argument 'start' must be str, date or datetime")
+				raise Exception("Argument 'start' must be str, date or datetime")#
 			if start.tzinfo is None:
 				start = start.replace(tzinfo=tz_exchange)
 			else:
@@ -133,6 +136,7 @@ class Ticker:
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 				end = datetime.datetime.combine(end_d, datetime.time(0), tz_exchange)
 			elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
+				end_d = end
 				end = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
 			elif not isinstance(end, datetime.datetime):
 				raise Exception("Argument 'end' must be str, date or datetime")
@@ -182,6 +186,7 @@ class Ticker:
 					if debug:
 						print("- decrementing 'end' by 1d")
 					end -= td_1d
+				end_d = end.date()
 				if period == yfcd.Period.Max:
 					start = datetime.datetime.combine(datetime.date(yfcd.yf_min_year, 1, 1), datetime.time(0), tz_exchange)
 				else:
@@ -196,19 +201,28 @@ class Ticker:
 					# Search forward instead
 					while not yfct.ExchangeOpenOnDay(exchange, start.date()):
 						start += td_1d
+				start_d = start.date()
 		else:
 			if end is None:
 				end = datetime.datetime.combine(dt_now.date() + td_1d, datetime.time(0), tz_exchange)
 			if start is None:
 				start = datetime.datetime.combine(end.date()-td_1d, datetime.time(0), tz_exchange)
 
-		if (not start is None) and (not end is None):
-			if start.time() == datetime.time(0):
+		if ((start_d is None) or (end_d is None)) and (not start is None) and (not end is None):
+			# if start_d/end_d not set then start/end are datetimes, so need to inspect
+			# schedule opens/closes to determine days
+			sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+datetime.timedelta(days=1))
+			n = sched.shape[0]
+			if start < sched["market_open"][0]:
 				start_d = start.date()
 			else:
-				start_d = start.date() + td_1d
-			end_d = end.date()
-			#
+				start_d = start.date() +datetime.timedelta(days=1)
+			if end >= sched["market_close"][n-1]:
+				end_d = end.date()+datetime.timedelta(days=1)
+			else:
+				end_d = end.date()
+
+		if (not start is None) and (not end is None):
 			listing_date = yfcm.ReadCacheDatum(self.ticker, "listing_date")
 			if (not listing_date is None) and (not isinstance(listing_date, datetime.date)):
 				raise Exception("listing_date = {} ({}) should be a date".format(listing_date, type(listing_date)))
@@ -218,11 +232,6 @@ class Ticker:
 				if start_d < listing_date:
 					start_d = listing_date
 					start = datetime.datetime.combine(listing_date, datetime.time(0), tz_exchange)
-
-			if debug:
-				print("YFC: period = {}".format(period))
-				print("YFC: start = {}({}) , end = {}({})".format(start, type(start), end, type(end)))
-				print("YFC: start_d = {}({}) , end_d = {}({})".format(start_d, type(start_d), end_d, type(end_d)))
 
 		if period is None:
 			pstr = None
@@ -236,7 +245,10 @@ class Ticker:
 		yf_lag = self.yf_lag
 
 		if h is None:
-			h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+			if interday:
+				h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+			else:
+				h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
 
 		else:
 			## Performance TODO: only check expiry on datapoints not marked 'final'
@@ -379,19 +391,19 @@ class Ticker:
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 		td_1d = datetime.timedelta(days=1)
 
-		if debug:
-			if not pstr is None:
-				print("YFC: {}: fetching {} period".format(self.ticker, pstr))
+		# if debug:
+		if not pstr is None:
+			print("YFC: {}: fetching {} period".format(self.ticker, pstr))
+		else:
+			if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
+				start_str = start.strftime("%Y-%m-%d")
 			else:
-				if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
-					start_str = start.strftime("%Y-%m-%d")
-				else:
-					start_str = start.strftime("%Y-%m-%d %H:%M:%S")
-				if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
-					end_str = end.strftime("%Y-%m-%d")
-				else:
-					end_str = end.strftime("%Y-%m-%d %H:%M:%S")
-				print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
+				start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+			if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
+				end_str = end.strftime("%Y-%m-%d")
+			else:
+				end_str = end.strftime("%Y-%m-%d %H:%M:%S")
+			print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
 
 		try:
 			df = self.dat.history(period=pstr, 
