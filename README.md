@@ -45,6 +45,12 @@ sys.path.insert(0, "path/to/yfinance_cache")
 import yfinance_cache as yfc
 ```
 
+## Known issues / pending tasks
+
+- If a stock event (dividend or split) has occurred since last fetch, then the cached data needs to be adjusted. But not done currently. Should only be a big issue when split or exceptional dividend occurs - a typical dividend has tiny effect on adjusted price.
+- Considering adding a 'verify' function, checking all cached data against Yahoo.
+- Add refresh check to financials data, then to earnings dates.
+
 ## Limitations
 
 Code is being actively developed so some features missing:
