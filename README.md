@@ -34,13 +34,13 @@ Defaults to half of interval. Refresh also triggered if market closed since last
 
 Now available on PIP. You will need my fork of `yfinance` on branch 'integrate' - this has various essential fixes (eventually will merge upstream): https://github.com/ValueRaider/yfinance/tree/integrate
 
-To override PIP:
+To override PIP install of `yfinance`:
 ```
 import sys
 sys.path.insert(0, "path/to/my/fork/of/yfinance")
 import yfinance as yf
 import yfinance_cache as yfc
-print(yf) # verify loading right version
+print(yf) # verify loading my fork of version yfinance
 ```
 
 ## Known issues / pending tasks
