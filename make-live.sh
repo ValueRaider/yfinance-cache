@@ -6,7 +6,7 @@ _make() (
 
 	_name=yfinance-cache
 	_ver=`cat version-live`
-	_ddir="dist-live/$_ver"
+	_ddir=dist-live
 
 	cp setup.cfg.template setup.cfg
 	sed -i "s/<NAME>/$_name/g" setup.cfg

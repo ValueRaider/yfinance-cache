@@ -32,17 +32,15 @@ Defaults to half of interval. Refresh also triggered if market closed since last
 
 ## Installation
 
-Not uploading to PIP until I am certain this is stable, so to install you need to pull from GitHub.
-You also need my fork of `yfinance` (branch 'integrate') with various fixes (eventually will merge upstream): https://github.com/ValueRaider/yfinance/tree/integrate
+Now available on PIP. You will need my fork of `yfinance` on branch 'integrate' - this has various essential fixes (eventually will merge upstream): https://github.com/ValueRaider/yfinance/tree/integrate
 
 To override PIP:
 ```
 import sys
 sys.path.insert(0, "path/to/my/fork/of/yfinance")
 import yfinance as yf
-print(yf) # verify loading right version
-sys.path.insert(0, "path/to/yfinance_cache")
 import yfinance_cache as yfc
+print(yf) # verify loading right version
 ```
 
 ## Known issues / pending tasks
