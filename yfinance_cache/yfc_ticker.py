@@ -78,7 +78,7 @@ class Ticker:
 				max_age=None, # defaults to half of interval
 				period=None, 
 				start=None, end=None, prepost=False, actions=True,
-				adjust=True, 
+				adjust_splits=True, adjust_divs=True,
 				keepna=False,
 				proxy=None, rounding=False, 
 				tz=None,
@@ -472,14 +472,13 @@ class Ticker:
 		else:
 			if not "Dividends" in h.columns:
 				raise Exception("Dividends column missing from table")
-		if adjust:
-			for c in ["Open","Close","Low","High"]:
-				h[c] *= h["CSF"]*h["CDF"]
-			h["Dividends"] *= h["CSF"]
+		if adjust_splits:
+			for c in ["Open","Close","Low","High","Dividends"]:
+				h[c] *= h["CSF"]
 			h["Volume"] /= h["CSF"]
-		else:
-			h["Adj Close"] = h["Close"]*h["CSF"]*h["CDF"]
-			h["Adj Volume"] = h["Volume"]/h["CSF"]
+		if adjust_divs:
+			for c in ["Open","Close","Low","High"]:
+				h[c] *= h["CDF"]
 		h = h.drop(["CSF","CDF"], axis=1)
 		if rounding:
 			# Round to 4 sig-figs
