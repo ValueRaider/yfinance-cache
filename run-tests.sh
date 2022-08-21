@@ -9,6 +9,8 @@ _main() (
 			continue
 		elif [ "$F" = "__pycache__" ]; then
 			continue
+		elif [ -d tests/"$F" ]; then
+			continue
 		fi
 
 		echo "Running tests in tests/$F ..."
