@@ -117,8 +117,8 @@ class Ticker:
 		start_d = None ; end_d = None
 		if not start is None:
 			if isinstance(start, str):
-				start_d = datetime.datetime.strptime(start, "%Y-%m-%d")
-				start = start_d.replace(tzinfo=tz_exchange)
+				start_d = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+				start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
 			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
 				start_d = start
 				start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)

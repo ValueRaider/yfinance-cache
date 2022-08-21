@@ -309,19 +309,29 @@ class Test_Yfc_Interface(unittest.TestCase):
 
         for aa in [False,True]:
             df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=False)
-            df_yfc = self.usa_dat.history(start=start_day_str, end=end_day_str, adjust=aa)
+            df_yfc = self.usa_dat.history(start=start_day_str, end=end_day_str, adjust_divs=aa)
 
             for c in yfcd.yf_data_cols:
                 if not c in df_yf.columns:
                     continue
+                elif c == "Adj Close" and not c in df_yfc.columns:
+                    continue
                 try:
-                    self.assertTrue(df_yf[c].equals(df_yfc[c]))
+                    if aa:
+                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=1e-10).all())
+                    else:
+                        self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                 except:
+                    f = ~np.equal(df_yf[c].values, df_yfc[c].values)
                     print("df_yf:")
                     print(df_yf)
                     print("df_yfc:")
                     print(df_yfc)
                     print("aa={}, c={}".format(aa, c))
+                    last_dt = df_yfc.index[f][-1]
+                    v1 = df_yfc.loc[last_dt][c]
+                    v2 =  df_yf.loc[last_dt][c]
+                    print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
                     raise
 
 
@@ -333,13 +343,18 @@ class Test_Yfc_Interface(unittest.TestCase):
 
         for aa in [False,True]:
             df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=False)
-            df_yfc = self.nze_dat.history(start=start_day_str, end=end_day_str, adjust=aa)
+            df_yfc = self.nze_dat.history(start=start_day_str, end=end_day_str, adjust_divs=aa)
 
             for c in yfcd.yf_data_cols:
                 if not c in df_yf.columns:
                     continue
+                elif c == "Adj Close" and not c in df_yfc.columns:
+                    continue
                 try:
-                    self.assertTrue(df_yf[c].equals(df_yfc[c]))
+                    if aa:
+                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=1e-10).all())
+                    else:
+                        self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                 except:
                     print("df_yf:")
                     print(df_yf)
@@ -728,6 +743,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                 for c in yfcd.yf_data_cols:
                     if not c in df_yf.columns:
                         continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
                         self.assertTrue(df_yf[c].equals(df1[c]))
                     except:
@@ -781,6 +798,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     df_yf = dat_yf.history(interval="1h", start=start_dt, end=end_dt)
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
+                            continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
@@ -837,6 +856,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
+                            continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))
@@ -899,6 +920,8 @@ class Test_Yfc_Interface(unittest.TestCase):
                     df_yf = dat_yf.history(interval="1wk", start=start_dt.date(), end=end_dt.date())
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
+                            continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
                             self.assertTrue(df_yf[c].equals(df1[c]))

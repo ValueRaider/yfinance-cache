@@ -52,7 +52,7 @@ class Test_Unadjust(unittest.TestCase):
         answer = pd.read_csv("./tests/Adjustment/Unadjust/pnl-answer.csv",parse_dates=["Date"],index_col="Date")
         answer.index = answer.index.tz_localize(tz)
 
-        df = dat.history(start="2022-05-03", end="2022-08-19", adjust=False)
+        df = dat.history(start="2022-05-03", end="2022-08-19", adjust_splits=False, adjust_divs=False)
 
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
         for dc in dcs:
@@ -77,10 +77,10 @@ class Test_Unadjust(unittest.TestCase):
         tkr = "PNL.L"
 
         dat = yf.Ticker(tkr, self.session)
-        answer = dat.history(start="2022-05-03", end="2022-08-19", auto_adjust=True)
+        answer = dat.history(start="2022-05-03", end="2022-08-19")
 
         dat = yfc.Ticker(tkr, self.session)
-        result = dat.history(start="2022-05-03", end="2022-08-19", adjust=True)
+        result = dat.history(start="2022-05-03", end="2022-08-19")
 
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
         for dc in dcs:
