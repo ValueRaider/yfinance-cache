@@ -508,6 +508,24 @@ class Ticker:
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 		td_1d = datetime.timedelta(days=1)
 
+		if not end is None:
+			dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+			dtnow_exchange = dtnow.astimezone(tz_exchange)
+			if isinstance(end, datetime.datetime):
+				end_dt = end
+				end_d = end.astimezone(tz_exchange).date()
+			else:
+				end_d = end
+				end_dt = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
+			if end_dt > dtnow:
+				# Cap 'end' to dtnow
+				if isinstance(end, datetime.datetime):
+					end = dtnow
+				else:
+					end = dtnow.astimezone(tz_exchange).date()
+			if (not start is None) and (end <= start):
+				return None
+
 		if debug:
 			if not pstr is None:
 				print("YFC: {}: fetching {} period".format(self.ticker, pstr))
