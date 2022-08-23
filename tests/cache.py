@@ -16,6 +16,9 @@ from pprint import pprint
 class Test_Yfc_Cache(unittest.TestCase):
 
     def setUp(self):
+        self.ticker = "INTC"
+        self.objName = "example"
+
         self.tempCacheDir = tempfile.TemporaryDirectory()
         yfcm.SetCacheDirpath(self.tempCacheDir.name)
 
@@ -25,108 +28,100 @@ class Test_Yfc_Cache(unittest.TestCase):
 
 
     def test_cache_store(self):
-        cat = "test1"
-        var = "value"
         value = 123
 
-        ft = "json"
+        self.assertFalse(yfcm.IsDatumCached(self.ticker, self.objName))
 
-        yfcm.StoreCacheDatum(cat, var, value)
-        fp = os.path.join(yfcm.GetCacheDirpath(), cat, var+"."+ft)
-        try:
-            self.assertTrue(os.path.isfile(fp))
-        except:
-            print("Does not exist: "+fp)
-            raise
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value)
 
-        obj = yfcm.ReadCacheDatum(cat, var)
-        self.assertEqual(obj, value)
+        # Confirm write
+        fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, self.objName+".json")
+        self.assertTrue(os.path.isfile(fp))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, self.objName))
 
+        # Confirm value
         with open(fp, 'r') as inData:
             js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
             self.assertEqual(js["data"], value)
+        obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
+        self.assertEqual(obj, value)
+
 
 
     def test_cache_store_expiry(self):
-        cat = "test1"
-        var = "value"
         value = 123
-
-        ft = "json"
 
         dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         exp = dt + timedelta(seconds=1)
 
-        yfcm.StoreCacheDatum(cat, var, value, expiry=exp)
-        fp = os.path.join(yfcm.GetCacheDirpath(), cat, var+"."+ft)
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value, expiry=exp)
+
+        # Confirm write
+        fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, self.objName+".json")
         self.assertTrue(os.path.isfile(fp))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, self.objName))
 
-        obj = yfcm.ReadCacheDatum(cat, var)
+        # Confirm value
+        obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
         self.assertEqual(obj, value)
-
         with open(fp, 'r') as inData:
             js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
+            self.assertEqual(js["data"], value)
 
+        # Confirm expiry
         sleep(1)
-        obj = yfcm.ReadCacheDatum(cat, var)
+        obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
         self.assertIsNone(obj)
         self.assertFalse(os.path.isfile(fp))
 
 
     def test_cache_store_packed(self):
-        cat = "test1"
         var = "balance_sheet"
         var_grp = "annuals"
         value = 123
 
-        ft = "pkl"
+        yfcm.StoreCachePackedDatum(self.ticker, var, value)
 
-        yfcm.StoreCachePackedDatum(cat, var, value)
-        fp = os.path.join(yfcm.GetCacheDirpath(), cat, var_grp+"."+ft)
-        try:
-            self.assertTrue(os.path.isfile(fp))
-        except:
-            print("Does not exist: "+fp)
-            raise
+        # Confirm write
+        fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, var_grp+".pkl")
+        self.assertTrue(os.path.isfile(fp))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, var))
 
-        obj = yfcm.ReadCachePackedDatum(cat, var)
+        # Confirm value
+        obj = yfcm.ReadCachePackedDatum(self.ticker, var)
         self.assertEqual(obj, value)
 
 
     def test_cache_store_packed_expiry(self):
-        cat = "test1"
         var = "balance_sheet"
         var_grp = "annuals"
         value = 123
 
-        ft = "pkl"
-
         dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         exp = dt + timedelta(seconds=1)
 
-        yfcm.StoreCachePackedDatum(cat, var, value, expiry=exp)
-        fp = os.path.join(yfcm.GetCacheDirpath(), cat, var_grp+"."+ft)
-        self.assertTrue(os.path.isfile(fp))
+        yfcm.StoreCachePackedDatum(self.ticker, var, value, expiry=exp)
 
-        obj = yfcm.ReadCachePackedDatum(cat, var)
+        # Confirm write
+        fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, var_grp+".pkl")
+        self.assertTrue(os.path.isfile(fp))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, var))
+
+        # Confirm value
+        obj = yfcm.ReadCachePackedDatum(self.ticker, var)
         self.assertEqual(obj, value)
 
-        ft = os.path.join(yfcm.GetCacheDirpath(), cat, var+".metadata")
-        self.assertEqual(ft, ft)
-
+        # Confirm expiry
         sleep(1)
         # sleep(2)
-        obj = yfcm.ReadCachePackedDatum(cat, var)
+        obj = yfcm.ReadCachePackedDatum(self.ticker, var)
         self.assertIsNone(obj)
         with open(fp, 'rb') as inData:
             pkl = pickle.load(inData)
-            self.assertFalse(cat in pkl.keys())
+            self.assertFalse(self.ticker in pkl.keys())
 
 
     def test_cache_store_types(self):
-        cat = "test1"
-        var = "value"
-
         json_values = []
         json_values.append(int(1))
         json_values.append(float(1))
@@ -139,31 +134,100 @@ class Test_Yfc_Cache(unittest.TestCase):
         pkl_values.append({'a':1, 'b':2})
 
         for value in json_values+pkl_values:
-            # print("")
-            # print("testing value = {0} (type={1})".format(value, type(value)))
+            ext = "json" if value in json_values else "pkl"
+            fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, self.objName+"."+ext)
 
-            if value in json_values:
-                ext = "json"
-            else:
-                ext = "pkl"
-            # print("ext = {0}".format(ext))
+            # Confirm write
+            yfcm.StoreCacheDatum(self.ticker, self.objName, value)
+            self.assertTrue(os.path.isfile(fp))
 
-            fp = os.path.join(yfcm.GetCacheDirpath(), cat, var+"."+ext)
-            # if os.path.isfile(fp):
-            #     os.remove(fp)
-
-            # print("value = {0}".format(value))
-            yfcm.StoreCacheDatum(cat, var, value)
-            # print("value = {0}".format(value))
-            try:
-                self.assertTrue(os.path.isfile(fp))
-            except:
-                print("Does not exist: "+fp)
-                raise
-
-            obj = yfcm.ReadCacheDatum(cat, var)
+            # Confirm value
+            obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
             self.assertEqual(obj, value)
 
+
+    def test_cache_metadata_write1(self):
+        key = "k1"
+        value = 123
+        md = {key:value}
+
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value, metadata=md) 
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(md, mdc)
+
+    def test_cache_metadata_write2(self):
+        key = "k1"
+        value = 123
+        md = {key:value}
+
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value)
+        yfcm.WriteCacheMetadata(self.ticker, self.objName, key, value)
+
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(md, mdc)
+
+
+    def test_cache_metadata_write_expiry(self):
+        key = "k1"
+        value = 123
+        md = {key:value}
+        exp = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + timedelta(hours=1)
+
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value, expiry=exp, metadata=md)
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        md["__expiry__"] = exp
+        self.assertEqual(obj, value)
+        self.assertEqual(md, mdc)
+
+
+    def test_cache_metadata_overwrite1(self):
+        value = 123
+        md1 = {"md1":456}
+        md2 = {"md2":345}
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value, metadata=md1)
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value, metadata=md2)
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(md2, mdc)
+
+    def test_cache_metadata_overwrite2(self):
+        value = 123
+        key = "md1"
+        val1 = 456
+        val2 = 345
+        yfcm.StoreCacheDatum(self.ticker, self.objName, value)
+        yfcm.WriteCacheMetadata(self.ticker, self.objName, key, val1)
+        yfcm.WriteCacheMetadata(self.ticker, self.objName, key, val2)
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(mdc, {key:val2})
+
+
+    def test_cache_metadata_packed_overwrite1(self):
+        var = "balance_sheet"
+        value = 123
+        md1 = {"md1":456}
+        md2 = {"md2":345}
+        yfcm.StoreCacheDatum(self.ticker, var, value, metadata=md1)
+        yfcm.StoreCacheDatum(self.ticker, var, value, metadata=md2)
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, var, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(md2, mdc)
+
+    def test_cache_metadata_packed_overwrite2(self):
+        var = "balance_sheet"
+        value = 123
+        key = "md1"
+        val1 = 123
+        val2 = 345
+        yfcm.StoreCacheDatum(self.ticker, var, value)
+        yfcm.WriteCacheMetadata(self.ticker, var, key, val1)
+        yfcm.WriteCacheMetadata(self.ticker, var, key, val2)
+        obj,mdc = yfcm.ReadCacheDatum(self.ticker, var, return_metadata_too=True)
+        self.assertEqual(obj, value)
+        self.assertEqual(mdc, {key:val2})
 
 if __name__ == '__main__':
     unittest.main()
