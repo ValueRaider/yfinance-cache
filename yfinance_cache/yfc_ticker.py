@@ -510,11 +510,12 @@ class Ticker:
 				end_d = end
 				end_dt = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
 			if end_dt > dtnow:
-				# Cap 'end' to dtnow
+				# Cap 'end' to exchange midnight
+				exchange_midnight_dt = datetime.datetime.combine(dtnow_exchange.date()+datetime.timedelta(days=1), datetime.time(0), tz_exchange)
 				if isinstance(end, datetime.datetime):
-					end = dtnow
+					end = exchange_midnight_dt
 				else:
-					end = dtnow.astimezone(tz_exchange).date()
+					end = exchange_midnight_dt.date()
 			if (not start is None) and (end <= start):
 				return None
 
