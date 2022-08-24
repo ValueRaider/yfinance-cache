@@ -130,7 +130,6 @@ class Ticker:
 				start = start.astimezone(tz_exchange)
 			if start.dst() is None:
 				raise Exception("Argument 'start' tzinfo must be DST-aware")
-
 		if not end is None:
 			if isinstance(end, str):
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
@@ -146,7 +145,6 @@ class Ticker:
 				end = end.astimezone(tz_exchange)
 			if end.dst() is None:
 				raise Exception("Argument 'end' tzinfo must be DST-aware")
-
 		if (not period is None) and (not start is None):
 			raise Exception("Don't set both 'period' and 'start' arguments")
 
@@ -242,11 +240,16 @@ class Ticker:
 			if not period is None:
 				h = self._fetchYfHistory(pstr, interval, None, None, prepost, proxy, kwargs)
 			else:
-				if interday:
-					# h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+				if interval == yfcd.Interval.Days1:
+					# Ensure daily always up-to-now
 					h = self._fetchYfHistory(pstr, interval, start_d, d_tomorrow, prepost, proxy, kwargs)
 				else:
-					# h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+					# if interday:
+					# 	h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+					# else:
+					# 	h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+					# Until I implement _get_events(), need to ensure ALL price data is up-to-date. 
+					# Will break some tests
 					h = self._fetchYfHistory(pstr, interval, start, dt_tomorrow, prepost, proxy, kwargs)
 			h = yfcu.ReverseYahooBackAdjust(h)
 
@@ -266,30 +269,30 @@ class Ticker:
 			else:
 				h_interval_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
 			h_interval_dts = np.array(h_interval_dts)
-			# expired = np.array([False]*n)
-			# f_final = h["Final?"].values
-			# for idx in np.where(~f_final)[0]:
-			# 	h_interval_dt = h_interval_dts[idx]
-			# 	fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
-			# 	expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
-			# if sum(expired) > 0:
-			# if expired.any():
-			# 	h = h[~expired]
-			# 	h_interval_dts = h_interval_dts[~expired]
-			#
-			h_interval_dt = h_interval_dts[n-1]
-			fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][n-1], tz=tz_exchange)
-			last_expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
-			if last_expired:
-				# Drop last row because expired
-				h = h[0:n-1]
-				h_interval_dts = h_interval_dts[0:n-1]
+			if interval == yfcd.Interval.Days1:
+				# Daily data is always contiguous so only need to check last row
+				h_interval_dt = h_interval_dts[n-1]
+				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][n-1], tz=tz_exchange)
+				last_expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+				if last_expired:
+					# Drop last row because expired
+					h = h[0:n-1]
+					h_interval_dts = h_interval_dts[0:n-1]
+			else:
+				expired = np.array([False]*n)
+				f_final = h["Final?"].values
+				for idx in np.where(~f_final)[0]:
+					h_interval_dt = h_interval_dts[idx]
+					fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
+					expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+				if expired.any():
+					h = h[~expired]
+					h_interval_dts = h_interval_dts[~expired]
 			#
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
 			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
 			f_na = h_intervals == None
-			# if sum(f_na) > 0:
 			if f_na.any():
 				print(h)
 				raise Exception("Bad rows found in prices table")
@@ -299,152 +302,145 @@ class Ticker:
 				h = h[~f_na]
 				h_intervals = h_intervals[~f_na]
 			h_interval_opens = [x["interval_open"] for x in h_intervals]
-			# try:
-			# 	ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
-			# except yfcd.NoIntervalsInRangeException:
-			# 	ranges_to_fetch = None
-			## TODO: Think I have to set end=now/tomorrow, to ensure I have price data until now (for adjustment)
-			## And I think that's all I have to do!
-			# ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, dt_now.astimezone(tz_exchange).date()+datetime.timedelta(days=1), interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
-			## TODO: performance optimisation: with changes, cached data will be contiguous!
-			##       So only check (i) start->h_interval_opens[0], and (ii) h_interval_opens[-1]->end
-			##       And switch to GetExchangeScheduleIntervals()
-			# print("start= {} ({})".format(start, type(start)))
-			h_start = h_intervals[0]["interval_open"]
-			h_end = h_intervals[-1]["interval_close"]
-			if not isinstance(h_start, datetime.datetime):
-				h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
-				h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
-			# if debug:
-			# 	print("h_start = {}".format(h_start))
-			# 	print("h_end = {}".format(h_end))
-			if h_start <= start:
-				rangePre_to_fetch = None
+
+			if interval == yfcd.Interval.Days1:
+				# Ensure that daily data always up-to-date to now
+				h_start = h_intervals[0]["interval_open"]
+				h_end = h_intervals[-1]["interval_close"]
+				if not isinstance(h_start, datetime.datetime):
+					h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
+					h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
+				if debug:
+					print("- h_end = {}".format(h_end))
+				#
+				if h_start <= start:
+					rangePre_to_fetch = None
+				else:
+					try:
+						rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					except yfcd.NoIntervalsInRangeException:
+						rangePre_to_fetch = None
+				if not rangePre_to_fetch is None:
+					if len(rangePre_to_fetch) > 1:
+						raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
+					rangePre_to_fetch = rangePre_to_fetch[0]
+				#
+				try:
+					rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, dt_now+datetime.timedelta(days=1), interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+				except yfcd.NoIntervalsInRangeException:
+					rangePost_to_fetch = None
+				if not rangePost_to_fetch is None:
+					if len(rangePost_to_fetch) > 1:
+						raise Exception("Expected only one element in rangePost_to_fetch[], but = {}".format(rangePost_to_fetch))
+					rangePost_to_fetch = rangePost_to_fetch[0]
+				if debug:
+					print("- rangePre_to_fetch:  {}".format(rangePre_to_fetch))
+					print("- rangePost_to_fetch: {}".format(rangePost_to_fetch))
+				ranges_to_fetch = []
+				if not rangePre_to_fetch is None:
+					ranges_to_fetch.append(rangePre_to_fetch)
+				if not rangePost_to_fetch is None:
+					ranges_to_fetch.append(rangePost_to_fetch)
 			else:
 				try:
-					rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					if ranges_to_fetch is None:
+						ranges_to_fetch = []
 				except yfcd.NoIntervalsInRangeException:
-					rangePre_to_fetch = None
-			if not rangePre_to_fetch is None:
-				if len(rangePre_to_fetch) > 1:
-					raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
-				rangePre_to_fetch = rangePre_to_fetch[0]
-			try:
-				rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, dt_now+datetime.timedelta(days=1), interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-			except yfcd.NoIntervalsInRangeException:
-				rangePost_to_fetch = None
-			if not rangePost_to_fetch is None:
-				if len(rangePost_to_fetch) > 1:
-					raise Exception("Expected only one element in rangePost_to_fetch[], but = {}".format(rangePost_to_fetch))
-				rangePost_to_fetch = rangePost_to_fetch[0]
-			# if debug:
-			# 	print("- rangePre_to_fetch:")
-			# 	pprint(rangePre_to_fetch)
-			# 	print("- rangePost_to_fetch:")
-			# 	pprint(rangePost_to_fetch)
-			ranges_to_fetch = []
-			if not rangePre_to_fetch is None:
-				ranges_to_fetch += rangePre_to_fetch
-			if not rangePost_to_fetch is None:
-				ranges_to_fetch += rangePost_to_fetch
-			if ranges_to_fetch is None:
-				ranges_to_fetch = []
+					ranges_to_fetch = []
+			# Important that ranges_to_fetch in reverse order!
 			if debug:
 				print("- ranges_to_fetch:")
 				pprint(ranges_to_fetch)
+			ranges_to_fetch.sort(key=lambda x:x[0], reverse=True)
 
 			interval_td = yfcd.intervalToTimedelta[interval]
-			if not rangePost_to_fetch is None:
-				# Fetch rangePost first, because need to adjust cached data for 
-				# any new splits/dividends
-				r = rangePost_to_fetch
-				rstart = r[0] ; rend = r[1]
+			if len(ranges_to_fetch) > 0:
+				# Ensure only one range max is after cached data:
+				h_last_dt = h.index[-1].to_pydatetime()
+				if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+					h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+				n = 0
+				for r in ranges_to_fetch:
+					if r[0] > h_last_dt:
+						n += 1
+				if n > 1:
+					print("ranges_to_fetch:")
+					pprint(ranges_to_fetch)
+					raise Exception("ranges_to_fetch contains {} ranges that occur after h_last_dt={}, expected 1 max".format(n, h_last_dt))
 
-				try:
-					h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
-				except yfcd.NoPriceDataInRangeException:
-					## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
-					## Could add additional condition of dividend previous day (seems to mess up table).
-					if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
-						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
-						h2 = None
-					else:
-						raise
-
-				if not h2 is None:
-					if h2.index.tz != h.index.tz:
-						raise Exception("New data tz={} != cached data tz={}".format(h2.index.tz, h.index.tz))
-
-					# ## If a timepoint is in both h and h2, drop from h. This is possible because of 
-					# ## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
-					# ## if it reduces total number of web requests
-					# f_duplicate = h.index.isin(h2.index)
-					# h = h[~f_duplicate]
-					## Update: above check shouldn't be necessary
-					f_duplicate = h.index.isin(h2.index)
-					if f_duplicate.any():
-						raise Exception("Overlap between cached and fetched data at dates: {}".format(h.index[f_duplicate]))
-
-					# De-adjust the data. Note: Yahoo always returns split-adjusted price, so reverse it.
-					h2 = yfcu.ReverseYahooBackAdjust(h2)
-					# 3) Backport new adjustments into cached data. Only necessary for rangePost
-					if h2["CSF"][0] != 1.0:
-						h["CSF"] *= h2["CSF"][0]
-					if h2["CDF"][0] != 1.0:
-						h["CDF"] *= h2["CDF"][0]
-
+				for rstart,rend in ranges_to_fetch:
 					try:
-						h = pd.concat([h, h2])
-					except:
-						print(self.ticker)
-						print("h:")
-						print(h.iloc[h.shape[0]-10:])
-						print("h2:")
-						print(h2)
-						raise
-			if not rangePre_to_fetch is None:
-				r = rangePre_to_fetch
-				rstart = r[0] ; rend = r[1]
+						h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
+					except yfcd.NoPriceDataInRangeException:
+						## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+						## Could add additional condition of dividend previous day (seems to mess up table).
+						if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
+							if not period is None:
+								# YFC generated date range so don't print message
+								pass
+							else:
+								print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
+							h2 = None
+							continue
+						else:
+							raise
 
-				try:
-					h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
-				except yfcd.NoPriceDataInRangeException:
-					## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
-					## Could add additional condition of dividend previous day (seems to mess up table).
-					if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
-						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
-						h2 = None
-					else:
-						raise
+					if not h2 is None:
+						if h2.index.tz != h.index.tz:
+							raise Exception("New data tz={} != cached data tz={}".format(h2.index.tz, h.index.tz))
 
-				if not h2 is None:
-					if h2.index.tz != h.index.tz:
-						raise Exception("New data tz={} != cached data tz={}".format(h2.index.tz, h.index.tz))
+						# De-adjust the new data, and backport any new events in cached data
+						# Note: Yahoo always returns split-adjusted price, so reverse it
+						if rstart > h_last_dt:
+							# Simple
+							# 1) adjust h2
+							h2 = yfcu.ReverseYahooBackAdjust(h2)
+							# 2) backport
+							h2_csf = h2["CSF"][0]
+							if h2["Stock Splits"][0] != 0.0:
+								h2_csf *= 1.0/h2["Stock Splits"][0]
+							h2_cdf = h2["CDF"][0]
+							if h2_csf != 1.0:
+								h["CSF"] *= h2_csf
+							if h2_cdf != 1.0:
+								h["CDF"] *= h2_cdf
+						else:
+							# More complicated because backporting is 2-way:
+							# 1) h[after] -> h2
+							# 2) h2 -> h[before]
 
-					# ## If a timepoint is in both h and h2, drop from h. This is possible because of 
-					# ## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
-					# ## if it reduces total number of web requests
-					# f_duplicate = h.index.isin(h2.index)
-					# h = h[~f_duplicate]
-					## Update: above check shouldn't be necessary
-					f_duplicate = h.index.isin(h2.index)
-					if f_duplicate.any():
-						raise Exception("Overlap between cached and fetched data at dates: {}".format(h.index[f_duplicate]))
+							# 1) Backport h[after] => h2 & adjust h2
+							idx = np.argmax(h.index > h2.index[0])
+							post_csf = h["CSF"][idx]
+							if h["Stock Splits"][idx] != 0.0:
+								post_csf *= 1.0/h["Stock Splits"][idx]
+							h2 = yfcu.ReverseYahooBackAdjust(h2, pre_csf=post_csf)
+							# 2) Backport h2 -> h[before]
+							h2_csf = h2["CSF"][0]
+							if h2["Stock Splits"][0] != 0.0:
+								h2_csf *= 1.0/h2["Stock Splits"][0]
+							h2_csf_delta = h2_csf / post_csf
+							if h2_csf_delta != 1.0:
+								h.loc[h.index<h2.index[0], "CSF"] *= h2_csf_delta
 
-					# De-adjust the data. Note: Yahoo always returns split-adjusted price, so reverse it.
-					h2 = yfcu.ReverseYahooBackAdjust(h2, h["CSF"][0])
+						## If a timepoint is in both h and h2, drop from h. This is possible because of 
+						## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
+						## if it reduces total number of web requests
+						f_duplicate = h.index.isin(h2.index)
+						h = h[~f_duplicate]
 
-					try:
-						h = pd.concat([h, h2])
-					except:
-						print(self.ticker)
-						print("h:")
-						print(h.iloc[h.shape[0]-10:])
-						print("h2:")
-						print(h2)
-						raise
+						try:
+							h = pd.concat([h, h2])
+						except:
+							print(self.ticker)
+							print("h:")
+							print(h.iloc[h.shape[0]-10:])
+							print("h2:")
+							print(h2)
+							raise
 
-			h = h.sort_index()
+				h = h.sort_index()
 
 
 		if h is None:
@@ -691,7 +687,6 @@ class Ticker:
 			#
 			intervals = yfct.GetTimestampCurrentInterval_batch(exchange, intervalStarts, interval, weeklyUseYahooDef=True)
 			f_na = intervals==None
-			# if sum(f_na) > 0:
 			if f_na.any():
 				if not interday:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
@@ -701,18 +696,17 @@ class Ticker:
 					sched_df["_date"] = sched_df.index.date
 					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
-					if sum(f_drop) > 0:
+					if f_drop.any():
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
 						df = df[~f_drop]
 						n = df.shape[0]
 						f_na = intervals==None
-				# if sum(f_na) > 0:
 				if f_na.any():
 					## For some national holidays when exchange closed, Yahoo fills in row. Clue is 0 volume.
 					## Solution = drop:
 					f_na_zeroVol = f_na & (df["Volume"]==0)
-					if sum(f_na_zeroVol) > 0:
+					if f_na_zeroVol.any():
 						f_drop = f_na_zeroVol
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
@@ -720,7 +714,6 @@ class Ticker:
 						n = df.shape[0]
 						f_na = intervals==None
 					## TODO ... another clue is row is identical to previous trading day
-					# if sum(f_na) > 0:
 					if f_na.any():
 						f_drop = np.array([False]*n)
 						for i in np.where(f_na)[0]:
@@ -729,14 +722,12 @@ class Ticker:
 								last_dt = df.index[i-1]
 								if (df.loc[dt,yfcd.yf_data_cols] == df.loc[last_dt,yfcd.yf_data_cols]).all():
 									f_drop[i] = True
-						# if sum(f_drop) > 0:
 						if f_drop.any():
 							intervalStarts = intervalStarts[~f_drop]
 							intervals = intervals[~f_drop]
 							df = df[~f_drop]
 							n = df.shape[0]
 							f_na = intervals==None
-				# if sum(f_na) > 0:
 				if f_na.any():
 					ctr = 0
 					for idx in np.where(f_na)[0]:
@@ -778,6 +769,24 @@ class Ticker:
 			h = self._history[interval]
 
 		return h
+
+	def _getEvents(self, startDate, endDate):
+		yfct.TypeCheckDateStrict(startDate, "startDate")
+		yfct.TypeCheckDateStrict(endDate, "endDate")
+
+		df = self.history(start=startDate, end=endDate, interval=yfcd.Interval.Days1, max_age=datetime.timedelta(days=1))
+
+		splits = df.loc[df["Stock Splits"]!=0.0,"Stock Splits"]
+		if splits.shape[0]>0 and isinstance(splits.index[0], datetime.datetime):
+			splits.index = splits.index.date
+		divs = df.loc[df["Dividends"]!=0.0,"Dividends"]
+		if divs.shape[0]>0 and isinstance(divs.index[0], datetime.datetime):
+			divs.index = divs.index.date
+
+		d = {}
+		d["splits"] = splits if splits.shape[0]>0 else None
+		d["divs"] = divs if divs.shape[0]>0 else None
+		return d
 
 
 	@property

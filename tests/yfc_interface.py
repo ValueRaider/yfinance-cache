@@ -1,3 +1,5 @@
+import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
+
 import unittest
 from pprint import pprint
 
@@ -746,14 +748,14 @@ class Test_Yfc_Interface(unittest.TestCase):
                     elif c == "Adj Close" and not c in df_yfc.columns:
                         continue
                     try:
-                        self.assertTrue(df_yf[c].equals(df1[c]))
+                        self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                     except:
                         print("")
                         print("df_yf:")
-                        print(df_yf)
+                        print(df_yf[[c]])
                         print("")
                         print("df_yfc:")
-                        print(df1)
+                        print(df1[[c]])
                         print("")
                         print("Difference in column {}".format(c))
                         raise
@@ -764,11 +766,12 @@ class Test_Yfc_Interface(unittest.TestCase):
         interval = yfcd.Interval.Hours1
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
             exchange = dat.info["exchange"]
-            yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
+            tz = dat.info["exchangeTimezoneName"]
+            yfct.SetExchangeTzName(exchange, tz)
+            d_now = dt_now.astimezone(ZoneInfo(tz)).date()
             if yfct.ExchangeOpenOnDay(exchange, d_now):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
@@ -802,14 +805,14 @@ class Test_Yfc_Interface(unittest.TestCase):
                         elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("")
                             print("df_yf:")
-                            print(df_yf)
+                            print(df_yf[[c]])
                             print("")
                             print("df_yfc:")
-                            print(df1)
+                            print(df1[[c]])
                             print("")
                             print("{}: Difference in column {}".format(tkr, c))
                             raise
@@ -860,7 +863,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                         elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("")
                             print("df_yf:")
@@ -924,7 +927,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                         elif c == "Adj Close" and not c in df_yfc.columns:
                             continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("Difference in column {}".format(c))
                             print("")
