@@ -171,17 +171,17 @@ class Ticker:
 		if not period is None:
 			if h is None:
 				# Use period
+				pstr = yfcd.periodToString[period]
 				start = None ; end = None
 			else:
-				sched = yfct.GetExchangeSchedule(exchange, dt_now.date()-(7*td_1d), dt_now.date()+td_1d)
+				# Map period to start->end range so logic can intelligently fetch missing data
+				pstr = None
+				d_now = dt_now.astimezone(tz_exchange).date()
+				sched = yfct.GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
+				# Discard days that haven't opened yet
+				sched = sched[dt_now>=sched["market_open"]]
 				last_open_day = sched["market_open"][-1].date()
-				tomorrow = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
-				end = tomorrow
-				sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date()+td_1d)
-				if (not sched is None) and (len(sched["market_open"]) > 0) and (dt_now < sched["market_open"][0]):
-					if debug:
-						print("- decrementing 'end' by 1d")
-					end -= td_1d
+				end = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
 				end_d = end.date()
 				if period == yfcd.Period.Max:
 					start = datetime.datetime.combine(datetime.date(yfcd.yf_min_year, 1, 1), datetime.time(0), tz_exchange)
@@ -198,7 +198,6 @@ class Ticker:
 					while not yfct.ExchangeOpenOnDay(exchange, start.date()):
 						start += td_1d
 				start_d = start.date()
-				period = None
 		else:
 			if end is None:
 				end = datetime.datetime.combine(dt_now.date() + td_1d, datetime.time(0), tz_exchange)
@@ -229,12 +228,6 @@ class Ticker:
 				if start_d < listing_date:
 					start_d = listing_date
 					start = datetime.datetime.combine(listing_date, datetime.time(0), tz_exchange)
-
-		if period is None:
-			pstr = None
-		else:
-			pstr = yfcd.periodToString[period]
-		istr = yfcd.intervalToString[interval]
 
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 
@@ -458,7 +451,7 @@ class Ticker:
 
 		# Cache
 		self._history[interval] = h
-		yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
+		yfcm.StoreCacheDatum(self.ticker, "history-"+yfcd.intervalToString[interval], self._history[interval])
 
 		# Present table for user:
 		if (not start is None) and (not end is None):
