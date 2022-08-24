@@ -199,6 +199,7 @@ class Ticker:
 						start += td_1d
 				start_d = start.date()
 		else:
+			pstr = None
 			if end is None:
 				end = datetime.datetime.combine(dt_now.date() + td_1d, datetime.time(0), tz_exchange)
 			if start is None:
