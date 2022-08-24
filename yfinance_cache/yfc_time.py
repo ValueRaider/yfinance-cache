@@ -174,6 +174,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 	else:
 		end_dt = end
 		end_d = end.astimezone(tz).date()
+	dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
 	if debug:
 		print("- start_d={}, end_d={}".format(start_d, end_d))
@@ -189,10 +190,13 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 				continue
 			if i.right > end_dt:
 				break
+			if i.left > dt_now:
+				break
 			times.append((i.left.to_pydatetime().astimezone(tz), i.right.to_pydatetime().astimezone(tz)))
 		return times
 	elif interval == yfcd.Interval.Days1:
 		s = cal.schedule.loc[start_d.isoformat():(end_d-timedelta(days=1)).isoformat()]
+		s = s[s["open"]<=dt_now]
 		if s.shape[0] == 0:
 			return None
 		open_days = [dt.to_pydatetime().astimezone(tz).date() for dt in s["open"]]
@@ -200,6 +204,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 		return ranges
 	elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
 		open_dts = cal.schedule.loc[start_d.isoformat():(end_d-timedelta(days=1)).isoformat()]["open"]
+		open_dts = open_dts[open_dts<=dt_now]
 		if len(open_dts) == 0:
 			return None
 		open_days = [dt.to_pydatetime().astimezone(tz).date() for dt in open_dts]
