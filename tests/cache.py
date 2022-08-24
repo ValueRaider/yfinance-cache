@@ -27,6 +27,15 @@ class Test_Yfc_Cache(unittest.TestCase):
         self.tempCacheDir.cleanup()
 
 
+    def test_cache_read_nothing(self):
+        obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
+        self.assertIsNone(obj)
+
+        obj,md = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
+        self.assertIsNone(obj)
+        self.assertIsNone(md)
+
+
     def test_cache_store(self):
         value = 123
 

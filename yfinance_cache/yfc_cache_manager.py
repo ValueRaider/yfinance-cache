@@ -150,27 +150,29 @@ def ReadCacheDatum(ticker, objectName, return_metadata_too=False):
 	if IsObjectInPackedData(objectName):
 		return ReadCachePackedDatum(ticker, objectName, return_metadata_too)
 
+	data = None ; md = None
 	d = _ReadData(ticker, objectName)
-	data   = d["data"]
-	md     = d["metadata"] if "metadata" in d else None
-	expiry = d["expiry"]   if "expiry"   in d else None
+	if not d is None:
+		data   = d["data"]
+		md     = d["metadata"] if "metadata" in d else None
+		expiry = d["expiry"]   if "expiry"   in d else None
 
-	if not expiry is None:
-		dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		if dtnow >= expiry:
-			if verbose:
-				print("Deleting expired datum '{0}/{1}'".format(ticker, objectName))
-			fp = GetFilepath(ticker, objectName)
-			os.remove(fp)
-			if return_metadata_too:
-				return None,None
+		if not expiry is None:
+			dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+			if dtnow >= expiry:
+				if verbose:
+					print("Deleting expired datum '{0}/{1}'".format(ticker, objectName))
+				fp = GetFilepath(ticker, objectName)
+				os.remove(fp)
+				if return_metadata_too:
+					return None,None
+				else:
+					return None
+
+			if md is None:
+				md = {"__expiry__":expiry}
 			else:
-				return None
-
-		if md is None:
-			md = {"__expiry__":expiry}
-		else:
-			md["__expiry__"] = expiry
+				md["__expiry__"] = expiry
 
 	if return_metadata_too:
 		return data,md
@@ -185,32 +187,32 @@ def ReadCachePackedDatum(ticker, objectName, return_metadata_too=False):
 	if not IsObjectInPackedData(objectName):
 		raise Exception("Don't call packed-data function on non-packed data '{0}'".format(objectName))
 
+	data = None ; md = None
 	pkData = _ReadPackedData(ticker, objectName)
-	if not objectName in pkData:
-		return None
-	objData = pkData[objectName]
-	data   = objData["data"]
-	md     = objData["metadata"] if "metadata" in objData else None
-	expiry = objData["expiry"]   if "expiry"   in objData else None
+	if (not pkData is None) and (objectName in pkData):
+		objData = pkData[objectName]
+		data   = objData["data"]
+		md     = objData["metadata"] if "metadata" in objData else None
+		expiry = objData["expiry"]   if "expiry"   in objData else None
 
-	if not expiry is None:
-		dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		if dtnow >= expiry:
-			if verbose:
-				print("Deleting expired packed datum '{0}/{1}'".format(ticker, objectName))
-			del pkData[objectName]
-			fp = GetFilepath(ticker, objectName)
-			with open(fp, 'wb') as outData:
-				pickle.dump(pkData, outData, 4)
-			if return_metadata_too:
-				return None,None
+		if not expiry is None:
+			dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+			if dtnow >= expiry:
+				if verbose:
+					print("Deleting expired packed datum '{0}/{1}'".format(ticker, objectName))
+				del pkData[objectName]
+				fp = GetFilepath(ticker, objectName)
+				with open(fp, 'wb') as outData:
+					pickle.dump(pkData, outData, 4)
+				if return_metadata_too:
+					return None,None
+				else:
+					return None
+
+			if md is None:
+				md = {"__expiry__":expiry}
 			else:
-				return None
-
-		if md is None:
-			md = {"__expiry__":expiry}
-		else:
-			md["__expiry__"] = expiry
+				md["__expiry__"] = expiry
 
 	if return_metadata_too:
 		return data,md
