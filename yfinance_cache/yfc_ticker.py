@@ -1,3 +1,4 @@
+import sys ; sys.path.insert(0,"/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
 import yfinance as yf
 
 from . import yfc_cache_manager as yfcm
@@ -290,11 +291,7 @@ class Ticker:
 						h = yfcu.ReverseYahooBackAdjust(h)
 						h_lastAdjustD = h_lastDt.date()
 					else:
-						ss = df_daily["Stock Splits"].copy()
-						ss[ss==0.0] = 1.0
-						ss_rcp = 1.0/ss
-						csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
-						post_csf = csf[0]
+						post_csf = yfcu.GetCSF0(df_daily)
 						if debug:
 							print("- post_csf = {}".format(post_csf))
 						h = yfcu.ReverseYahooBackAdjust(h, post_csf=post_csf)
@@ -858,10 +855,7 @@ class Ticker:
 				print(h2_post[["Open","Close","Dividends","CDF","Stock Splits","CSF"]])
 
 			# 2) backport h2_post splits across entire h table
-			h2_csf = h2_post["CSF"][0]
-			ss0 = h2_post["Stock Splits"][0]
-			if ss0 != 0.0:
-				h2_csf *= 1.0/ss0
+			h2_csf = yfcu.GetCSF0(h2_post)
 			if h2_csf != 1.0:
 				if debug:
 					print("- backporting new data CSF={} across cached".format(h2_csf))
@@ -874,28 +868,11 @@ class Ticker:
 					print(h[h.index.date==datetime.date(2022,7,29)][["Open","Close","Dividends","CDF","Stock Splits","CSF"]])
 
 			# 2) backport h2_post divs across entire h table
-			h2_cdf = h2_post["CDF"][0]
-			div0 = h2_post["Dividends"][0]
-			if div0 != 0.0:
-				x = h["Close"][-1]
-				h2_cdf *= (x-div0)/x
+			h2_cdf = yfcu.GetCDF0(h2_post)
 			if h2_cdf != 1.0:
 				if debug:
 					print("- backporting new data CDF={} across cached".format(h2_cdf))
-				# h["CDF"] *= h2_cdf
-				# Try manually adjusting each row using formula:
-				# - adjust last row of h:
-				i = h.shape[0]-1
-				close = h["Close"][i]
-				adjClose = h2_post["CDF"][0] * (close - h2_post["Dividends"][0])
-				cdf = adjClose/close
-				h.loc[h.index[i],"CDF"] = cdf
-				# - adjust all other rows in h:
-				for i in range(h.shape[0]-2, -1, -1):
-					close = h["Close"][i]
-					adjClose = h["CDF"][i+1] * (h["Close"][i] - h["Dividends"][i+1])
-					cdf = adjClose/close
-					h.loc[h.index[i],"CDF"] = cdf
+				h["CDF"] *= h2_cdf
 				# Note: don't need to backport across h2_pre because already 
 				#       contains dividend adjustment (via 'Adj Close')
 
@@ -918,11 +895,7 @@ class Ticker:
 				print("- prepending new data")
 
 			# Simple prepend to top of table
-			idx = np.argmax(h.index > h2_pre.index[-1])
-			post_csf = h["CSF"][idx]
-			ss0 = h["Stock Splits"][idx]
-			if ss0 != 0.0:
-				post_csf *= 1.0/ss0
+			post_csf = yfcu.GetCSF0(h)
 			h2_pre = yfcu.ReverseYahooBackAdjust(h2_pre, post_csf=post_csf)
 
 			try:
@@ -970,32 +943,19 @@ class Ticker:
 
 		# Calculate cumulative adjustment factors for events that occurred since last adjustment, 
 		# and apply to h:
-		# first_day_since_adjust = yfct.GetTimestampNextSession(self.info["exchange"], h_lastAdjustD)["market_open"].date()
-		first_day_since_adjust = h_lastAdjustD + datetime.timedelta(days=1)
-		dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		if first_day_since_adjust > dtnow:
+		next_sesh = yfct.GetTimestampNextSession(self.info["exchange"], h_lastAdjustD)
+		if next_sesh["market_open"] > dtnow:
+		# first_day_since_adjust = next_sesh.date()
+		# first_day_since_adjust = h_lastAdjustD + datetime.timedelta(days=1)
+		# dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+		# if first_day_since_adjust > dtnow:
 			csf = 1.0
 			csf = 1.0
 		else:
-			# Actually need 1 day of overlap to get correct dividend adjustment factor - 
-			# in case first new row has dividend, see how Yahoo adjust instead of calculating myself
-			start = first_day_since_adjust - timedelta(days=1)
-			while not yfct.ExchangeOpenOnDay(self.info["exchange"], start):
-				start -= timedelta(days=1)
-			df_since = self.history(start=start, interval=yfcd.Interval.Days1, max_age=datetime.timedelta(days=1), auto_adjust=False)
-			# f = df_since.index.date==start
-			# df_overlap = df_since[f]
-			# if df_overlap.shape[0] == 0:
-			# 	raise Exception("df_overlap is empty")
-			# df_since = df_since[~f]
-			df_overlap = df_since.iloc[0]
-			df_since = df_since.iloc[1:]
-			ss = df_since["Stock Splits"].copy() ; ss[ss==0.0] = 1.0
-			csf = (1.0/ss).sort_index(ascending=False).cumprod().sort_index(ascending=True)
-			ss0 = ss[0]
-			if ss0 != 0.0:
-				csf *= 1.0/ss0
-			cdf = df_overlap["Adj Close"]/df_overlap["Close"]
+			first_day_since_adjust = next_sesh["market_open"].date()
+			df_since = self.history(start=first_day_since_adjust, interval=yfcd.Interval.Days1, max_age=datetime.timedelta(days=1), auto_adjust=False)
+			cdf = yfcu.GetCDF0(df_since)
+			csf = yfcu.GetCSF0(df_since)
 
 		# Backport adjustment factors to h:
 		h["CSF"] *= csf
@@ -1024,11 +984,8 @@ class Ticker:
 					raise
 
 				# Get CSF on first day after this range:
-				idx = np.argmax(df_daily.index > h2.index[-1])
-				post_csf = df_daily["CSF"][idx]
-				ss0 = df_daily["Stock Splits"][idx]
-				if ss0 != 0.0:
-					post_csf *= 1.0/ss0
+				i = np.argmax(df_daily.index > h2.index[-1])
+				post_csf = yfcu.GetCSF0(df_daily.iloc[i:i+1])
 
 				# De-adjust h2 (using splits data from df_daily)
 				h2 = yfcu.ReverseYahooBackAdjust(h2, post_csf=post_csf)
