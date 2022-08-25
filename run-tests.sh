@@ -1,7 +1,8 @@
 #!/bin/bash
 
 _main() (
-	rm "$HOME"/.cache/yfinance.cache.sqlite
+	rm "$HOME"/.cache/yfinance.cache
+	
 	ls tests | while read F ; do
 		if [ "$F" = "context.py" ]; then
 			continue

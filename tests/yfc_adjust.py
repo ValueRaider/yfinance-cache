@@ -113,9 +113,10 @@ class Test_Unadjust(unittest.TestCase):
 
         cached_df = pd.read_csv("./tests/Adjustment/TestCase_append/cached.csv",parse_dates=["Date","FetchDate"],index_col="Date")
         cached_df.index = cached_df.index.tz_convert(tz)
+        last_adjust_dt = datetime.combine(date(2022,7,28), time(15,30), ZoneInfo(tz))
         cache_dp = os.path.join(self.tempCacheDir.name, tkr)
         with open(os.path.join(cache_dp, "history-1d.pkl"), 'wb') as f:
-            pkl.dump({"data":cached_df, "metadata":None}, f, 4)
+            pkl.dump({"data":cached_df, "metadata":{"LastAdjustDt":last_adjust_dt}}, f, 4)
 
         answer_noadjust = pd.read_csv("./tests/Adjustment/TestCase_append/pnl-answer-noadjust.csv",parse_dates=["Date"],index_col="Date")
         answer_noadjust.index = answer_noadjust.index.tz_localize(tz)
@@ -140,13 +141,47 @@ class Test_Unadjust(unittest.TestCase):
 
                 else:
                     print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
+                    last_idx = np.where(f)[0][-1]
+                    print("- last diff: {}".format(df.index[last_idx]))
+                    x = df[dc][last_idx]
+                    y = answer_noadjust[dc][last_idx]
+                    print("- response={} - answer={} = {}".format(x, y, x-y))
+                raise
+
+        df = dat.history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
+        answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
+        dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+        for dc in dcs:
+            f = np.isclose(df[dc].values, answer_splitAdjusted[dc].values, rtol=1e-7)
+            try:
+                self.assertTrue(f.all())
+            except:
+                f = ~f
+                if sum(f) < 10:
+                    print("Differences in column {}:".format(dc))
+                    print("- answer_splitAdjusted:")
+                    print(answer_splitAdjusted[f][[dc]])
+                    print("- result:")
+                    print(df[f][[dc]])
+                    last_diff_idx = np.where(f)[0][-1]
+                    last_diff = df[dc][last_diff_idx] - answer_splitAdjusted[dc][last_diff_idx]
+                    print("- last_diff = {}".format(last_diff))
+
+                else:
+                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
+                    last_idx = np.where(f)[0][-1]
+                    print("- last diff: {}".format(df.index[last_idx]))
+                    x = df[dc][last_idx]
+                    y = answer_splitAdjusted[dc][last_idx]
+                    print("- response={} - answer={} = {}".format(x, y, x-y))
+                    print(df.iloc[last_idx])
                 raise
 
         df = dat.history(start="2022-01-01",end="2022-08-20")
         answer_adjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20")
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
         for dc in dcs:
-            f = np.isclose(df[dc].values, answer_adjusted[dc].values, rtol=1e-10)
+            f = np.isclose(df[dc].values, answer_adjusted[dc].values, rtol=1e-7)
             try:
                 self.assertTrue(f.all())
             except:
@@ -163,6 +198,11 @@ class Test_Unadjust(unittest.TestCase):
 
                 else:
                     print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
+                    last_idx = np.where(f)[0][-1]
+                    print("- last diff: {}".format(df.index[last_idx]))
+                    x = df[dc][last_idx]
+                    y = answer_adjusted[dc][last_idx]
+                    print("- response={} - answer={} = {}".format(x, y, x-y))
                 raise
 
 

@@ -323,6 +323,24 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
 		pickle.dump(pkData, outData, 4)
 
 
+def ReadCacheMetadata(ticker, objectName, key):
+	data=None ; md=None
+	if IsObjectInPackedData(objectName):
+		pkData = _ReadPackedData(ticker, objectName)
+		if (not pkData is None) and (objectName in pkData):
+			objData = pkData[objectName]
+			data   = objData["data"]
+			md     = objData["metadata"] if "metadata" in objData else None
+	else:
+		data,md = _ReadData(ticker, objectName, return_metadata_too=True)
+	if md is None:
+		return None
+	elif not key in md:
+		return None
+	else:
+		return md[key]
+
+
 def WriteCacheMetadata(ticker, objectName, key, value):
 	if IsObjectInPackedData(objectName):
 		return WriteCachePackedMetadata(ticker, objectName, key, value)

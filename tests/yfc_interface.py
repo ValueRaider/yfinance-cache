@@ -55,7 +55,8 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
         self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
-        self.usa_tkr = "INTC"
+        # self.usa_tkr = "INTC"
+        self.usa_tkr = "GME" # Stock split recently
         self.usa_market = "us_market"
         self.usa_exchange = "NMS"
         self.usa_market_tz = ZoneInfo('US/Eastern')
@@ -420,8 +421,8 @@ class Test_Yfc_Interface(unittest.TestCase):
     def test_periods(self):
         #
         tkrs = ["MEL.NZ", "IMP.JO", "INTC"]
-        # Add ticker with recent listing
-        tkrs.append("HLTH")
+        tkrs.append("HLTH") # Listed recently
+        tkrs.append("GME") # Stock split recently
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -453,8 +454,6 @@ class Test_Yfc_Interface(unittest.TestCase):
                 except:
                     print("df_yf: {}".format(df_yf.shape))
                     print(df_yf)
-                    # print("df_yf 0-volume:")
-                    # print(df_yf[df_yf["Volume"]==0])
                     print("df_yfc: {}".format(df_yfc.shape))
                     print(df_yfc)
                     print("Different shapes")
@@ -540,8 +539,8 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_periods_with_persistent_caching(self):
         tkrs = ["MEL.NZ", "IMP.JO", "INTC"]
-        # Add ticker with recent listing
-        tkrs.append("HLTH")
+        tkrs.append("HLTH") # Listed recently
+        tkrs.append("GME") # Stock split recently
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -602,7 +601,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                         last_dt = df_yfc.index[f][-1]
                         v1 = df_yfc.loc[last_dt][c]
                         v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
+                        print("Last diff: {}: YFC={} - YF={} = {}".format(last_dt, v1, v2, v1-v2))
                         raise
 
                 # Fetch from cache should match
@@ -674,8 +673,6 @@ class Test_Yfc_Interface(unittest.TestCase):
                 tz = ZoneInfo(dat.info["exchangeTimezoneName"])
                 while d < end_dt.date():
                     if yfct.ExchangeOpenOnDay(exchange, d):
-                        # dt = datetime.combine(d, time(0))
-                        # dt = tz.localize(dt)
                         dt = datetime.combine(d, time(0), tz)
                         expected_interval_dates.append(dt)
                     d += timedelta(days=1)
@@ -1015,12 +1012,12 @@ class Test_Yfc_Interface(unittest.TestCase):
             self.assertTrue(np.isnan(df["Close"][idx]))
 
 if __name__ == '__main__':
-    # Run tests sequentially:
+    unittest.main()
+
+    # # Run tests sequentially:
     # import inspect
     # test_src = inspect.getsource(Test_Yfc_Interface)
     # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
     #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
     # )
-    #
-    unittest.main()
     # unittest.main(verbosity=2)

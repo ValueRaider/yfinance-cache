@@ -101,19 +101,22 @@ def CalculateRounding(n, sigfigs):
 		return sigfigs - GetSigFigs(round(n))
 
 
-def ReverseYahooBackAdjust(df, pre_csf=None):
+def ReverseYahooBackAdjust(df, post_csf=None):
 	# Reverse Yahoo's back adjustment. 
 	# Note: Yahoo always returns split-adjusted price, so reverse that
 
+	if (not post_csf is None) and not isinstance(post_csf, (float,int)):
+		raise Exception("'post_csf' if set must be scalar numeric type")
+
 	# If 'df' does not contain all stock splits until present, then
-	# set 'pre_csf' to cumulative stock split factor just after last 'df' date
+	# set 'post_csf' to cumulative stock split factor just after last 'df' date
 	last_dt = df.index[-1]
 	dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 	# thr = 5
 	thr = 10 # Extend threshold for weekly data
 	if (dt_now-last_dt) > timedelta(days=thr):
-		if pre_csf is None:
-			raise Exception("Data is older than {} days, need to set 'pre_csf' arg to capture all stock splits since".format(tkr))
+		if post_csf is None:
+			raise Exception("Data is older than {} days, need to set 'post_csf' arg to capture all stock splits since".format(thr))
 
 	# Cumulative dividend factor:
 	cdf = df["Adj Close"] / df["Close"]
@@ -122,10 +125,9 @@ def ReverseYahooBackAdjust(df, pre_csf=None):
 	ss = df["Stock Splits"].copy()
 	ss[ss==0.0] = 1.0
 	ss_rcp = 1.0/ss
-	csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True)
-	csf = csf.shift(-1, fill_value=1.0)
-	if not pre_csf is None:
-		csf *= pre_csf
+	csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
+	if not post_csf is None:
+		csf *= post_csf
 	csf_rcp = 1.0/csf
 
 	# Reverse Yahoo's split adjustment:
