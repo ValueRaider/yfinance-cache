@@ -21,7 +21,7 @@ class Test_Market_Schedules_USA(unittest.TestCase):
     def setUp(self):
         self.market = "us_market"
         self.exchange = "NMS"
-        self.tz = 'US/Eastern'
+        self.tz = 'America/New_York'
         self.market_tz = ZoneInfo(self.tz)
         yfct.SetExchangeTzName(self.exchange, self.tz)
 
@@ -66,7 +66,7 @@ class Test_Market_Schedules_USA(unittest.TestCase):
 
     def test_ExchangeTimezone(self):
         tz2 = yfct.GetExchangeTzName("NMS")
-        self.assertEqual(tz2, "US/Eastern")
+        self.assertEqual(tz2, "America/New_York")
 
     def test_GetScheduleIntervals_hourly(self):
         interval = yfcd.Interval.Hours1

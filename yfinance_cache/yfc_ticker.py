@@ -78,7 +78,7 @@ class Ticker:
 				max_age=None, # defaults to half of interval
 				period=None, 
 				start=None, end=None, prepost=False, actions=True,
-				auto_adjust=True, back_adjust=False,
+				adjust_splits=True, adjust_divs=True,
 				keepna=False,
 				proxy=None, rounding=False, 
 				tz=None,
@@ -117,8 +117,8 @@ class Ticker:
 		start_d = None ; end_d = None
 		if not start is None:
 			if isinstance(start, str):
-				start_d = datetime.datetime.strptime(start, "%Y-%m-%d")
-				start = start_d.replace(tzinfo=tz_exchange)
+				start_d = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+				start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
 			elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
 				start_d = start
 				start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
@@ -130,7 +130,6 @@ class Ticker:
 				start = start.astimezone(tz_exchange)
 			if start.dst() is None:
 				raise Exception("Argument 'start' tzinfo must be DST-aware")
-
 		if not end is None:
 			if isinstance(end, str):
 				end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
@@ -146,12 +145,8 @@ class Ticker:
 				end = end.astimezone(tz_exchange)
 			if end.dst() is None:
 				raise Exception("Argument 'end' tzinfo must be DST-aware")
-
 		if (not period is None) and (not start is None):
 			raise Exception("Don't set both 'period' and 'start' arguments")
-
-		if auto_adjust and back_adjust:
-			raise Exception("Only enable one of 'auto_adjust' and 'back_adjust")
 
 		# 'prepost' not doing anything in yfinance
 
@@ -163,50 +158,71 @@ class Ticker:
 			else:
 				max_age = 0.5*yfcd.intervalToTimedelta[interval]
 
-		h = self._getCachedPrices(interval)
-		if not h is None:
-			if not ("Dividends" in h.columns and "Stock Splits" in h.columns):
-				## Force a fetch
-				h = None
+		if (interval in self._history) and (not self._history[interval] is None):
+			h = self._history[interval]
+		else:
+			h = self._getCachedPrices(interval)
+			if not h is None:
+				# ## Force fetch if columns missing
+				# if not ("Dividends" in h.columns and "Stock Splits" in h.columns):
+				# 	h = None
+				# elif not "CSF" in h.columns:
+				# 	h = None
+				self._history[interval] = h
+		h_cache_key = "history-"+yfcd.intervalToString[interval]
 
 		# Handle missing dates, or dependencies between date arguments
 		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		# print("h is None = {}".format(h is None))
 		if not period is None:
 			if h is None:
 				# Use period
+				pstr = yfcd.periodToString[period]
 				start = None ; end = None
 			else:
-				sched = yfct.GetExchangeSchedule(exchange, dt_now.date()-(7*td_1d), dt_now.date()+td_1d)
+				# Map period to start->end range so logic can intelligently fetch missing data
+				pstr = None
+				d_now = dt_now.astimezone(tz_exchange).date()
+				sched = yfct.GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
+				# Discard days that haven't opened yet
+				# sched = sched[sched["market_open"]<=dt_now]
+				sched = sched[(sched["market_open"]+self.yf_lag)<=dt_now]
+				if debug:
+					print("- sched:")
+					print(sched)
+					print(sched["market_open"][-1].tz_convert("Europe/London"))
 				last_open_day = sched["market_open"][-1].date()
-				tomorrow = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
-				end = tomorrow
-				sched = yfct.GetExchangeSchedule(exchange, dt_now.date(), dt_now.date()+td_1d)
-				if (not sched is None) and (len(sched["market_open"]) > 0) and (dt_now < sched["market_open"][0]):
-					if debug:
-						print("- decrementing 'end' by 1d")
-					end -= td_1d
+				if debug:
+					print("- last_open_day = {}".format(last_open_day))
+				end = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
+				if debug:
+					print("- end = {}".format(end))
 				end_d = end.date()
 				if period == yfcd.Period.Max:
 					start = datetime.datetime.combine(datetime.date(yfcd.yf_min_year, 1, 1), datetime.time(0), tz_exchange)
 				else:
 					start = yfct.DtSubtractPeriod(end, period)
-				ctr = 0
+				# ctr = 0
+				# while not yfct.ExchangeOpenOnDay(exchange, start.date()):
+				# 	start -= td_1d
+				# 	ctr += 1
+				# 	if ctr > 5:
+				# 		ctr = -1 ; break
+				# if ctr==-1:
+				# 	# Search forward instead
+				# 	while not yfct.ExchangeOpenOnDay(exchange, start.date()):
+				# 		start += td_1d
 				while not yfct.ExchangeOpenOnDay(exchange, start.date()):
-					start -= td_1d
-					ctr += 1
-					if ctr > 5:
-						ctr = -1 ; break
-				if ctr==-1:
-					# Search forward instead
-					while not yfct.ExchangeOpenOnDay(exchange, start.date()):
-						start += td_1d
+					start += td_1d
 				start_d = start.date()
 		else:
+			pstr = None
 			if end is None:
 				end = datetime.datetime.combine(dt_now.date() + td_1d, datetime.time(0), tz_exchange)
 			if start is None:
 				start = datetime.datetime.combine(end.date()-td_1d, datetime.time(0), tz_exchange)
+
+		if debug:
+			print("- start={} , end={}".format(start, end))
 
 		if ((start_d is None) or (end_d is None)) and (not start is None) and (not end is None):
 			# if start_d/end_d not set then start/end are datetimes, so need to inspect
@@ -233,28 +249,66 @@ class Ticker:
 					start_d = listing_date
 					start = datetime.datetime.combine(listing_date, datetime.time(0), tz_exchange)
 
-		if period is None:
-			pstr = None
-		else:
-			pstr = yfcd.periodToString[period]
-		istr = yfcd.intervalToString[interval]
-
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 
 		## Trigger an estimation of Yahoo data delay:
 		yf_lag = self.yf_lag
 
+		d_tomorrow = dt_now.astimezone(tz_exchange).date() +datetime.timedelta(days=1)
+		dt_tomorrow = datetime.datetime.combine(d_tomorrow, datetime.time(0), tz_exchange)
+		h_lastAdjustD = None
 		if h is None:
-			if interday:
-				h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+			if not period is None:
+				h = self._fetchYfHistory(pstr, interval, None, None, prepost, proxy, kwargs)
 			else:
-				h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+				if interval == yfcd.Interval.Days1:
+					# Ensure daily always up-to-now
+					h = self._fetchYfHistory(pstr, interval, start_d, d_tomorrow, prepost, proxy, kwargs)
+				else:
+					if interday:
+						h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+					else:
+						h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+			if h is None:
+				raise Exception("Fetch of {}->{} failed".format(start, end))
+
+			# Adjust
+			if interval == yfcd.Interval.Days1:
+				h = yfcu.ReverseYahooBackAdjust(h)
+				h_lastAdjustD = h.index[-1].date()
+			else:
+				h_lastDt = h.index[-1]
+				s = yfct.GetTimestampNextSession(exchange, h_lastDt.to_pydatetime())
+				if s["market_open"] > dt_now:
+					h = yfcu.ReverseYahooBackAdjust(h)
+					h_lastAdjustD = h_lastDt.date()
+				else:
+					# df_daily = self.history(start=h_lastDt.date()+td_1d, interval=yfcd.Interval.Days1, max_age=td_1d, auto_adjust=False)
+					next_day = max(h_lastDt.date()+td_1d, s["market_open"].date())
+					df_daily = self.history(start=next_day, interval=yfcd.Interval.Days1, max_age=td_1d, auto_adjust=False)
+					if (df_daily is None) or (df_daily.shape[0]==0):
+						h = yfcu.ReverseYahooBackAdjust(h)
+						h_lastAdjustD = h_lastDt.date()
+					else:
+						ss = df_daily["Stock Splits"].copy()
+						ss[ss==0.0] = 1.0
+						ss_rcp = 1.0/ss
+						csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
+						post_csf = csf[0]
+						if debug:
+							print("- post_csf = {}".format(post_csf))
+						h = yfcu.ReverseYahooBackAdjust(h, post_csf=post_csf)
+						h_lastAdjustD = df_daily.index[-1].date()
+			if debug:
+				print("- h_lastAdjustD = {}".format(h_lastAdjustD))
 
 		else:
 			## Performance TODO: only check expiry on datapoints not marked 'final'
 			## - need to improve 'expiry check' performance, is 3-4x slower than fetching from YF
 
-			f_final = h["Final?"].values
+			if not "CSF" in h.columns:
+				raise Exception("{}: Cached price data missing 'CSF' column, need to flush cache".format(self.ticker))
+
 			n = h.shape[0]
 			if interday:
 				if isinstance(h.index[0], pd.Timestamp):
@@ -263,20 +317,32 @@ class Ticker:
 					h_interval_dts = h.index
 			else:
 				h_interval_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
-			expired = np.array([False]*n)
-			for idx in np.where(~f_final)[0]:
-				h_interval_dt = h_interval_dts[idx]
-				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
-				expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 			h_interval_dts = np.array(h_interval_dts)
-			if sum(expired) > 0:
-				h = h[~expired]
-				h_interval_dts = h_interval_dts[~expired]
+			if interval == yfcd.Interval.Days1:
+				# Daily data is always contiguous so only need to check last row
+				h_interval_dt = h_interval_dts[n-1]
+				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][n-1], tz=tz_exchange)
+				last_expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+				if last_expired:
+					# Drop last row because expired
+					h = h[0:n-1]
+					h_interval_dts = h_interval_dts[0:n-1]
+			else:
+				expired = np.array([False]*n)
+				f_final = h["Final?"].values
+				for idx in np.where(~f_final)[0]:
+					h_interval_dt = h_interval_dts[idx]
+					fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
+					expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
+				if expired.any():
+					h = h[~expired]
+					h_interval_dts = h_interval_dts[~expired]
+			#
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
 			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
 			f_na = h_intervals == None
-			if sum(f_na) > 0:
+			if f_na.any():
 				print(h)
 				raise Exception("Bad rows found in prices table")
 				if debug:
@@ -284,63 +350,92 @@ class Ticker:
 					print(h[f_na])
 				h = h[~f_na]
 				h_intervals = h_intervals[~f_na]
-			h_intervals = [x["interval_open"] for x in h_intervals]
-			try:
-				ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_intervals, weeklyUseYahooDef=True, minDistanceThreshold=5)
-			except yfcd.NoIntervalsInRangeException:
-				ranges_to_fetch = None
-			if ranges_to_fetch is None:
+			h_interval_opens = [x["interval_open"] for x in h_intervals]
+
+			if interval == yfcd.Interval.Days1:
+				# Ensure that daily data always up-to-date to now
+				h_start = h_intervals[0]["interval_open"]
+				h_end = h_intervals[-1]["interval_close"]
+				if not isinstance(h_start, datetime.datetime):
+					h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
+					h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
+				if debug:
+					print("- h_end = {}".format(h_end))
+				#
+				if h_start <= start:
+					rangePre_to_fetch = None
+				else:
+					try:
+						rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					except yfcd.NoIntervalsInRangeException:
+						rangePre_to_fetch = None
+				if not rangePre_to_fetch is None:
+					if len(rangePre_to_fetch) > 1:
+						raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
+					rangePre_to_fetch = rangePre_to_fetch[0]
+				#
+				try:
+					rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, dt_now+datetime.timedelta(days=1), interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+				except yfcd.NoIntervalsInRangeException:
+					rangePost_to_fetch = None
+				if not rangePost_to_fetch is None:
+					if len(rangePost_to_fetch) > 1:
+						raise Exception("Expected only one element in rangePost_to_fetch[], but = {}".format(rangePost_to_fetch))
+					rangePost_to_fetch = rangePost_to_fetch[0]
+				if debug:
+					print("- rangePre_to_fetch:  {}".format(rangePre_to_fetch))
+					print("- rangePost_to_fetch: {}".format(rangePost_to_fetch))
 				ranges_to_fetch = []
+				if not rangePre_to_fetch is None:
+					ranges_to_fetch.append(rangePre_to_fetch)
+				if not rangePost_to_fetch is None:
+					ranges_to_fetch.append(rangePost_to_fetch)
+			else:
+				try:
+					ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					if ranges_to_fetch is None:
+						ranges_to_fetch = []
+				except yfcd.NoIntervalsInRangeException:
+					ranges_to_fetch = []
+			# Important that ranges_to_fetch in reverse order!
 			if debug:
 				print("- ranges_to_fetch:")
 				pprint(ranges_to_fetch)
+			ranges_to_fetch.sort(key=lambda x:x[0], reverse=True)
 
 			interval_td = yfcd.intervalToTimedelta[interval]
 			if len(ranges_to_fetch) > 0:
+				# Ensure only one range max is after cached data:
+				h_last_dt = h.index[-1].to_pydatetime()
+				if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+					h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+				n = 0
 				for r in ranges_to_fetch:
-					rstart = r[0]
-					rend = r[1]
+					if r[0] > h_last_dt:
+						n += 1
+				if n > 1:
+					print("ranges_to_fetch:")
+					pprint(ranges_to_fetch)
+					raise Exception("ranges_to_fetch contains {} ranges that occur after h_last_dt={}, expected 1 max".format(n, h_last_dt))
 
-					try:
-						h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
-					except yfcd.NoPriceDataInRangeException:
-						## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
-						## Could add additional condition of dividend previous day (seems to mess up table).
-						if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
-							print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
-							h2 = None
-							continue
-						else:
-							raise
-
-					if not h2 is None:
-						if h2.index.tz != h.index.tz:
-							raise Exception("New data tz={} != cached data tz={}".format(h2.index.tz, h.index.tz))
-
-						## If a timepoint is in both h and h2, drop from h. This is possible because of 
-						## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
-						## if it reduces total number of web requests
-						f_duplicate = h.index.isin(h2.index)
-						h = h[~f_duplicate]
-
-						try:
-							h = pd.concat([h, h2])
-						except:
-							print(self.ticker)
-							print("h:")
-							print(h.iloc[h.shape[0]-10:])
-							print("h2:")
-							print(h2)
-							raise
-
-				h.sort_index(inplace=True)
+				# last_adjust_d = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+				quiet = not period is None # YFC generated date range so don't print message
+				if interval == yfcd.Interval.Days1:
+					h = self._fetchAndAddRanges_contiguous(h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=quiet)
+					h_lastAdjustD = h.index[-1].date()
+				else:
+					h = self._fetchAndAddRanges_sparse(h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=quiet)
+					# h_lastAdjustD = self._getCachedPrices(yfcd.Interval.Days1).index[-1].date()
+					h_lastAdjustD = self._history[yfcd.Interval.Days1].index[-1].date()
 
 		if h is None:
 			raise Exception("history() is exiting without price data")
 
 		# Cache
 		self._history[interval] = h
-		yfcm.StoreCacheDatum(self.ticker, "history-"+istr, self._history[interval])
+		yfcm.StoreCacheDatum(self.ticker, h_cache_key, self._history[interval])
+		if not h_lastAdjustD is None:
+			yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
 
 		# Present table for user:
 		if (not start is None) and (not end is None):
@@ -354,16 +449,14 @@ class Ticker:
 		else:
 			if not "Dividends" in h.columns:
 				raise Exception("Dividends column missing from table")
-		if auto_adjust:
-			df = yf.utils.auto_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
-			for c in ["Open","Close","Low","High","Volume"]:
-				h[c] = df[c]
-			h = h.drop(["Adj Close"], axis=1)
-		elif back_adjust:
-			df = yf.utils.back_adjust(h[["Open","Close","Adj Close","Low","High","Volume"]])
-			for c in ["Open","Close","Low","High","Volume"]:
-				h[c] = df[c]
-			h = h.drop(["Adj Close"], axis=1)
+		if adjust_splits:
+			for c in ["Open","Close","Low","High","Dividends"]:
+				h[c] *= h["CSF"]
+			h["Volume"] /= h["CSF"]
+		if adjust_divs:
+			for c in ["Open","Close","Low","High"]:
+				h[c] *= h["CDF"]
+		h = h.drop(["CSF","CDF"], axis=1)
 		if rounding:
 			# Round to 4 sig-figs
 			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
@@ -391,19 +484,38 @@ class Ticker:
 		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 		td_1d = datetime.timedelta(days=1)
 
-		# if debug:
-		if not pstr is None:
-			print("YFC: {}: fetching {} period".format(self.ticker, pstr))
-		else:
-			if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
-				start_str = start.strftime("%Y-%m-%d")
+		if not end is None:
+			dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+			dtnow_exchange = dtnow.astimezone(tz_exchange)
+			if isinstance(end, datetime.datetime):
+				end_dt = end
+				end_d = end.astimezone(tz_exchange).date()
 			else:
-				start_str = start.strftime("%Y-%m-%d %H:%M:%S")
-			if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
-				end_str = end.strftime("%Y-%m-%d")
+				end_d = end
+				end_dt = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
+			if end_dt > dtnow:
+				# Cap 'end' to exchange midnight
+				exchange_midnight_dt = datetime.datetime.combine(dtnow_exchange.date()+datetime.timedelta(days=1), datetime.time(0), tz_exchange)
+				if isinstance(end, datetime.datetime):
+					end = exchange_midnight_dt
+				else:
+					end = exchange_midnight_dt.date()
+			if (not start is None) and (end <= start):
+				return None
+
+		if debug:
+			if not pstr is None:
+				print("YFC: {}: fetching {} period".format(self.ticker, pstr))
 			else:
-				end_str = end.strftime("%Y-%m-%d %H:%M:%S")
-			print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
+				if (not isinstance(start,datetime.datetime)) or start.time() == datetime.time(0):
+					start_str = start.strftime("%Y-%m-%d")
+				else:
+					start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+				if (not isinstance(end,datetime.datetime)) or end.time() == datetime.time(0):
+					end_str = end.strftime("%Y-%m-%d")
+				else:
+					end_str = end.strftime("%Y-%m-%d %H:%M:%S")
+				print("YFC: {}: fetching {} {} -> {}".format(self.ticker, yfcd.intervalToString[interval], start_str, end_str))
 
 		try:
 			df = self.dat.history(period=pstr, 
@@ -562,7 +674,7 @@ class Ticker:
 			#
 			intervals = yfct.GetTimestampCurrentInterval_batch(exchange, intervalStarts, interval, weeklyUseYahooDef=True)
 			f_na = intervals==None
-			if sum(f_na) > 0:
+			if f_na.any():
 				if not interday:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
 					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
@@ -571,17 +683,17 @@ class Ticker:
 					sched_df["_date"] = sched_df.index.date
 					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
-					if sum(f_drop) > 0:
+					if f_drop.any():
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
 						df = df[~f_drop]
 						n = df.shape[0]
 						f_na = intervals==None
-				if sum(f_na) > 0:
+				if f_na.any():
 					## For some national holidays when exchange closed, Yahoo fills in row. Clue is 0 volume.
 					## Solution = drop:
 					f_na_zeroVol = f_na & (df["Volume"]==0)
-					if sum(f_na_zeroVol) > 0:
+					if f_na_zeroVol.any():
 						f_drop = f_na_zeroVol
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
@@ -589,7 +701,7 @@ class Ticker:
 						n = df.shape[0]
 						f_na = intervals==None
 					## TODO ... another clue is row is identical to previous trading day
-					if sum(f_na) > 0:
+					if f_na.any():
 						f_drop = np.array([False]*n)
 						for i in np.where(f_na)[0]:
 							if i > 0:
@@ -597,13 +709,13 @@ class Ticker:
 								last_dt = df.index[i-1]
 								if (df.loc[dt,yfcd.yf_data_cols] == df.loc[last_dt,yfcd.yf_data_cols]).all():
 									f_drop[i] = True
-						if sum(f_drop) > 0:
+						if f_drop.any():
 							intervalStarts = intervalStarts[~f_drop]
 							intervals = intervals[~f_drop]
 							df = df[~f_drop]
 							n = df.shape[0]
 							f_na = intervals==None
-				if sum(f_na) > 0:
+				if f_na.any():
 					ctr = 0
 					for idx in np.where(f_na)[0]:
 						dt = df.index[idx]
@@ -633,18 +745,306 @@ class Ticker:
 			interval = yfcd.intervalStrToEnum[interval]
 
 		istr = yfcd.intervalToString[interval]
-		interday = (interval in [yfcd.Interval.Days1,yfcd.Interval.Days5,yfcd.Interval.Week])
 
 		h = None
-		if not self._history is None:
-			if interval in self._history.keys():
-				h = self._history[interval]
-		if (h is None) and yfcm.IsDatumCached(self.ticker, "history-"+istr):
-			self._history[interval] = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
-			h = self._history[interval]
+
+		# if not self._history is None:
+		# 	if interval in self._history.keys():
+		# 		h = self._history[interval]
+		# if (h is None) and yfcm.IsDatumCached(self.ticker, "history-"+istr):
+		# 	self._history[interval] = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
+		# 	h = self._history[interval]
+
+		if yfcm.IsDatumCached(self.ticker, "history-"+istr):
+			h = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
 
 		return h
 
+	def _fetchAndAddRanges_contiguous(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=False):
+		# Fetch each range, appending/prepending to cached data
+		if (ranges_to_fetch is None) or len(ranges_to_fetch) == 0:
+			return h
+
+		debug = False
+		# debug = True
+
+		if debug:
+			print("_fetchAndAddRanges_contiguous()")
+			print("- ranges_to_fetch:")
+			pprint(ranges_to_fetch)
+
+		tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
+		h_first_dt = h.index[0].to_pydatetime()
+		h_last_dt = h.index[-1].to_pydatetime()
+		if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+			h_first_dt = h_first_dt.astimezone(tz_exchange).date()
+			h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+		td_1d = datetime.timedelta(days=1)
+
+		# Because data should be contiguous, then ranges should meet some conditions:
+		if len(ranges_to_fetch) > 2:
+			pprint(ranges_to_fetch)
+			raise Exception("For contiguous data generated {}>2 ranges".format(len(ranges_to_fetch)))
+		n_pre=0 ; n_post=0
+		range_pre = None ; range_post = None
+		for r in ranges_to_fetch:
+			if r[0] > h_last_dt:
+				n_post += 1
+				range_post = r
+			elif r[0] < h_first_dt:
+				n_pre += 1
+				range_pre = r
+		if n_pre > 1:
+			pprint(ranges_to_fetch)
+			raise Exception("For contiguous data generated {}>1 ranges before h_first_dt".format(n_pre))
+		if n_post > 1:
+			pprint(ranges_to_fetch)
+			raise Exception("For contiguous data generated {}>1 ranges after h_last_dt".format(n_post))
+
+		h2_pre = None ; h2_post = None
+		if not range_pre is None:
+			r = range_pre
+			try:
+				h2_pre = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, kwargs)
+			except yfcd.NoPriceDataInRangeException:
+				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+				## Could add additional condition of dividend previous day (seems to mess up table).
+				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
+					if not quiet:
+						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
+					h2 = None
+				else:
+					raise
+		if not range_post is None:
+			r = range_post
+			try:
+				h2_post = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, kwargs)
+			except yfcd.NoPriceDataInRangeException:
+				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+				## Could add additional condition of dividend previous day (seems to mess up table).
+				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
+					if not quiet:
+						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
+					h2 = None
+				else:
+					raise
+
+		if not h2_post is None:
+			## UPDATE: only need duplicate check for noncontiguous data
+			# ## If a timepoint is in both h and h2, drop from h. This is possible because of 
+			# ## threshold in IdentifyMissingIntervalRanges(), allowing re-fetch of cached data 
+			# ## if it reduces total number of web requests
+			# f_duplicate = h.index.isin(h2_pre.index)
+			# h = h[~f_duplicate]
+
+			# De-adjust the new data, and backport any new events in cached data
+			# Note: Yahoo always returns split-adjusted price, so reverse it
+
+			if debug:
+				print("- appending new data")
+
+			if debug:
+				print("- h2_post:")
+				h2_post["A/C"] = h2_post["Adj Close"] / h2_post["Close"]
+				with pd.option_context('display.precision', 10):
+					print(h2_post[["Open","Close","Adj Close","A/C"]])
+
+			# Simple append to bottom of table
+			# 1) adjust h2_post
+			h2_post = yfcu.ReverseYahooBackAdjust(h2_post)
+
+			if debug:
+				print("- h2_post:")
+				print(h2_post[["Open","Close","Dividends","CDF","Stock Splits","CSF"]])
+
+			# 2) backport h2_post splits across entire h table
+			h2_csf = h2_post["CSF"][0]
+			ss0 = h2_post["Stock Splits"][0]
+			if ss0 != 0.0:
+				h2_csf *= 1.0/ss0
+			if h2_csf != 1.0:
+				if debug:
+					print("- backporting new data CSF={} across cached".format(h2_csf))
+				h["CSF"] *= h2_csf
+				if not h2_pre is None:
+					h2_pre["CSF"] *= h2_csf
+
+			if debug:
+				with pd.option_context('display.precision', 8, ):
+					print(h[h.index.date==datetime.date(2022,7,29)][["Open","Close","Dividends","CDF","Stock Splits","CSF"]])
+
+			# 2) backport h2_post divs across entire h table
+			h2_cdf = h2_post["CDF"][0]
+			div0 = h2_post["Dividends"][0]
+			if div0 != 0.0:
+				x = h["Close"][-1]
+				h2_cdf *= (x-div0)/x
+			if h2_cdf != 1.0:
+				if debug:
+					print("- backporting new data CDF={} across cached".format(h2_cdf))
+				# h["CDF"] *= h2_cdf
+				# Try manually adjusting each row using formula:
+				# - adjust last row of h:
+				i = h.shape[0]-1
+				close = h["Close"][i]
+				adjClose = h2_post["CDF"][0] * (close - h2_post["Dividends"][0])
+				cdf = adjClose/close
+				h.loc[h.index[i],"CDF"] = cdf
+				# - adjust all other rows in h:
+				for i in range(h.shape[0]-2, -1, -1):
+					close = h["Close"][i]
+					adjClose = h["CDF"][i+1] * (h["Close"][i] - h["Dividends"][i+1])
+					cdf = adjClose/close
+					h.loc[h.index[i],"CDF"] = cdf
+				# Note: don't need to backport across h2_pre because already 
+				#       contains dividend adjustment (via 'Adj Close')
+
+			if debug:
+				with pd.option_context('display.precision', 8, ):
+					print(h[h.index.date==datetime.date(2022,7,29)][["Open","Close","Dividends","CDF","Stock Splits","CSF"]])
+
+			try:
+				h = pd.concat([h, h2_post])
+			except:
+				print(self.ticker)
+				print("h:")
+				print(h.iloc[h.shape[0]-10:])
+				print("h2_post:")
+				print(h2_post)
+				raise
+
+		if not h2_pre is None:
+			if debug:
+				print("- prepending new data")
+
+			# Simple prepend to top of table
+			idx = np.argmax(h.index > h2_pre.index[-1])
+			post_csf = h["CSF"][idx]
+			ss0 = h["Stock Splits"][idx]
+			if ss0 != 0.0:
+				post_csf *= 1.0/ss0
+			h2_pre = yfcu.ReverseYahooBackAdjust(h2_pre, post_csf=post_csf)
+
+			try:
+				h = pd.concat([h, h2_pre])
+			except:
+				print(self.ticker)
+				print("h:")
+				print(h.iloc[h.shape[0]-10:])
+				print("h2_pre:")
+				print(h2_pre)
+				raise
+
+		h = h.sort_index()
+		if debug:
+			print("- last row:")
+			n = h.shape[0]
+			print(h.iloc[n-1:n][["Open","Close","Volume","Dividends"]])
+
+		return h
+
+	def _fetchAndAddRanges_sparse(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=False):
+		# Fetch each range, but can be careless regarding de-adjust because
+		# getting events from the carefully-managed daily data
+		if (ranges_to_fetch is None) or len(ranges_to_fetch) == 0:
+			return h
+
+		debug = False
+		# debug = True
+
+		if debug:
+			print("_fetchAndAddRanges_sparse()")
+			print("- ranges_to_fetch:")
+			pprint(ranges_to_fetch)
+
+		tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
+		h_last_dt = h.index[-1].to_pydatetime()
+		h_last_d = h_last_dt.date()
+		if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+			h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+
+		h_cache_key = "history-"+yfcd.intervalToString[interval]
+		h_lastAdjustD = yfcm.ReadCacheMetadata(self.ticker, h_cache_key, "LastAdjustDt")
+		if h_lastAdjustD is None:
+			raise Exception("h_lastAdjustD is None")
+
+		# Calculate cumulative adjustment factors for events that occurred since last adjustment, 
+		# and apply to h:
+		# first_day_since_adjust = yfct.GetTimestampNextSession(self.info["exchange"], h_lastAdjustD)["market_open"].date()
+		first_day_since_adjust = h_lastAdjustD + datetime.timedelta(days=1)
+		dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+		if first_day_since_adjust > dtnow:
+			csf = 1.0
+			csf = 1.0
+		else:
+			# Actually need 1 day of overlap to get correct dividend adjustment factor - 
+			# in case first new row has dividend, see how Yahoo adjust instead of calculating myself
+			start = first_day_since_adjust - timedelta(days=1)
+			while not yfct.ExchangeOpenOnDay(self.info["exchange"], start):
+				start -= timedelta(days=1)
+			df_since = self.history(start=start, interval=yfcd.Interval.Days1, max_age=datetime.timedelta(days=1), auto_adjust=False)
+			# f = df_since.index.date==start
+			# df_overlap = df_since[f]
+			# if df_overlap.shape[0] == 0:
+			# 	raise Exception("df_overlap is empty")
+			# df_since = df_since[~f]
+			df_overlap = df_since.iloc[0]
+			df_since = df_since.iloc[1:]
+			ss = df_since["Stock Splits"].copy() ; ss[ss==0.0] = 1.0
+			csf = (1.0/ss).sort_index(ascending=False).cumprod().sort_index(ascending=True)
+			ss0 = ss[0]
+			if ss0 != 0.0:
+				csf *= 1.0/ss0
+			cdf = df_overlap["Adj Close"]/df_overlap["Close"]
+
+		# Backport adjustment factors to h:
+		h["CSF"] *= csf
+		h["CDF"] *= cdf
+
+		# Ensure have daily data covering all ranges_to_fetch, so they can be de-splitted
+		r_start_earliest = ranges_to_fetch[0][0]
+		for rstart,rend in ranges_to_fetch:
+			r_start_earliest = min(rstart, r_start_earliest)
+		r_start_earliest_d = r_start_earliest.date() if isinstance(r_start_earliest, datetime) else r_start_earliest_d
+		df_daily = self.history(start=r_start_earliest, interval=yfcd.Interval.Days1, max_age=datetime.timedelta(days=1))
+
+		# Fetch each range, and adjust for splits that occurred after
+		for rstart,rend in ranges_to_fetch:
+			try:
+				h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
+			except yfcd.NoPriceDataInRangeException:
+				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+				## Could add additional condition of dividend previous day (seems to mess up table).
+				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
+					if not quiet:
+						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
+					h2 = None
+					continue
+				else:
+					raise
+
+				# Get CSF on first day after this range:
+				idx = np.argmax(df_daily.index > h2.index[-1])
+				post_csf = df_daily["CSF"][idx]
+				ss0 = df_daily["Stock Splits"][idx]
+				if ss0 != 0.0:
+					post_csf *= 1.0/ss0
+
+				# De-adjust h2 (using splits data from df_daily)
+				h2 = yfcu.ReverseYahooBackAdjust(h2, post_csf=post_csf)
+
+			try:
+				h = pd.concat([h, h2])
+			except:
+				print(self.ticker)
+				print("h:")
+				print(h.iloc[h.shape[0]-10:])
+				print("h2:")
+				print(h2)
+				raise
+
+		h = h.sort_index()
+		return h
 
 	@property
 	def info(self):

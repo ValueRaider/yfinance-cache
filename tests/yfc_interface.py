@@ -1,3 +1,5 @@
+import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
+
 import unittest
 from pprint import pprint
 
@@ -53,7 +55,8 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
         self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
-        self.usa_tkr = "INTC"
+        # self.usa_tkr = "INTC"
+        self.usa_tkr = "GME" # Stock split recently
         self.usa_market = "us_market"
         self.usa_exchange = "NMS"
         self.usa_market_tz = ZoneInfo('US/Eastern')
@@ -308,28 +311,31 @@ class Test_Yfc_Interface(unittest.TestCase):
         end_day_str = "2022-06-25"
 
         for aa in [False,True]:
-            for ba in [False,True]:
-                if aa and ba:
+            df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=False)
+            df_yfc = self.usa_dat.history(start=start_day_str, end=end_day_str, adjust_divs=aa)
+
+            for c in yfcd.yf_data_cols:
+                if not c in df_yf.columns:
                     continue
-
-                df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=ba)
-                df_yfc = self.usa_dat.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=ba)
-
-                # df_yf = dat_yf.history(start=start_dt, end=end_dt, auto_adjust=aa, back_adjust=ba)
-                # df_yfc = self.usa_dat.history(start=start_dt, end=end_dt, auto_adjust=aa, back_adjust=ba)
-
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    try:
-                        self.assertTrue(df_yf[c].equals(df_yfc[c]))
-                    except:
-                        print("df_yf:")
-                        print(df_yf[c])
-                        print("df_yfc:")
-                        print(df_yfc[[c,"FetchDate"]])
-                        print("aa={}, ba={}, c={}".format(aa, ba, c))
-                        raise
+                elif c == "Adj Close" and not c in df_yfc.columns:
+                    continue
+                try:
+                    if aa:
+                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=1e-10).all())
+                    else:
+                        self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
+                except:
+                    f = ~np.equal(df_yf[c].values, df_yfc[c].values)
+                    print("df_yf:")
+                    print(df_yf)
+                    print("df_yfc:")
+                    print(df_yfc)
+                    print("aa={}, c={}".format(aa, c))
+                    last_dt = df_yfc.index[f][-1]
+                    v1 = df_yfc.loc[last_dt][c]
+                    v2 =  df_yf.loc[last_dt][c]
+                    print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
+                    raise
 
 
     def test_matches_yf_daily_nze(self):
@@ -339,25 +345,26 @@ class Test_Yfc_Interface(unittest.TestCase):
         end_day_str = "2022-06-18"
 
         for aa in [False,True]:
-            for ba in [False,True]:
-                if aa and ba:
+            df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=False)
+            df_yfc = self.nze_dat.history(start=start_day_str, end=end_day_str, adjust_divs=aa)
+
+            for c in yfcd.yf_data_cols:
+                if not c in df_yf.columns:
                     continue
-
-                df_yf = dat_yf.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=ba)
-                df_yfc = self.nze_dat.history(start=start_day_str, end=end_day_str, auto_adjust=aa, back_adjust=ba)
-
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    try:
-                        self.assertTrue(df_yf[c].equals(df_yfc[c]))
-                    except:
-                        print("df_yf:")
-                        print(df_yf)
-                        print("df_yfc:")
-                        print(df_yfc)
-                        print("aa={}, ba={}, c={}".format(aa, ba, c))
-                        raise
+                elif c == "Adj Close" and not c in df_yfc.columns:
+                    continue
+                try:
+                    if aa:
+                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=1e-10).all())
+                    else:
+                        self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
+                except:
+                    print("df_yf:")
+                    print(df_yf)
+                    print("df_yfc:")
+                    print(df_yfc)
+                    print("aa={}, c={}".format(aa, c))
+                    raise
 
 
     def test_history_final(self):
@@ -412,9 +419,10 @@ class Test_Yfc_Interface(unittest.TestCase):
 
 
     def test_periods(self):
+        #
         tkrs = ["MEL.NZ", "IMP.JO", "INTC"]
-        # Add ticker with recent listing
-        tkrs.append("HLTH")
+        tkrs.append("HLTH") # Listed recently
+        tkrs.append("GME") # Stock split recently
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -430,15 +438,10 @@ class Test_Yfc_Interface(unittest.TestCase):
                 df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
                 df_yf_backup = df_yf.copy()
 
-                df_yfc = dat_yfc.history(period=p, auto_adjust=False)
+                df_yfc = dat_yfc.history(period=p, adjust_divs=False)
 
                 ## How Yahoo maps period -> start_date is mysterious, so need to account for my different mapping:
-                d0 = df_yf.index.min()
-                d1 = df_yfc.index.min()
-                if d1>d0:
-                    td = d1-d0
-                else:
-                    td = d0-d1
+                td = abs(df_yf.index.min() - df_yfc.index.min())
                 if td < timedelta(days=28):
                     start_ts = max(df_yf.index.min(), df_yfc.index.min())
                     df_yf = df_yf[df_yf.index >= start_ts]
@@ -451,8 +454,6 @@ class Test_Yfc_Interface(unittest.TestCase):
                 except:
                     print("df_yf: {}".format(df_yf.shape))
                     print(df_yf)
-                    # print("df_yf 0-volume:")
-                    # print(df_yf[df_yf["Volume"]==0])
                     print("df_yfc: {}".format(df_yfc.shape))
                     print(df_yfc)
                     print("Different shapes")
@@ -460,26 +461,26 @@ class Test_Yfc_Interface(unittest.TestCase):
                 try:
                     self.assertTrue(df_yf.index.equals(df_yfc.index))
                 except:
-                        print("df_yf:")
-                        print(df_yf)
-                        print("df_yfc:")
-                        print(df_yfc)
-                        print("Index different")
-                        raise
+                    print("df_yf:")
+                    print(df_yf)
+                    print("df_yfc:")
+                    print(df_yfc)
+                    print("Index different")
+                    raise
                 f = df_yfc["Final?"].values
                 for c in yfcd.yf_data_cols:
-                    tol = 0.0
-                    if c == "Adj Close":
-                        tol = 1e-5
+                    if not c in df_yf.columns:
+                        continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
                         if not f[-1]:
                             ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.isclose(df_yf.loc[f,c].values, df_yfc.loc[f,c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
                         else:
-                            self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                     except:
-                        # f = (df_yf[c]-df_yfc[c]).abs() > tol
-                        f = ~np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol)
+                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
                         print("Diff dates:")
                         print(df_yf.index[f])
                         print("Difference in column {}".format(c))
@@ -491,7 +492,7 @@ class Test_Yfc_Interface(unittest.TestCase):
 
                 # Fetch from cache should match
                 df_yf = df_yf_backup.copy()
-                df_yfc = dat_yfc.history(period=p, auto_adjust=False)
+                df_yfc = dat_yfc.history(period=p, adjust_divs=False)
                 start_ts = max(df_yf.index.min(), df_yfc.index.min())
                 df_yf = df_yf[df_yf.index >= start_ts]
                 df_yfc = df_yfc[df_yfc.index >= start_ts]
@@ -515,19 +516,18 @@ class Test_Yfc_Interface(unittest.TestCase):
                         raise
                 f = df_yfc["Final?"].values
                 for c in yfcd.yf_data_cols:
-                    tol = 0.0
-                    if c == "Adj Close":
-                        ## YF/Yahoo called at different times returns slightly different 'Adj Close', so need to tolerate negligible error
-                        tol = 1e-5
+                    if not c in df_yf.columns:
+                        continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
                         if not f[-1]:
                             ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.isclose(df_yf.loc[f,c].values, df_yfc.loc[f,c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
                         else:
-                            self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                     except:
-                        # f = (df_yf[c]-df_yfc[c]).abs() > tol
-                        f = ~np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol)
+                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
                         print("Diff dates:")
                         print(df_yf.index[f])
                         print("Difference in column {}".format(c))
@@ -539,8 +539,8 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_periods_with_persistent_caching(self):
         tkrs = ["MEL.NZ", "IMP.JO", "INTC"]
-        # Add ticker with recent listing
-        tkrs.append("HLTH")
+        tkrs.append("HLTH") # Listed recently
+        tkrs.append("GME") # Stock split recently
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -552,15 +552,10 @@ class Test_Yfc_Interface(unittest.TestCase):
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
                 df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
 
-                df_yfc = dat_yfc.history(period=p, auto_adjust=False)
+                df_yfc = dat_yfc.history(period=p, adjust_divs=False)
 
                 ## How Yahoo maps period -> start_date is mysterious, so need to account for my different mapping:
-                d0 = df_yf.index.min()
-                d1 = df_yfc.index.min()
-                if d1>d0:
-                    td = d1-d0
-                else:
-                    td = d0-d1
+                td = abs(df_yf.index.min() - df_yfc.index.min())
                 if td < timedelta(days=28):
                     start_ts = max(df_yf.index.min(), df_yfc.index.min())
                     df_yf = df_yf[df_yf.index >= start_ts]
@@ -588,30 +583,29 @@ class Test_Yfc_Interface(unittest.TestCase):
                         raise
                 f = df_yfc["Final?"].values
                 for c in yfcd.yf_data_cols:
-                    tol = 0.0
-                    if c == "Adj Close":
-                        ## YF/Yahoo called at different times returns slightly different 'Adj Close', so need to tolerate negligible error
-                        tol = 1e-5
+                    if not c in df_yf.columns:
+                        continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
                         if not f[-1]:
                             ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.isclose(df_yf.loc[f,c].values, df_yfc.loc[f,c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
                         else:
-                            self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                     except:
-                        # f = (df_yf[c]-df_yfc[c]).abs() > tol
-                        f = ~np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol)
+                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
                         print("Diff dates:")
                         print(df_yf.index[f])
                         print("Difference in column {}".format(c))
                         last_dt = df_yfc.index[f][-1]
                         v1 = df_yfc.loc[last_dt][c]
                         v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
+                        print("Last diff: {}: YFC={} - YF={} = {}".format(last_dt, v1, v2, v1-v2))
                         raise
 
                 # Fetch from cache should match
-                df_yfc = dat_yfc.history(period=p, auto_adjust=False)
+                df_yfc = dat_yfc.history(period=p, adjust_divs=False)
                 df_yfc = df_yfc[df_yfc.index >= start_ts]
                 try:
                     self.assertEqual(df_yf.shape[0], df_yfc.shape[0])
@@ -635,19 +629,18 @@ class Test_Yfc_Interface(unittest.TestCase):
                         raise
                 f = df_yfc["Final?"].values
                 for c in yfcd.yf_data_cols:
-                    tol = 0.0
-                    if c == "Adj Close":
-                        ## YF/Yahoo called at different times returns slightly different 'Adj Close', so need to tolerate negligible error
-                        tol = 1e-5
+                    if not c in df_yf.columns:
+                        continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
                         if not f[-1]:
                             ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.isclose(df_yf.loc[f,c].values, df_yfc.loc[f,c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
                         else:
-                            self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol).all())
+                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                     except:
-                        # f = (df_yf[c]-df_yfc[c]).abs() > tol
-                        f = ~np.isclose(df_yf[c].values, df_yfc[c].values, rtol=tol)
+                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
                         print("Diff dates:")
                         print(df_yf.index[f])
                         print("Difference in column {}".format(c))
@@ -680,8 +673,6 @@ class Test_Yfc_Interface(unittest.TestCase):
                 tz = ZoneInfo(dat.info["exchangeTimezoneName"])
                 while d < end_dt.date():
                     if yfct.ExchangeOpenOnDay(exchange, d):
-                        # dt = datetime.combine(d, time(0))
-                        # dt = tz.localize(dt)
                         dt = datetime.combine(d, time(0), tz)
                         expected_interval_dates.append(dt)
                     d += timedelta(days=1)
@@ -751,15 +742,17 @@ class Test_Yfc_Interface(unittest.TestCase):
                 for c in yfcd.yf_data_cols:
                     if not c in df_yf.columns:
                         continue
+                    elif c == "Adj Close" and not c in df_yfc.columns:
+                        continue
                     try:
-                        self.assertTrue(df_yf[c].equals(df1[c]))
+                        self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                     except:
                         print("")
                         print("df_yf:")
-                        print(df_yf)
+                        print(df_yf[[c]])
                         print("")
                         print("df_yfc:")
-                        print(df1)
+                        print(df1[[c]])
                         print("")
                         print("Difference in column {}".format(c))
                         raise
@@ -770,11 +763,12 @@ class Test_Yfc_Interface(unittest.TestCase):
         interval = yfcd.Interval.Hours1
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
             exchange = dat.info["exchange"]
-            yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
+            tz = dat.info["exchangeTimezoneName"]
+            yfct.SetExchangeTzName(exchange, tz)
+            d_now = dt_now.astimezone(ZoneInfo(tz)).date()
             if yfct.ExchangeOpenOnDay(exchange, d_now):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
@@ -805,15 +799,17 @@ class Test_Yfc_Interface(unittest.TestCase):
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
                             continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
+                            continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("")
                             print("df_yf:")
-                            print(df_yf)
+                            print(df_yf[[c]])
                             print("")
                             print("df_yfc:")
-                            print(df1)
+                            print(df1[[c]])
                             print("")
                             print("{}: Difference in column {}".format(tkr, c))
                             raise
@@ -861,8 +857,10 @@ class Test_Yfc_Interface(unittest.TestCase):
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
                             continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
+                            continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("")
                             print("df_yf:")
@@ -923,8 +921,10 @@ class Test_Yfc_Interface(unittest.TestCase):
                     for c in yfcd.yf_data_cols:
                         if not c in df_yf.columns:
                             continue
+                        elif c == "Adj Close" and not c in df_yfc.columns:
+                            continue
                         try:
-                            self.assertTrue(df_yf[c].equals(df1[c]))
+                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
                         except:
                             print("Difference in column {}".format(c))
                             print("")
@@ -1012,12 +1012,12 @@ class Test_Yfc_Interface(unittest.TestCase):
             self.assertTrue(np.isnan(df["Close"][idx]))
 
 if __name__ == '__main__':
-    # Run tests sequentially:
+    unittest.main()
+
+    # # Run tests sequentially:
     # import inspect
     # test_src = inspect.getsource(Test_Yfc_Interface)
     # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
     #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
     # )
-    #
-    unittest.main()
     # unittest.main(verbosity=2)

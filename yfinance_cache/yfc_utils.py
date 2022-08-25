@@ -1,6 +1,7 @@
 from enum import Enum
 import os
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 import re
 
 class OperatingSystem(Enum):
@@ -98,3 +99,46 @@ def CalculateRounding(n, sigfigs):
 		return 0
 	else:
 		return sigfigs - GetSigFigs(round(n))
+
+
+def ReverseYahooBackAdjust(df, post_csf=None):
+	# Reverse Yahoo's back adjustment. 
+	# Note: Yahoo always returns split-adjusted price, so reverse that
+
+	if (not post_csf is None) and not isinstance(post_csf, (float,int)):
+		raise Exception("'post_csf' if set must be scalar numeric type")
+
+	# If 'df' does not contain all stock splits until present, then
+	# set 'post_csf' to cumulative stock split factor just after last 'df' date
+	last_dt = df.index[-1]
+	dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+	# thr = 5
+	thr = 10 # Extend threshold for weekly data
+	if (dt_now-last_dt) > timedelta(days=thr):
+		if post_csf is None:
+			raise Exception("Data is older than {} days, need to set 'post_csf' arg to capture all stock splits since".format(thr))
+
+	# Cumulative dividend factor:
+	cdf = df["Adj Close"] / df["Close"]
+	
+	# Cumulative stock-split factor
+	ss = df["Stock Splits"].copy()
+	ss[ss==0.0] = 1.0
+	ss_rcp = 1.0/ss
+	csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
+	if not post_csf is None:
+		csf *= post_csf
+	csf_rcp = 1.0/csf
+
+	# Reverse Yahoo's split adjustment:
+	data_cols = ["Open","High","Low","Close","Dividends"]
+	for dc in data_cols:
+		df[dc] = df[dc] * csf_rcp
+	df["Volume"] *= csf
+
+	# Drop 'Adj Close', replace with scaling factors:
+	df = df.drop("Adj Close",axis=1)
+	df["CSF"] = csf
+	df["CDF"] = cdf
+	
+	return df
