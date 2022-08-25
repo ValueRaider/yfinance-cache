@@ -7,7 +7,7 @@ Caching wrapper for yfinance module. Intelligent caching, not dumb caching of we
 Additional logic decides if cached data needs refresh.
 
 ## Interface
-Interaction will be identical to yfinance:
+Interaction is almost identical to yfinance. Differences are highlighted underneath code:
 
 ```python
 import yfinance_cache as yf
@@ -23,12 +23,18 @@ hist = msft.history(period="max")
 # etc. See yfinance documentation for full API
 ```
 
-One difference is in fetching price history:
+#### Refreshing cache
 ```python
 msft = yf.Ticker(interval="1d", max_age=datetime.timedelta(hours=1), ...)
 ```
 `max_age` controls when to refresh cached data to avoid spam. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. 
 Defaults to half of interval. Refresh also triggered if market closed since last fetch.
+
+#### Adjusting price
+Price can be adjusted for stock splits, dividends, or both. `yfinance` only allows control of dividends adjustment via `auto_adjust`. How Yahoo adjusts for dividends is slightly mysterious so djusted prices are slightly different to Yahoo (tiny relative error ~1e-7)
+```python
+msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
+```
 
 ## Installation
 
@@ -45,7 +51,6 @@ print(yf) # verify loading my fork of version yfinance
 
 ## Known issues / pending tasks
 
-- If a stock event (dividend or split) has occurred since last fetch, then the cached data needs to be adjusted. But not done currently. Should only be a big issue when split or exceptional dividend occurs - a typical dividend has tiny effect on adjusted price.
 - Considering adding a 'verify' function, checking all cached data against Yahoo.
 - Add refresh check to financials data, then to earnings dates.
 
