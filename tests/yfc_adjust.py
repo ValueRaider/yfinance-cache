@@ -129,6 +129,7 @@ class Test_Unadjust(unittest.TestCase):
                 self.assertTrue(f.all())
             except:
                 f = ~f
+                print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                 if sum(f) < 10:
                     print("Differences in column {}:".format(dc))
                     print("- answer_noadjust:")
@@ -140,7 +141,6 @@ class Test_Unadjust(unittest.TestCase):
                     print("- last_diff = {}".format(last_diff))
 
                 else:
-                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                     last_idx = np.where(f)[0][-1]
                     print("- last diff: {}".format(df.index[last_idx]))
                     x = df[dc][last_idx]
@@ -152,11 +152,12 @@ class Test_Unadjust(unittest.TestCase):
         answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
         for dc in dcs:
-            f = np.isclose(df[dc].values, answer_splitAdjusted[dc].values, rtol=1e-7)
+            f = np.isclose(df[dc].values, answer_splitAdjusted[dc].values, rtol=5e-6)
             try:
                 self.assertTrue(f.all())
             except:
                 f = ~f
+                print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                 if sum(f) < 10:
                     print("Differences in column {}:".format(dc))
                     print("- answer_splitAdjusted:")
@@ -168,7 +169,6 @@ class Test_Unadjust(unittest.TestCase):
                     print("- last_diff = {}".format(last_diff))
 
                 else:
-                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                     last_idx = np.where(f)[0][-1]
                     print("- last diff: {}".format(df.index[last_idx]))
                     x = df[dc][last_idx]
@@ -181,11 +181,12 @@ class Test_Unadjust(unittest.TestCase):
         answer_adjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20")
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
         for dc in dcs:
-            f = np.isclose(df[dc].values, answer_adjusted[dc].values, rtol=1e-7)
+            f = np.isclose(df[dc].values, answer_adjusted[dc].values, rtol=5e-6)
             try:
                 self.assertTrue(f.all())
             except:
                 f = ~f
+                print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                 if sum(f) < 10:
                     print("Differences in column {}:".format(dc))
                     print("- answer_adjusted:")
@@ -197,7 +198,6 @@ class Test_Unadjust(unittest.TestCase):
                     print("- last_diff = {}".format(last_diff))
 
                 else:
-                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
                     last_idx = np.where(f)[0][-1]
                     print("- last diff: {}".format(df.index[last_idx]))
                     x = df[dc][last_idx]

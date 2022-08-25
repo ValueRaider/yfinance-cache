@@ -3,6 +3,7 @@ import os
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 import re
+import numpy as np
 
 class OperatingSystem(Enum):
 	Windows = 1
@@ -142,3 +143,55 @@ def ReverseYahooBackAdjust(df, post_csf=None):
 	df["CDF"] = cdf
 	
 	return df
+
+
+def GetCSF0(df):
+	if not "Stock Splits" in df:
+		raise Exception("DataFrame does not contain column 'Stock Splits")
+	if df.shape[0] == 0:
+		raise Exception("DataFrame is empty")
+
+	ss = df["Stock Splits"].copy()
+	ss[ss==0.0] = 1.0
+
+	if "CSF" in df.columns:
+		csf = df["CSF"]
+	else:
+		ss_rcp = 1.0/ss
+		csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
+	csf0 = csf[0]
+
+	ss0 = ss.iloc[0]
+	if ss0 != 1.0:
+		csf0 *= 1.0/ss0
+
+	return csf0
+
+
+def GetCDF0(df):
+	if not "CDF" in df:
+		raise Exception("DataFrame does not contain column 'CDF")
+	if df.shape[0] == 0:
+		raise Exception("DataFrame is empty")
+
+	cdf = df["CDF"][0]
+	if cdf != 1.0:
+		# Yahoo's dividend adjustment has tiny variation (~1e-6), 
+		# so use mean to minimise accuracy loss of adjusted->deadjust->adjust
+		i = np.argmax(df["Dividends"]!=0.0) -1
+		if i < 0:
+			print("df:")
+			print(df)
+			raise Exception("i shouldn't < 0")
+		cdf_mean = df["CDF"].iloc[0:i].mean()
+		if abs(cdf_mean-cdf)/cdf > 0.0001:
+			raise Exception("Mean CDF={} is sig. different to CDF[0]={}".format(cdf_mean, cdf))
+		cdf = cdf_mean
+
+	div0 = df["Dividends"][0]
+	if div0 != 0.0:
+		close = df["Close"][1]
+		cdf *= (close-div0)/close
+
+	return cdf
+
