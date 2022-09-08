@@ -3,14 +3,13 @@ from pprint import pprint
 from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
+import pytz
 
 import holidays
 import exchange_calendars as xcal
 
 import pandas as pd
 import numpy as np
-def np_not(x):
-	return np.logical_not(x)
 
 from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
@@ -331,7 +330,8 @@ def GetTimestampMostRecentSession(exchange, ts):
 	sched = GetExchangeSchedule(exchange, ts.date()-timedelta(days=6), ts.date()+timedelta(days=1))
 	for i in range(sched.shape[0]-1, -1, -1):
 		if sched["market_open"][i] <= ts:
-			return {"market_open":sched["market_open"][i], "market_close":sched["market_close"][i]}
+			tz = ZoneInfo(GetExchangeTzName(exchange))
+			return {"market_open":sched["market_open"][i].to_pydatetime().astimezone(tz), "market_close":sched["market_close"][i].to_pydatetime().astimezone(tz)}
 	raise Exception("Failed to find most recent '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -342,7 +342,8 @@ def GetTimestampNextSession(exchange, ts):
 	sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=7))
 	for i in range(sched.shape[0]):
 		if ts < sched["market_open"][i]:
-			return {"market_open":sched["market_open"][i], "market_close":sched["market_close"][i]}
+			tz = ZoneInfo(GetExchangeTzName(exchange))
+			return {"market_open":sched["market_open"][i].to_pydatetime().astimezone(tz), "market_close":sched["market_close"][i].to_pydatetime().astimezone(tz)}
 	raise Exception("Failed to find next '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -566,6 +567,42 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 				i_s += 1
 
 	return np.array(intervals)
+
+def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckIntervalDt(ts, interval, "ts", strict=False)
+	TypeCheckInterval(interval, "interval")
+	TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+
+	td_1d = timedelta(days=1)
+	tz_name = GetExchangeTzName(exchange)
+	tz = ZoneInfo(tz_name)
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval == yfcd.Interval.Days1:
+			next_day = ts.astimezone(tz).date() + td_1d
+			s = GetTimestampNextSession(exchange, datetime.combine(next_day, time(0), tz))
+			interval_open  = s["market_open"].date()
+			interval_close = interval_open+td_1d
+		else:
+			## Calculate next Monday to get next week schedule
+			ts_d = ts.date()
+			next_monday = ts_d + timedelta(days=7-ts_d.weekday())
+
+			sched = GetExchangeSchedule(exchange, next_monday, next_monday+timedelta(days=5))
+			interval_open  = sched["market_open"][0].date()
+			interval_close = sched["market_close"][-1].date() + td_1d
+			if weeklyUseYahooDef:
+				interval_open -= timedelta(days=interval_open.weekday()) # shift back to Monday
+				interval_close += timedelta(days=5-interval_close.weekday()) # shift forward to Saturday
+		return {"interval_open":interval_open, "interval_close":interval_close}
+
+	interval_td = yfcd.intervalToTimedelta[interval]
+	c = GetTimestampCurrentInterval(exchange, ts, interval)
+	if c is None or not IsTimestampInActiveSession(exchange, c["interval_close"]):
+		next_interval_start = GetTimestampNextSession(exchange, ts)["market_open"]
+	else:
+		next_interval_start = c["interval_close"]
+	return {"interval_open":next_interval_start, "interval_close":next_interval_start+interval_td}
 
 
 def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
