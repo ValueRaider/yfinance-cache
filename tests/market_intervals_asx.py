@@ -3,6 +3,8 @@ import unittest
 from .context import yfc_dat as yfcd
 from .context import yfc_time as yfct
 
+import pandas as pd
+
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -356,14 +358,24 @@ class Test_Market_Intervals_ASX(unittest.TestCase):
                 dts.append(datetime(2022,2, d, h,30,tzinfo=self.market_tz))
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
-        for i in range(response.shape[0]):
+        responses = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
+        for i in range(responses.shape[0]):
+            response = responses.iloc[i]
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
-            try:
-                self.assertEqual(response[i], answer)
-            except:
-                print("Test fail with dt={}".format(dts[i]))
-                raise
+            if answer is None:
+                try:
+                    self.assertTrue(pd.isnull(response["interval_open"]))
+                    self.assertTrue(pd.isnull(response["interval_close"]))
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
+            else:
+                try:
+                    self.assertEqual(response["interval_open"], answer["interval_open"])
+                    self.assertEqual(response["interval_close"], answer["interval_close"])
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
 
     def test_GetTimestampCurrentInterval_daily_batch(self):
         interval = yfcd.Interval.Days1
@@ -376,14 +388,24 @@ class Test_Market_Intervals_ASX(unittest.TestCase):
                 dts.append(datetime(2022,2, d, h,30,tzinfo=self.market_tz))
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
-        for i in range(response.shape[0]):
+        responses = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval)
+        for i in range(responses.shape[0]):
+            response = responses.iloc[i]
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval)
-            try:
-                self.assertEqual(response[i], answer)
-            except:
-                print("Test fail with dt={}".format(dts[i]))
-                raise
+            if answer is None:
+                try:
+                    self.assertTrue(pd.isnull(response["interval_open"]))
+                    self.assertTrue(pd.isnull(response["interval_close"]))
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
+            else:
+                try:
+                    self.assertEqual(response["interval_open"], answer["interval_open"])
+                    self.assertEqual(response["interval_close"], answer["interval_close"])
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
 
     def test_GetTimestampCurrentInterval_weekly_batch(self):
         interval = yfcd.Interval.Week
@@ -397,26 +419,44 @@ class Test_Market_Intervals_ASX(unittest.TestCase):
             dts.append(datetime(2022,2, d,16, 1,tzinfo=self.market_tz))
 
         # weeklyUseYahooDef=True
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=True)
-        for i in range(response.shape[0]):
+        responses = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=True)
+        for i in range(responses.shape[0]):
+            response = responses.iloc[i]
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=True)
-            try:
-                self.assertEqual(response[i], answer)
-            except:
-                print("Test fail with dt={}".format(dts[i]))
-                raise
+            if answer is None:
+                try:
+                    self.assertTrue(pd.isnull(response["interval_open"]))
+                    self.assertTrue(pd.isnull(response["interval_close"]))
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
+            else:
+                try:
+                    self.assertEqual(response["interval_open"], answer["interval_open"])
+                    self.assertEqual(response["interval_close"], answer["interval_close"])
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
 
         # weeklyUseYahooDef=False
-        response = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=False)
-        for i in range(response.shape[0]):
+        responses = yfct.GetTimestampCurrentInterval_batch(self.exchange, dts, interval, weeklyUseYahooDef=False)
+        for i in range(responses.shape[0]):
+            response = responses.iloc[i]
             answer = yfct.GetTimestampCurrentInterval(self.exchange, dts[i], interval, weeklyUseYahooDef=False)
-            try:
-                self.assertEqual(response[i], answer)
-            except:
-                print("Test fail with dt={}".format(dts[i]))
-                print("Response = {}".format(response[i]))
-                print("Answer = {}".format(answer))
-                raise
+            if answer is None:
+                try:
+                    self.assertTrue(pd.isnull(response["interval_open"]))
+                    self.assertTrue(pd.isnull(response["interval_close"]))
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
+            else:
+                try:
+                    self.assertEqual(response["interval_open"], answer["interval_open"])
+                    self.assertEqual(response["interval_close"], answer["interval_close"])
+                except:
+                    print("Test fail with dt={}".format(dts[i]))
+                    raise
 
     def test_GetExchangeScheduleIntervals_hourly(self):
         interval = yfcd.Interval.Hours1

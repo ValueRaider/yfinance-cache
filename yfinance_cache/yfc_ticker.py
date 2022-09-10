@@ -347,7 +347,7 @@ class Ticker:
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
 			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
-			f_na = h_intervals==None
+			f_na = h_intervals["interval_open"].isna().values
 			if f_na.any():
 				print(h)
 				raise Exception("Bad rows found in prices table")
@@ -356,12 +356,15 @@ class Ticker:
 					print(h[f_na])
 				h = h[~f_na]
 				h_intervals = h_intervals[~f_na]
-			h_interval_opens = [x["interval_open"] for x in h_intervals]
+			if isinstance(h_intervals["interval_open"][0], datetime.datetime):
+				h_interval_opens = [x.to_pydatetime().astimezone(tz_exchange) for x in h_intervals["interval_open"]]
+			else:
+				h_interval_opens = h_intervals["interval_open"].values
 
 			if interval == yfcd.Interval.Days1:
 				# Ensure that daily data always up-to-date to now
-				h_start = h_intervals[0]["interval_open"]
-				h_end = h_intervals[-1]["interval_close"]
+				h_start = h_intervals["interval_open"].iloc[0]
+				h_end = h_intervals["interval_close"].iloc[h_intervals.shape[0]-1]
 				if not isinstance(h_start, datetime.datetime):
 					h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
 					h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
@@ -658,7 +661,7 @@ class Ticker:
 				intervalStarts = df.index.to_pydatetime()
 			#
 			intervals = yfct.GetTimestampCurrentInterval_batch(exchange, intervalStarts, interval, weeklyUseYahooDef=True)
-			f_na = intervals==None
+			f_na = intervals["interval_open"].isna().values
 			if f_na.any():
 				if not interday:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
@@ -673,18 +676,18 @@ class Ticker:
 						intervals = intervals[~f_drop]
 						df = df[~f_drop]
 						n = df.shape[0]
-						f_na = intervals==None
+						f_na = intervals["interval_open"].isna().values
 				if f_na.any():
 					## For some national holidays when exchange closed, Yahoo fills in row. Clue is 0 volume.
 					## Solution = drop:
-					f_na_zeroVol = f_na & (df["Volume"]==0)
+					f_na_zeroVol = f_na & (df["Volume"]==0).values
 					if f_na_zeroVol.any():
 						f_drop = f_na_zeroVol
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
 						df = df[~f_drop]
 						n = df.shape[0]
-						f_na = intervals==None
+						f_na = intervals["interval_open"].isna().values
 					## TODO ... another clue is row is identical to previous trading day
 					if f_na.any():
 						f_drop = np.array([False]*n)
@@ -699,7 +702,7 @@ class Ticker:
 							intervals = intervals[~f_drop]
 							df = df[~f_drop]
 							n = df.shape[0]
-							f_na = intervals==None
+							f_na = intervals["interval_open"].isna().values
 				if f_na.any():
 					ctr = 0
 					for idx in np.where(f_na)[0]:
@@ -710,7 +713,6 @@ class Ticker:
 						elif ctr == 10:
 							print("- stopped printing at 10 failures")
 					raise Exception("Problem with dates returned by Yahoo, see above")
-			interval_closes = np.array([i["interval_close"] for i in intervals])
 
 		lastDataDts = yfct.CalcIntervalLastDataDt_batch(exchange, intervalStarts, interval)
 		data_final = fetch_dt >= lastDataDts
