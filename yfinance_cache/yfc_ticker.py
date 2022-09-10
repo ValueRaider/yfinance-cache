@@ -583,15 +583,27 @@ class Ticker:
 		if pstr == "max":
 			found_listing_day = True
 		elif yfcd.intervalToTimedelta[interval] >= td_1d:
+			if interval == yfcd.Interval.Days1:
+				tol = datetime.timedelta(days=7)
+			elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+				tol = datetime.timedelta(days=14)
+			elif interval == yfcd.Interval.Months1:
+				tol = datetime.timedelta(days=35)
+			elif interval == yfcd.Interval.Months3:
+				tol = datetime.timedelta(days=35*3)
+			else:
+				raise Exception("Need to implemented codepath for interval=",interval)
 			if not start is None:
 				start_d = start.date() if isinstance(start, datetime.datetime) else start
-				if (df.index[0].date() - start_d) > datetime.timedelta(days=14):
+				if (df.index[0].date() - start_d) > tol:
 					# Yahoo returned data starting significantly after requested start date, indicates
 					# request is before stock listed on exchange
 					found_listing_day = True
 			else:
 				start_expected = yfct.DtSubtractPeriod(fetch_dt_utc.date()+td_1d, yfcd.periodStrToEnum[pstr])
-				if (df.index[0].date() - start_expected) > datetime.timedelta(days=14):
+				if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+					start_expected -= datetime.timedelta(days=start_expected.weekday())
+				if (df.index[0].date() - start_expected) > tol:
 					found_listing_day = True
 		if found_listing_day:
 			if debug:
@@ -765,6 +777,7 @@ class Ticker:
 			h_first_dt = h_first_dt.astimezone(tz_exchange).date()
 			h_last_dt = h_last_dt.astimezone(tz_exchange).date()
 		td_1d = datetime.timedelta(days=1)
+		istr = yfcd.intervalToString[interval]
 
 		# Because data should be contiguous, then ranges should meet some conditions:
 		if len(ranges_to_fetch) > 2:
@@ -789,17 +802,36 @@ class Ticker:
 		h2_pre = None ; h2_post = None
 		if not range_pre is None:
 			r = range_pre
+			check_for_listing = False
 			try:
 				h2_pre = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, kwargs)
 			except yfcd.NoPriceDataInRangeException:
-				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
-				## Could add additional condition of dividend previous day (seems to mess up table).
 				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
+					## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+					## Could add additional condition of dividend previous day (seems to mess up table).
 					if not quiet:
 						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
-					h2 = None
+					h2_pre = None
+				elif (range_post is None) and (r[1]-r[0] < td_1d*7) and (r[1]-r[0] > td_1d*3):
+					## Small date range, potentially trying to fetch before listing data
+					check_for_listing = True
+					h2_pre = None
 				else:
 					raise
+
+			if check_for_listing:
+				df = None
+				try:
+					df = self._fetchYfHistory(pstr, interval, r[0], r[1]+td_1d*7, prepost, proxy, kwargs)
+				except:
+					# Discard
+					pass
+				if not df is None:
+					# Then the exception above occurred because trying to fetch before listing dated!
+					yfcm.StoreCacheDatum(self.ticker, "listing_date", h.index[0].date())
+				else:
+					# Then the exception above was genuine and needs to be propagated
+					raise yfcd.NoPriceDataInRangeException(self.ticker,istr,r[0],r[1])
 		if not range_post is None:
 			r = range_post
 			try:
