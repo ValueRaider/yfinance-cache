@@ -1069,9 +1069,16 @@ class Ticker:
                 Close=("Close", "last"))
 			data_cols = ["Open","Close","Low","High"]
 			df2 = pd.merge(df_aggByDay, df_daily_during_d, how="left", on="_date", validate="one_to_one", suffixes=("","_day"))
-			## If a split occurred, will be n:1 or 1/n:1 where n is integer
-			ratios = df2[data_cols].values/df2[[dc+"_day" for dc in data_cols]].values
-			ss_ratio = np.mean(ratios)
+			## If 'df' has not been split-adjusted by Yahoo, but it should have been, 
+			## then the inferred split-adjust ratio should be close to 1.0/post_csf.
+			## Apply a few sanity tests against inferred ratio - not NaN, low variance
+			if df.shape[0]==1:
+				ss_ratio = df2["Close"].iloc[0]/df2["Close_day"].iloc[0]
+				stdev_pct = 0.0
+			else:
+				ratios = df2[data_cols].values/df2[[dc+"_day" for dc in data_cols]].values
+				ss_ratio = np.mean(ratios)
+				stdev_pct = np.std(ratios)/ss_ratio
 			#
 			if np.isnan(ss_ratio):
 				cols_to_print = []
@@ -1082,8 +1089,7 @@ class Ticker:
 					cols_to_print.append(dc+"_r")
 				print(df2[cols_to_print])
 				raise Exception("Calculated ss_ratio is NaN")
-			stdev_pct = np.std(ratios)/ss_ratio
-			if stdev_pct > 0.025:
+			if stdev_pct > 0.05:
 				cols_to_print = []
 				for dc in data_cols:
 					df2[dc+"_r"] = df2[dc]/df2[dc+"_day"]
@@ -1092,30 +1098,30 @@ class Ticker:
 					cols_to_print.append(dc+"_r")
 				print(df2[cols_to_print])
 				raise Exception("STDEV % of estimated stock-split ratio is {}%, should be near zero".format(round(stdev_pct*100, 1)))
-			ss_ratioInt = int(round(ss_ratio))
-			ss_ratioRcp = 1.0/ss_ratio
-			ss_ratioRcpInt = int(round(ss_ratioRcp))
-			## ss_ratio should be close to 'csf_post'
-			expectedRatio = round(1.0/csf_post)
-			expectedRatioInt = int(expectedRatio)
-			expectedRatioRcp = 1.0/expectedRatio
-			expectedRatioRcpInt = int(round(expectedRatioRcp))
-			if ss_ratioInt!=expectedRatioInt or ss_ratioRcpInt!=expectedRatioRcpInt:
+			expectedRatio = 1.0/csf_post
+			if abs(1.0-ss_ratio/expectedRatio)>0.05:
+				cols_to_print = []
+				for dc in data_cols:
+					df2[dc+"_r"] = df2[dc]/df2[dc+"_day"]
+					cols_to_print.append(dc)
+					cols_to_print.append(dc+"_day")
+					cols_to_print.append(dc+"_r")
+				print(df2[cols_to_print])
 				raise Exception("ss_ratio={} != expected_ratio={}".format(ss_ratio, expectedRatio))
-			# price_data_cols = ["Open","Close","Adj Close","Low","High","Dividends"]
+			ss_ratio = expectedRatio
+			ss_ratioRcp = 1.0/ss_ratio
+			#
 			price_data_cols = ["Open","Close","Adj Close","Low","High"]
-			if ss_ratioInt > 1:
-				# Mismatch between intraday and daily data - need to reverse ss_ratio
+			if ss_ratio > 1.01:
 				for c in price_data_cols:
-					df[c] *= 1.0/ss_ratioInt
+					df[c] *= ss_ratioRcp
 				if debug:
-					print("Applying 1:{} stock-split".format(ss_ratioInt))
-			elif ss_ratioRcpInt > 1:
-				# Mismatch between intraday and daily data - need to reverse ss_ratio
+					print("Applying 1:{.2f} stock-split".format(ss_ratio))
+			elif ss_ratioRcp > 1.01:
 				for c in price_data_cols:
-					df[c] *= 1.0/ss_ratioRcpInt
+					df[c] *= ss_ratio
 				if debug:
-					print("Applying {}:1 reverse-split-split".format(ss_ratioRcpInt))
+					print("Applying {.2f}:1 reverse-split-split".format(ss_ratioRcp))
 			# Note: volume always returned unadjusted
 
 			# Yahoo messes up dividend adjustment too so copy correct dividend from daily, 
