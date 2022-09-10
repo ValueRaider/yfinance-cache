@@ -372,7 +372,14 @@ class Test_Yfc_Backend(unittest.TestCase):
 
         lags = [timedelta(0), timedelta(minutes=15)]
 
-        days = [date(2022,2,d) for d in [7,8,9,10,11 , 14,15,16,17,18]]
+        start_d = date.today()
+        td_1d = timedelta(days=1)
+        week_start_d = start_d - td_1d*start_d.weekday()
+        week2_start_d = week_start_d -7*td_1d
+        week1_start_d = week2_start_d -7*td_1d
+        days =  [week1_start_d+x*td_1d for x in [0,1,2,3,4]]
+        days += [week2_start_d+x*td_1d for x in [0,1,2,3,4]]
+
         times = [time(h,30) for h in range(9,16)]
         dts = []
         for d in days:
@@ -394,14 +401,33 @@ class Test_Yfc_Backend(unittest.TestCase):
 
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
-        intervals = ["30m", "1h", "1d", "1wk"]
-        start_d = date(2022,7,11)
-        end_d = date(2022,7,12)
+        intervals = ["30m", "1h", "1d"]
+        start_d = date.today()
+        start_d = start_d - timedelta(days=start_d.weekday())
+        while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
+            start_d -= timedelta(days=1)
+        end_d = start_d +timedelta(days=1)
         for interval in intervals:
             df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
             self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
+
+        interval = "1wk"
+        start_d -= timedelta(days=start_d.weekday())
+        while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
+            start_d -= timedelta(days=7)
+        end_d = start_d+timedelta(days=5)
+        df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
+        self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
 
 
 
 if __name__ == '__main__':
     unittest.main()
+
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(Test_Yfc_Backend)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)

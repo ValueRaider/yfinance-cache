@@ -403,6 +403,9 @@ class Ticker:
 					ranges_to_fetch = []
 			# Important that ranges_to_fetch in reverse order!
 			ranges_to_fetch.sort(key=lambda x:x[0], reverse=True)
+			if debug:
+				print("ranges_to_fetch:")
+				pprint(ranges_to_fetch)
 
 			interval_td = yfcd.intervalToTimedelta[interval]
 			if len(ranges_to_fetch) > 0:
@@ -475,7 +478,9 @@ class Ticker:
 			# print(h[["Close","Volume"]])
 			cols = [c for c in ["Close","Dividends","Volume","CDF","CSF"] if c in h.columns]
 			print(h[cols])
-			print(h.loc[h["Dividends"]!=0.0, cols])
+			f = h["Dividends"]!=0.0
+			if f.any():
+				print(h.loc[f, cols])
 
 		return h
 
@@ -842,7 +847,7 @@ class Ticker:
 				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
 					if not quiet:
 						print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, r[0], r[1]))
-					h2 = None
+					h2_post = None
 				else:
 					raise
 
@@ -1201,7 +1206,9 @@ class Ticker:
 		if debug:
 			print("- unadjusted:")
 			print(df[["Close","Dividends","Volume","CSF","CDF"]])
-			print(df.loc[df["Dividends"]!=0.0, ["Close","Dividends","Volume","CSF","CDF"]])
+			f = df["Dividends"]!=0.0
+			if f.any():
+				print(df.loc[f, ["Close","Dividends","Volume","CSF","CDF"]])
 
 		return df
 		

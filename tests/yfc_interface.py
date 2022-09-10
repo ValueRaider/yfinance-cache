@@ -755,12 +755,26 @@ class Test_Yfc_Interface(unittest.TestCase):
                 n = df1.shape[0]
                 df3 = dat.history(interval="1d", start=start_d, end=end_d, max_age=timedelta(seconds=1))
                 try:
+                    self.assertEqual(len(expected_interval_dates), df3.shape[0])
+                except:
+                    print("Different shapes")
+                    print("df1:")
+                    print(df1)
+                    print("df3:")
+                    print(df3)
+                    raise
+                try:
                     self.assertTrue(np.array_equal(expected_interval_dates, df3.index))
                 except:
                     print("expected_interval_dates:")
                     pprint(expected_interval_dates)
                     print("df3:")
-                    print(df3)
+                    print(df3.index)
+                    edt0 = expected_interval_dates[0]
+                    adt0 = df3.index[0]
+                    print("expected dt0 = {} (tz={})".format(edt0, edt0.tzinfo))
+                    print("actual dt0 = {} (tz={})".format(adt0, adt0.tzinfo))
+                    print(expected_interval_dates == df3.index)
                     raise
                 try:
                     self.assertTrue(df1.iloc[0:n-1].equals(df3.iloc[0:n-1]))
@@ -1026,12 +1040,12 @@ class Test_Yfc_Interface(unittest.TestCase):
             self.assertTrue(np.isnan(df["Close"][idx]))
 
 if __name__ == '__main__':
-    # unittest.main()
+    unittest.main()
 
-    # Run tests sequentially:
-    import inspect
-    test_src = inspect.getsource(Test_Yfc_Interface)
-    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
-        test_src.index(f"def {x}") - test_src.index(f"def {y}")
-    )
-    unittest.main(verbosity=2)
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(Test_Yfc_Interface)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)
