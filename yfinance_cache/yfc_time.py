@@ -868,12 +868,25 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 	if debug:
 		print("- intervals:")
 		pprint(intervals)
-	intervalStarts = [i[0] for i in intervals]
 
 	if not knownIntervalStarts is None:
-		intervals_missing_data = np_not(np.isin(intervalStarts, knownIntervalStarts))
+		if isinstance(intervals[0], datetime) or isinstance(intervals[0], pd.Timestamp):
+			intervalStarts = [i[0].timestamp() for i in intervals]
+			knownIntervalStarts = [x.timestamp() for x in knownIntervalStarts]
+		else:
+			intervalStarts = [i[0] for i in intervals]
+
+		intervalStarts = np.array(intervalStarts)
+		knownIntervalStarts = np.array(knownIntervalStarts)
+		if intervalStarts.dtype.hasobject or knownIntervalStarts.dtype.hasobject:
+			## Apparently not optimised in numpy, faster to DIY
+			## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
+			knownIntervalStarts_set = set(knownIntervalStarts)
+			intervals_missing_data = ~np.array([elem in knownIntervalStarts_set for elem in intervalStarts])
+		else:
+			intervals_missing_data = np.isin(intervalStarts, knownIntervalStarts, invert=True)
 	else:
-		intervals_missing_data = np.array([True]*len(intervals))
+		intervals_missing_data = np.ones(len(intervals))
 
 	if debug:
 		print("- intervals_missing_data:")
@@ -881,14 +894,14 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 
 	## Merge together near ranges if the distance between is below threshold.
 	## This is to reduce web requests
-	i_true = np.where(intervals_missing_data==True)[0]
+	i_true = np.where(intervals_missing_data)[0]
 	for i in range(len(i_true)-1):
 		i0 = i_true[i]
 		i1 = i_true[i+1]
 		if i1-i0 <= minDistanceThreshold+1:
 			## Mark all intervals between as missing, thus merging together 
 			## the pair of missing ranges
-			intervals_missing_data[i0+1:i1] = True
+			intervals_missing_data[i0+1:i1] = 1
 
 	if debug:
 		print("- intervals_missing_data:")
@@ -896,7 +909,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 
 	## Scan for contiguous sets of missing intervals:
 	ranges = []
-	i_true = np.where(intervals_missing_data==True)[0]
+	i_true = np.where(intervals_missing_data)[0]
 	if len(i_true) > 0:
 		start = None ; end = None
 		for i in range(len(intervals_missing_data)):
