@@ -244,7 +244,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None, metadata=None):
 	fp = GetFilepath(ticker, objectName, object=datum, prune=True)
 
 	if verbose:
-		print("- storing {} as {} at {}".format(objectName, ext, fp))
+		print("- storing {} at {}".format(objectName, fp))
 
 	d = _ReadData(ticker, objectName)
 	if d is None:
@@ -332,7 +332,11 @@ def ReadCacheMetadata(ticker, objectName, key):
 			data   = objData["data"]
 			md     = objData["metadata"] if "metadata" in objData else None
 	else:
-		data,md = _ReadData(ticker, objectName, return_metadata_too=True)
+		d = _ReadData(ticker, objectName)
+		md = d["metadata"]
+		if verbose:
+			print("ReadCacheMetadata() read md as:")
+			print(md)
 	if md is None:
 		return None
 	elif not key in md:
@@ -353,6 +357,10 @@ def WriteCacheMetadata(ticker, objectName, key, value):
 		d["metadata"][key] = value
 	else:
 		d["metadata"] = {key:value}
+
+	if verbose:
+		print("WriteCacheMetadata() updated md to:")
+		print(d["metadata"])
 
 	fp = GetFilepath(ticker, objectName)
 	if fp.endswith(".json"):

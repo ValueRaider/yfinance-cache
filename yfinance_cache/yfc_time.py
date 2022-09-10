@@ -3,14 +3,13 @@ from pprint import pprint
 from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
+import pytz
 
 import holidays
 import exchange_calendars as xcal
 
 import pandas as pd
 import numpy as np
-def np_not(x):
-	return np.logical_not(x)
 
 from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
@@ -331,7 +330,8 @@ def GetTimestampMostRecentSession(exchange, ts):
 	sched = GetExchangeSchedule(exchange, ts.date()-timedelta(days=6), ts.date()+timedelta(days=1))
 	for i in range(sched.shape[0]-1, -1, -1):
 		if sched["market_open"][i] <= ts:
-			return {"market_open":sched["market_open"][i], "market_close":sched["market_close"][i]}
+			tz = ZoneInfo(GetExchangeTzName(exchange))
+			return {"market_open":sched["market_open"][i].to_pydatetime().astimezone(tz), "market_close":sched["market_close"][i].to_pydatetime().astimezone(tz)}
 	raise Exception("Failed to find most recent '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -342,7 +342,8 @@ def GetTimestampNextSession(exchange, ts):
 	sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=7))
 	for i in range(sched.shape[0]):
 		if ts < sched["market_open"][i]:
-			return {"market_open":sched["market_open"][i], "market_close":sched["market_close"][i]}
+			tz = ZoneInfo(GetExchangeTzName(exchange))
+			return {"market_open":sched["market_open"][i].to_pydatetime().astimezone(tz), "market_close":sched["market_close"][i].to_pydatetime().astimezone(tz)}
 	raise Exception("Failed to find next '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -443,17 +444,20 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	# debug = True
 
 	if debug:
-		print("GetTimestampCurrentInterval_batch(interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
+		print("GetTimestampCurrentInterval_batch(ts[0]={}, interval={}, weeklyUseYahooDef={})".format(ts[0], interval, weeklyUseYahooDef))
 
 	n = len(ts)
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	intervals = [None]*n
 
+	td_1d = timedelta(days=1)
 	tz_name = GetExchangeTzName(exchange)
 	tz = ZoneInfo(tz_name)
+	tz_pytz = pytz.timezone(tz_name)
 	ts_is_datetimes = isinstance(ts[0],datetime)
 	if ts_is_datetimes:
 		ts_day = [t.astimezone(tz).date() for t in ts]
+		# ts_day = list(map(lambda x: x.astimezone(tz).date(), ts))
 	else:
 		ts_day = ts
 
@@ -494,78 +498,100 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 			weekSchedEnd = np.array([None]*n)
 			i_t = 0 ; i_s = 0
 			td = ts_day[i_t]
-			while i_t < n:
-				if i_s >= week_sched.shape[0]:
-					break
-				if td >= week_sched["close_day"][i_s]:
-					i_s += 1
-				elif td < week_sched["open_day"][i_s]:
-					i_t += 1
-					if i_t == n:
-						break
-					td = ts_day[i_t]
-				else:
-					if week_sched["open_day"][i_s] <= td and td < week_sched["close_day"][i_s]:
-						weekSchedStart[i_t] = week_sched["open_day"][i_s]
-						weekSchedEnd[i_t]   = week_sched["close_day"][i_s]
-						i_t += 1
-						if i_t == n:
-							break
-						td = ts_day[i_t]
-					else:
-						raise Exception("Infinite loop")
-		intervals = [{"interval_open":weekSchedStart[i], "interval_close":weekSchedEnd[i]} if (not weekSchedStart[i] is None) else None for i in range(n)]
+			left  = pd.to_datetime(week_sched["open_day"].values ).tz_localize(tz_pytz)
+			right = pd.to_datetime(week_sched["close_day"].values).tz_localize(tz_pytz)
+			week_sched = pd.IntervalIndex.from_arrays(left, right, closed="left")
+			if ts_is_datetimes:
+				ts_pytz = pd.to_datetime([t.astimezone(tz_pytz) for t in ts])
+			else:
+				ts_pytz = pd.to_datetime(ts).tz_localize(tz_pytz)
+			idx = week_sched.get_indexer(ts_pytz)
+			f = idx!=-1
+			#
+			weekSchedStart[f] = week_sched.left[idx[f]].date
+			weekSchedEnd[f] = week_sched.right[idx[f]].date
+
+		if isinstance(ts[0], datetime):
+			ts = [pd.Timestamp(t.astimezone(tz_pytz)) for t in ts] # Convert to Pandas-friendly
+		intervals = pd.DataFrame(data={"interval_open":weekSchedStart, "interval_close":weekSchedEnd}, index=ts)
 
 	elif interval == yfcd.Interval.Days1:
 		t0 = ts_day[0]
 		tl = ts_day[len(ts_day)-1]
 		sched = GetExchangeSchedule(exchange, t0, tl+timedelta(days=1))
-		sched["day"] = sched["market_open"].dt.date
-		i_t = 0 ; i_s = 0
-		while i_t < n:
-			td = ts_day[i_t]
-			if i_s >= sched.shape[0]:
-				if td.weekday() > 4:
-					# Is weekend so can ignore fail
-					break
-				print("sched:")
-				print(sched)
-				print("ts:")
-				print(ts)
-				print("ts[i_t] = {}".format(ts[i_t]))
-				raise Exception("Ran out of schedule({}). n={}, i_t={}".format(sched.shape[0], n, i_t))
-			if td == sched["day"][i_s]:
-				# Match
-				intervals[i_t] = {"interval_open":sched["day"][i_s], 
-								"interval_close":sched["day"][i_s]+timedelta(days=1)}
-				i_t += 1
-			elif td < sched["day"][i_s]:
-				i_t += 1
-			else:
-				i_s += 1
+		#
+		ts_day = pd.to_datetime(ts_day)
+		ts_day_df = pd.DataFrame(index=ts_day)
+		intervals = pd.merge(ts_day_df, sched, how="left", left_index=True, right_index=True)
+		intervals = intervals.rename(columns={"market_open":"interval_open", "market_close":"interval_close"})
+		# tz = ZoneInfo("UTC")
+		# intervals = [None if pd.isnull(x["market_open"].iloc[i]) else {"interval_open":x["market_open"].iloc[i].to_pydatetime().astimezone(tz), "interval_close":x["market_close"].iloc[i].to_pydatetime().astimezone(tz)} for i in range(len(ts))]
+		# pprint(intervals[0:4])
+		# quit()
+		intervals["interval_open"] = intervals["interval_open"].dt.date
+		intervals["interval_close"] = intervals["interval_close"].dt.date +td_1d
 
 	else:
 		td = yfcd.intervalToTimedelta[interval]
 		cal = GetCalendar(exchange)
-		t0 = ts[0].astimezone(ZoneInfo("UTC"))
-		tl = ts[len(ts)-1].astimezone(ZoneInfo("UTC"))
+		tz_utc = pytz.timezone("UTC")
+		ts = [pd.Timestamp(t.astimezone(tz_pytz)) for t in ts] # Convert to Pandas-friendly for .loc[] below
+		ts_utc = [t.astimezone(tz_utc) for t in ts] # Convert to Pandas-friendly for .loc[] below
+		t0 = ts_utc[0]
+		tl = ts_utc[len(ts_utc)-1]
 		tis = cal.trading_index(t0-td, tl+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
-		i_t = 0 ; i_s = 0
-		while i_t < n:
-			t = ts[i_t]
-			if i_s >= len(tis):
-				break
-			if t >= tis[i_s].left and t < tis[i_s].right:
-				# Match
-				intervals[i_t] = {"interval_open":tis[i_s].left.to_pydatetime(), 
-								"interval_close":tis[i_s].right.to_pydatetime()}
-				i_t += 1
-			elif t < tis[i_s].left:
-				i_t += 1
-			else:
-				i_s += 1
+		# tis_df = pd.DataFrame(data={"left":tis.left, "right":tis.right}, index=tis)
+		# tis_df["left"] = tis_df["left"].dt.tz_convert(tz_name)
+		# tis_df["right"] = tis_df["right"].dt.tz_convert(tz_name)
+		#
+		idx = tis.get_indexer(ts_utc)
+		#
+		intervals = pd.DataFrame(index=ts)
+		intervals["interval_open"] = pd.NaT
+		intervals["interval_close"] = pd.NaT
+		f = idx!=-1
+		intervals.loc[f, "interval_open"] = tis.left[idx[f]].tz_convert(tz_name)
+		intervals.loc[f, "interval_close"] = tis.right[idx[f]].tz_convert(tz_name)
 
-	return np.array(intervals)
+	if debug:
+		print("GetTimestampCurrentInterval_batch() returning:")
+	return intervals
+
+def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckIntervalDt(ts, interval, "ts", strict=False)
+	TypeCheckInterval(interval, "interval")
+	TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+
+	td_1d = timedelta(days=1)
+	tz_name = GetExchangeTzName(exchange)
+	tz = ZoneInfo(tz_name)
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval == yfcd.Interval.Days1:
+			next_day = ts.astimezone(tz).date() + td_1d
+			s = GetTimestampNextSession(exchange, datetime.combine(next_day, time(0), tz))
+			interval_open  = s["market_open"].date()
+			interval_close = interval_open+td_1d
+		else:
+			## Calculate next Monday to get next week schedule
+			ts_d = ts.date()
+			next_monday = ts_d + timedelta(days=7-ts_d.weekday())
+
+			sched = GetExchangeSchedule(exchange, next_monday, next_monday+timedelta(days=5))
+			interval_open  = sched["market_open"][0].date()
+			interval_close = sched["market_close"][-1].date() + td_1d
+			if weeklyUseYahooDef:
+				interval_open -= timedelta(days=interval_open.weekday()) # shift back to Monday
+				interval_close += timedelta(days=5-interval_close.weekday()) # shift forward to Saturday
+		return {"interval_open":interval_open, "interval_close":interval_close}
+
+	interval_td = yfcd.intervalToTimedelta[interval]
+	c = GetTimestampCurrentInterval(exchange, ts, interval)
+	if c is None or not IsTimestampInActiveSession(exchange, c["interval_close"]):
+		next_interval_start = GetTimestampNextSession(exchange, ts)["market_open"]
+	else:
+		next_interval_start = c["interval_close"]
+	return {"interval_open":next_interval_start, "interval_close":next_interval_start+interval_td}
 
 
 def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
@@ -644,20 +670,33 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 	tz = ZoneInfo(tz_name)
 
 	intervals = GetTimestampCurrentInterval_batch(exchange, intervalStart, interval)
-	iopens = [i["interval_open"] for i in intervals]
-	icloses = [i["interval_close"] for i in intervals]
+	if isinstance(intervals["interval_open"].iloc[0], datetime):
+		iopens = intervals["interval_open"]
+		icloses = intervals["interval_close"]
+	else:
+		iopens = intervals["interval_open"].values
+		icloses = intervals["interval_close"].values
 
 	marketCloses = np.array([None]*n)
 	iopen0 = iopens[0]
 	iclosel = icloses[len(icloses)-1]
 	if isinstance(iopen0, datetime):
+		if isinstance(iopen0, pd.Timestamp):
+			iopen0 = iopen0.to_pydatetime()
+			iclosel = iclosel.to_pydatetime()
 		sched = GetExchangeSchedule(exchange, iopen0.astimezone(tz).date(), iclosel.astimezone(tz).date()+timedelta(days=1))
 	else:
 		sched = GetExchangeSchedule(exchange, iopen0, iclosel+timedelta(days=1))
 	sched["day"] = sched["market_open"].dt.date
 	is_dt = isinstance(iopens[0], datetime)
 	if is_dt:
-		iclose_days = [i.astimezone(tz).date() for i in icloses]
+		iopen0 = iopens[0]
+		if isinstance(iopen0, pd.Timestamp):
+			# iclose_days = [i.to_pydatetime().astimezone(tz).date() for i in icloses]
+			tz_pytz = pytz.timezone(tz_name)
+			iclose_days = [i.astimezone(tz_pytz).date() for i in icloses]
+		else:
+			iclose_days = [i.astimezone(tz).date() for i in icloses]
 	else:
 		iclose_days = [i-timedelta(days=1) for i in icloses]
 	icloses_df = pd.DataFrame(data={"iopen":iopens, "iclose":icloses, "day":iclose_days})
@@ -674,7 +713,6 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 				attempts -= 1
 				f_na = icloses_df2["market_close"].isna()
 		if f_na.any():
-			print(icloses_df2[icloses_df2["market_close"].isna()])
 			raise Exception("Lost data in merge")
 	icloses_df = icloses_df2
 	marketCloses = icloses_df["market_close"].dt.to_pydatetime()
@@ -684,7 +722,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 
 	dc0 = icloses[0]
 	if isinstance(dc0, datetime):
-		intervalEnd_dt = icloses
+		intervalEnd_dt = [x.to_pydatetime().astimezone(tz) for x in icloses]
 	else:
 		intervalEnd_dt = [datetime.combine(dc, time(0), tz) for dc in icloses]
 
@@ -830,12 +868,25 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 	if debug:
 		print("- intervals:")
 		pprint(intervals)
-	intervalStarts = [i[0] for i in intervals]
 
 	if not knownIntervalStarts is None:
-		intervals_missing_data = np_not(np.isin(intervalStarts, knownIntervalStarts))
+		if isinstance(intervals[0], datetime) or isinstance(intervals[0], pd.Timestamp):
+			intervalStarts = [i[0].timestamp() for i in intervals]
+			knownIntervalStarts = [x.timestamp() for x in knownIntervalStarts]
+		else:
+			intervalStarts = [i[0] for i in intervals]
+
+		intervalStarts = np.array(intervalStarts)
+		knownIntervalStarts = np.array(knownIntervalStarts)
+		if intervalStarts.dtype.hasobject or knownIntervalStarts.dtype.hasobject:
+			## Apparently not optimised in numpy, faster to DIY
+			## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
+			knownIntervalStarts_set = set(knownIntervalStarts)
+			intervals_missing_data = ~np.array([elem in knownIntervalStarts_set for elem in intervalStarts])
+		else:
+			intervals_missing_data = np.isin(intervalStarts, knownIntervalStarts, invert=True)
 	else:
-		intervals_missing_data = np.array([True]*len(intervals))
+		intervals_missing_data = np.ones(len(intervals))
 
 	if debug:
 		print("- intervals_missing_data:")
@@ -843,14 +894,14 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 
 	## Merge together near ranges if the distance between is below threshold.
 	## This is to reduce web requests
-	i_true = np.where(intervals_missing_data==True)[0]
+	i_true = np.where(intervals_missing_data)[0]
 	for i in range(len(i_true)-1):
 		i0 = i_true[i]
 		i1 = i_true[i+1]
 		if i1-i0 <= minDistanceThreshold+1:
 			## Mark all intervals between as missing, thus merging together 
 			## the pair of missing ranges
-			intervals_missing_data[i0+1:i1] = True
+			intervals_missing_data[i0+1:i1] = 1
 
 	if debug:
 		print("- intervals_missing_data:")
@@ -858,7 +909,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 
 	## Scan for contiguous sets of missing intervals:
 	ranges = []
-	i_true = np.where(intervals_missing_data==True)[0]
+	i_true = np.where(intervals_missing_data)[0]
 	if len(i_true) > 0:
 		start = None ; end = None
 		for i in range(len(intervals_missing_data)):

@@ -77,6 +77,42 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.tempCacheDir.cleanup()
         self.session.close()
 
+    def verify_df(self, df, answer, rtol=None):
+        if df.shape[0] != answer.shape[0]:
+            raise Exception("Different #rows: df={}, answer={}".format(df.shape[0], answer.shape[0]))
+
+        dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+        for dc in dcs:
+            if not (dc in df.columns and dc in answer.columns):
+                continue
+            if rtol is None:
+                f = (df[dc].values == answer[dc].values)
+            else:
+                f = np.isclose(df[dc].values, answer[dc].values, rtol=rtol)
+            try:
+                self.assertTrue(f.all())
+            except:
+                f = ~f
+                if sum(f) < 20:
+                    print("{}/{} differences in column {}:".format(sum(f), df.shape[0], dc))
+                    print("- answer:")
+                    print(answer[f][[dc]])
+                    print("- result:")
+                    print(df[f][[dc]])
+                else:
+                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
+
+                last_diff_idx = np.where(f)[0][-1]
+                x = df[dc][last_diff_idx]
+                y = answer[dc][last_diff_idx]
+                last_diff = x - y
+                print("- last_diff: {} - {} = {}".format(x, y, last_diff))
+                print("- answer:")
+                print(answer.iloc[last_diff_idx])
+                print("- result:")
+                print(df.iloc[last_diff_idx])
+                raise
+
 
     def test_history_basics1_usa(self):
         # A fetch of prices, then another fetch of same prices, should return identical
@@ -719,12 +755,26 @@ class Test_Yfc_Interface(unittest.TestCase):
                 n = df1.shape[0]
                 df3 = dat.history(interval="1d", start=start_d, end=end_d, max_age=timedelta(seconds=1))
                 try:
+                    self.assertEqual(len(expected_interval_dates), df3.shape[0])
+                except:
+                    print("Different shapes")
+                    print("df1:")
+                    print(df1)
+                    print("df3:")
+                    print(df3)
+                    raise
+                try:
                     self.assertTrue(np.array_equal(expected_interval_dates, df3.index))
                 except:
                     print("expected_interval_dates:")
                     pprint(expected_interval_dates)
                     print("df3:")
-                    print(df3)
+                    print(df3.index)
+                    edt0 = expected_interval_dates[0]
+                    adt0 = df3.index[0]
+                    print("expected dt0 = {} (tz={})".format(edt0, edt0.tzinfo))
+                    print("actual dt0 = {} (tz={})".format(adt0, adt0.tzinfo))
+                    print(expected_interval_dates == df3.index)
                     raise
                 try:
                     self.assertTrue(df1.iloc[0:n-1].equals(df3.iloc[0:n-1]))
@@ -776,6 +826,9 @@ class Test_Yfc_Interface(unittest.TestCase):
                     start_dt = sched["market_open"][0].to_pydatetime()
                     end_dt = sched["market_close"][0].to_pydatetime()
 
+                    # Ensure Yahoo returns correct volume for first interval:
+                    start_dt -= timedelta(minutes=20)
+
                     dt = sched["market_open"][0]
                     expected_interval_starts = []
                     while dt < sched["market_close"][0]:
@@ -796,23 +849,26 @@ class Test_Yfc_Interface(unittest.TestCase):
                     ## Finally, check it matches YF:
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1h", start=start_dt, end=end_dt)
-                    for c in yfcd.yf_data_cols:
-                        if not c in df_yf.columns:
-                            continue
-                        elif c == "Adj Close" and not c in df_yfc.columns:
-                            continue
-                        try:
-                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
-                        except:
-                            print("")
-                            print("df_yf:")
-                            print(df_yf[[c]])
-                            print("")
-                            print("df_yfc:")
-                            print(df1[[c]])
-                            print("")
-                            print("{}: Difference in column {}".format(tkr, c))
-                            raise
+                    # Note: Yahoo doesn't dividend-adjust hourly
+                    df1 = dat.history(start=start_dt, end=end_dt, interval="1h", adjust_divs=False)
+                    df_yf = dat_yf.history(start=start_dt, interval="1h")
+                    # Discard 0-volume data at market close
+                    td_1d = timedelta(days=1)
+                    sched = yfct.GetExchangeSchedule(dat.info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
+                    sched["_date"] = sched.index.date
+                    df_yf["_date"] = df_yf.index.date
+                    answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
+                    answer2.index = df_yf.index ; df_yf = answer2
+                    f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+                    df_yf = df_yf[~f_drop].drop("_date",axis=1)
+                    # YF hourly volume is not split-adjusted, so adjust:
+                    ss = df_yf["Stock Splits"].copy()
+                    ss[ss==0.0] = 1.0
+                    ss_rcp = 1.0/ss
+                    csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
+                    df_yf["Volume"] /= csf
+                    df_yf = df_yf[df_yf.index<end_dt]
+                    self.verify_df(df1, df_yf, 1e-10)
 
     def test_history_live_1d_evening(self):
         # Fetch during evening after active session
@@ -854,23 +910,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                     ## Finally, check it matches YF:
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
-                    for c in yfcd.yf_data_cols:
-                        if not c in df_yf.columns:
-                            continue
-                        elif c == "Adj Close" and not c in df_yfc.columns:
-                            continue
-                        try:
-                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
-                        except:
-                            print("")
-                            print("df_yf:")
-                            print(df_yf)
-                            print("")
-                            print("df_yfc:")
-                            print(df1)
-                            print("")
-                            print("Difference in column {}".format(c))
-                            raise
+                    self.verify_df(df1, df_yf, 1e-10)
 
     def test_history_live_1w_evening(self):
         # Fetch during evening after active session
@@ -918,23 +958,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                     ## Finally, check it matches YF:
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1wk", start=start_dt.date(), end=end_dt.date())
-                    for c in yfcd.yf_data_cols:
-                        if not c in df_yf.columns:
-                            continue
-                        elif c == "Adj Close" and not c in df_yfc.columns:
-                            continue
-                        try:
-                            self.assertTrue(np.array_equal(df_yf[c].values, df1[c].values))
-                        except:
-                            print("Difference in column {}".format(c))
-                            print("")
-                            print("df_yf:")
-                            print(df_yf)
-                            print("")
-                            print("df_yfc:")
-                            print(df1)
-                            print("")
-                            raise
+                    self.verify_df(df1, df_yf)
 
     def test_history_jse_is_weird(self):
         # JSE market closes at 5pm local time, but if request 1h data 
@@ -942,21 +966,25 @@ class Test_Yfc_Interface(unittest.TestCase):
         # This mysterious row disappears tomorrow.
         interval = "1h"
         tkr = "IMP.JO"
-
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        d_now = dt_now.date()
         dat = yfc.Ticker(tkr, session=None)
         exchange = dat.info["exchange"]
-        yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
-        if yfct.ExchangeOpenOnDay(exchange, d_now):
-            sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
-            if (not sched is None) and dt_now > sched["market_close"][0]:
-                start_dt = dt_now - timedelta(days=7)
-                end_dt = dt_now
-                tz = ZoneInfo(dat.info["exchangeTimezoneName"])
+        tz_name = dat.info["exchangeTimezoneName"]
+        tz = ZoneInfo(tz_name)
+        yfct.SetExchangeTzName(exchange, tz_name)
 
-                ## Test is simple. Fetch should complete, and no 5pm in table
-                df = dat.history(start=d_now, interval="1h")
+        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        # d_now = dt_now.date()
+        d_now = dt_now.astimezone(tz).date()
+        td_1d = timedelta(days=1)
+        if yfct.ExchangeOpenOnDay(exchange, d_now):
+            sched = yfct.GetExchangeSchedule(exchange, d_now-5*td_1d, d_now+td_1d)
+            if not sched is None:
+                for i in range(sched.shape[0]-1, -1, -1):
+                    if dt_now >= sched["market_close"].iloc[i]:
+                        break
+                d = sched["market_close"].iloc[i].date()
+                df = dat.history(start=d, end=d+td_1d, interval="1h")
+
                 try:
                     self.assertEqual(df.shape[0], 8)
                     self.assertEqual(df.index[-1].time(), time(16))
