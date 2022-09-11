@@ -298,27 +298,36 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
 	# Read cached metadata
 	fp = GetFilepath(ticker, objectName)
 	pkData = _ReadPackedData(ticker, objectName)
-	if (not pkData is None) and (objectName in pkData):
-		objData = pkData[objectName]
+	if pkData is None:
+		pkData = {}
+		objData = None
+		data = None
+	elif objectName in pkData:
+		objData = pkData["data"]
 		data   = objData["data"]
-		md     = objData["metadata"] if "metadata" in objData else None
+		if metadata is None:
+			metadata = objData["metadata"] if "metadata" in objData else None
 		if expiry is None:
 			expiry = objData["expiry"] if "expiry" in objData else None
 	else:
-		pkData = {}
+		objData = None
+		data = None
 		md = None
 
-	if metadata is None:
-		# Persist the cached metadata
-		metadata = md
+	if objData is None:
+		objData = {"data":datum}
+		if not metadata is None:
+			objData["metadata"] = metadata
+		if not expiry is None:
+			objData["expiry"] = expiry
+	else:
+		objData["data"] = datum
+		if not metadata is None:
+			objData["metadata"] = metadata
+		if not expiry is None:
+			objData["expiry"] = expiry
 
-	# Write
-	d = {"data":datum}
-	if not metadata is None:
-		d["metadata"] = metadata
-	if not expiry is None:
-		d["expiry"] = expiry
-	pkData[objectName] = d
+	pkData[objectName] = objData
 	with open(fp, 'wb') as outData:
 		pickle.dump(pkData, outData, 4)
 

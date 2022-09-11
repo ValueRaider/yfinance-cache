@@ -85,20 +85,26 @@ class Test_Yfc_Cache(unittest.TestCase):
 
 
     def test_cache_store_packed(self):
-        var = "balance_sheet"
         var_grp = "annuals"
-        value = 123
+        var1 = "balance_sheet"
+        val1 = 123
+        var2 = "cashflow"
+        val2 = 456
 
-        yfcm.StoreCachePackedDatum(self.ticker, var, value)
+        yfcm.StoreCachePackedDatum(self.ticker, var1, val1)
+        yfcm.StoreCachePackedDatum(self.ticker, var2, val2)
 
         # Confirm write
         fp = os.path.join(yfcm.GetCacheDirpath(), self.ticker, var_grp+".pkl")
         self.assertTrue(os.path.isfile(fp))
-        self.assertTrue(yfcm.IsDatumCached(self.ticker, var))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, var1))
+        self.assertTrue(yfcm.IsDatumCached(self.ticker, var2))
 
         # Confirm value
-        obj = yfcm.ReadCachePackedDatum(self.ticker, var)
-        self.assertEqual(obj, value)
+        obj = yfcm.ReadCachePackedDatum(self.ticker, var1)
+        self.assertEqual(obj, val1)
+        obj = yfcm.ReadCachePackedDatum(self.ticker, var2)
+        self.assertEqual(obj, val2)
 
 
     def test_cache_store_packed_expiry(self):
