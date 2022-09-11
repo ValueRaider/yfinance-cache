@@ -303,7 +303,7 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
 		objData = None
 		data = None
 	elif objectName in pkData:
-		objData = pkData["data"]
+		objData = pkData[objectName]
 		data   = objData["data"]
 		if metadata is None:
 			metadata = objData["metadata"] if "metadata" in objData else None
