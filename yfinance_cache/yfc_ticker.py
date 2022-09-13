@@ -61,6 +61,9 @@ class Ticker:
 		self._earnings = None
 		self._quarterly_earnings = None
 
+		self._quarterly_sync_check = None
+		self._sync_check = None
+
 		self._sustainability = None
 
 		self._recommendations = None
@@ -1219,10 +1222,31 @@ class Ticker:
 			return self._info
 
 		if yfcm.IsDatumCached(self.ticker, "info"):
-			self._info = yfcm.ReadCacheDatum(self.ticker, "info")
-			return self._info
+			force_refetch = False
+			_info = yfcm.ReadCacheDatum(self.ticker, "info")
 
-		self._info = self.dat.info
+			## TODO: use last 'earnings release date' instead of fin_mod_dt
+			info_mod_dt = yfcm.GetLastUpdateTime(self.ticker, "info")
+			fin_mod_dt = yfcm.GetLastUpdateTime(self.ticker, "quarterly_financials")
+			if (not fin_mod_dt is None) and (not info_mod_dt is None):
+				force_refetch = force_refetch or (info_mod_dt < fin_mod_dt)
+
+			if not _info is None:
+				force_refetch = force_refetch or (not "legalType" in _info)
+
+			if not force_refetch:
+				# Only return cached info if newer than financials
+				self._info = _info
+				return self._info
+
+		print("{}: fetching info".format(self.ticker))
+
+		_info = self.dat.info
+		if not "legalType" in _info.keys():
+			raise Exception("Fetching '{}' info from Yahoo failed. Try again in a minute".format(self.ticker))
+
+		self._info = _info
+
 		yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
 		yfct.SetExchangeTzName(self._info["exchange"], self._info["exchangeTimezoneName"])
@@ -1244,28 +1268,12 @@ class Ticker:
 
 	@property
 	def financials(self):
-		if not self._financials is None:
-			return self._financials
-
-		if yfcm.IsDatumCached(self.ticker, "financials"):
-			self._financials = yfcm.ReadCacheDatum(self.ticker, "financials")
-			return self._financials
-
-		self._financials = self.dat.financials
-		yfcm.StoreCacheDatum(self.ticker, "financials", self._financials)
+		self._review_annuals()
 		return self._financials
 
 	@property
 	def quarterly_financials(self):
-		if not self._quarterly_financials is None:
-			return self._quarterly_financials
-
-		if yfcm.IsDatumCached(self.ticker, "quarterly_financials"):
-			self._quarterly_financials = yfcm.ReadCacheDatum(self.ticker, "quarterly_financials")
-			return self._quarterly_financials
-
-		self._quarterly_financials = self.dat.quarterly_financials
-		yfcm.StoreCacheDatum(self.ticker, "quarterly_financials", self._quarterly_financials)
+		self._review_quarterlys()
 		return self._quarterly_financials
 
 	@property
@@ -1296,87 +1304,119 @@ class Ticker:
 
 	@property
 	def balance_sheet(self):
-		if not self._balance_sheet is None:
-			return self._balance_sheet
-
-		if yfcm.IsDatumCached(self.ticker, "balance_sheet"):
-			self._balance_sheet = yfcm.ReadCacheDatum(self.ticker, "balance_sheet")
-			return self._balance_sheet
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._balance_sheet = self.dat.balance_sheet
-		yfcm.StoreCacheDatum(self.ticker, "balance_sheet", self._balance_sheet)
+		self._review_annuals()
 		return self._balance_sheet
 
 	@property
 	def quarterly_balance_sheet(self):
-		if not self._quarterly_balance_sheet is None:
-			return self._quarterly_balance_sheet
-
-		if yfcm.IsDatumCached(self.ticker, "quarterly_balance_sheet"):
-			self._quarterly_balance_sheet = yfcm.ReadCacheDatum(self.ticker, "quarterly_balance_sheet")
-			return self._quarterly_balance_sheet
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._quarterly_balance_sheet = self.dat.quarterly_balance_sheet
-		yfcm.StoreCacheDatum(self.ticker, "quarterly_balance_sheet", self._quarterly_balance_sheet)
+		self._review_quarterlys()
 		return self._quarterly_balance_sheet
 
 	@property
 	def cashflow(self):
-		if not self._cashflow is None:
-			return self._cashflow
-
-		if yfcm.IsDatumCached(self.ticker, "cashflow"):
-			self._cashflow = yfcm.ReadCacheDatum(self.ticker, "cashflow")
-			return self._cashflow
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._cashflow = self.dat.cashflow
-		yfcm.StoreCacheDatum(self.ticker, "cashflow", self._cashflow)
+		self._review_annuals()
 		return self._cashflow
 
 	@property
 	def quarterly_cashflow(self):
-		if not self._quarterly_cashflow is None:
-			return self._quarterly_cashflow
-
-		if yfcm.IsDatumCached(self.ticker, "quarterly_cashflow"):
-			self._quarterly_cashflow = yfcm.ReadCacheDatum(self.ticker, "quarterly_cashflow")
-			return self._quarterly_cashflow
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._quarterly_cashflow = self.dat.quarterly_cashflow
-		yfcm.StoreCacheDatum(self.ticker, "quarterly_cashflow", self._quarterly_cashflow)
+		self._review_quarterlys()
 		return self._quarterly_cashflow
 
 	@property
 	def earnings(self):
-		if not self._earnings is None:
-			return self._earnings
-
-		if yfcm.IsDatumCached(self.ticker, "earnings"):
-			self._earnings = yfcm.ReadCacheDatum(self.ticker, "earnings")
-			return self._earnings
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._earnings = self.dat.earnings
-		yfcm.StoreCacheDatum(self.ticker, "earnings", self._earnings)
+		self._review_annuals()
 		return self._earnings
 
 	@property
 	def quarterly_earnings(self):
-		if not self._quarterly_earnings is None:
-			return self._quarterly_earnings
-
-		if yfcm.IsDatumCached(self.ticker, "quarterly_earnings"):
-			self._quarterly_earnings = yfcm.ReadCacheDatum(self.ticker, "quarterly_earnings")
-			return self._quarterly_earnings
-
-		dat = yf.Ticker(self.ticker, session=self.session)
-		self._quarterly_earnings = self.dat.quarterly_earnings
-		yfcm.StoreCacheDatum(self.ticker, "quarterly_earnings", self._quarterly_earnings)
+		self._review_quarterlys()
 		return self._quarterly_earnings
+
+	def _review_quarterlys(self):
+		if self._quarterly_sync_check:
+			# Already reviewed
+			return
+
+		keys = ["quarterly_financials", "quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings"]
+		all_cached = True
+		synchronised = True
+		for k in keys:
+			if not yfcm.IsDatumCached(self.ticker, k):
+				all_cached = False
+				break
+
+		if all_cached:
+			# Check that all cover same date range
+			fin = yfcm.ReadCacheDatum(self.ticker, "quarterly_financials")
+			dt0 = fin.columns[0]
+			# Note: ignoring 'quarterly_earnings' because different table structure
+			for k in ["quarterly_balance_sheet", "quarterly_cashflow"]:
+				df = yfcm.ReadCacheDatum(self.ticker, k)
+				if df.columns[0] != dt0:
+					synchronised = False
+					break
+
+		if all_cached and synchronised:
+			self._quarterly_sync_check = True
+			self._quarterly_financials = yfcm.ReadCacheDatum(self.ticker, "quarterly_financials")
+			self._quarterly_balance_sheet = yfcm.ReadCacheDatum(self.ticker, "quarterly_balance_sheet")
+			self._quarterly_cashflow = yfcm.ReadCacheDatum(self.ticker, "quarterly_cashflow")
+			self._quarterly_earnings = yfcm.ReadCacheDatum(self.ticker, "quarterly_earnings")
+			return
+
+		self._quarterly_financials = self.dat.quarterly_financials
+		self._quarterly_balance_sheet = self.dat.quarterly_balance_sheet
+		self._quarterly_cashflow = self.dat.quarterly_cashflow
+		self._quarterly_earnings = self.dat.quarterly_earnings
+
+		yfcm.StoreCacheDatum(self.ticker, "quarterly_financials", self._quarterly_financials)
+		yfcm.StoreCacheDatum(self.ticker, "quarterly_balance_sheet", self._quarterly_balance_sheet)
+		yfcm.StoreCacheDatum(self.ticker, "quarterly_cashflow", self._quarterly_cashflow)
+		yfcm.StoreCacheDatum(self.ticker, "quarterly_earnings", self._quarterly_earnings)
+		self._quarterly_sync_check = True
+
+	def _review_annuals(self):
+		if self._sync_check:
+			# Already reviewed
+			return
+
+		keys = ["financials", "balance_sheet", "cashflow", "earnings"]
+		all_cached = True
+		synchronised = True
+		for k in keys:
+			if not yfcm.IsDatumCached(self.ticker, k):
+				all_cached = False
+				break
+
+		if all_cached:
+			# Check that all cover same date range
+			fin = yfcm.ReadCacheDatum(self.ticker, "financials")
+			dt0 = fin.columns[0]
+			# Note: ignoring 'earnings' because different table structure
+			for k in ["balance_sheet", "cashflow"]:
+				df = yfcm.ReadCacheDatum(self.ticker, k)
+				if df.columns[0] != dt0:
+					synchronised = False
+					break
+
+		if all_cached and synchronised:
+			self._sync_check = True
+			self._financials = yfcm.ReadCacheDatum(self.ticker, "financials")
+			self._balance_sheet = yfcm.ReadCacheDatum(self.ticker, "balance_sheet")
+			self._cashflow = yfcm.ReadCacheDatum(self.ticker, "cashflow")
+			self._earnings = yfcm.ReadCacheDatum(self.ticker, "earnings")
+			return
+
+		self._financials = self.dat.financials
+		self._balance_sheet = self.dat.balance_sheet
+		self._cashflow = self.dat.cashflow
+		self._earnings = self.dat.earnings
+
+		yfcm.StoreCacheDatum(self.ticker, "financials", self._financials)
+		yfcm.StoreCacheDatum(self.ticker, "balance_sheet", self._balance_sheet)
+		yfcm.StoreCacheDatum(self.ticker, "cashflow", self._cashflow)
+		yfcm.StoreCacheDatum(self.ticker, "earnings", self._earnings)
+		self._sync_check = True
 
 	@property
 	def sustainability(self):

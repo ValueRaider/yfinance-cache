@@ -29,11 +29,9 @@ def GetCacheDirpath():
 	global cacheDirpath
 	return cacheDirpath
 
-
 def ResetCacheDirpath():
 	global cacheDirpath
 	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
-
 
 def SetCacheDirpath(dp):
 	global cacheDirpath
@@ -48,7 +46,6 @@ def IsObjectInPackedData(objectName):
 			return True
 	return False
 
-
 def GetPackedDataCat(objectName):
 	for k in packed_data_cats.keys():
 		if objectName in packed_data_cats[k]:
@@ -56,9 +53,9 @@ def GetPackedDataCat(objectName):
 	return None
 
 
-def GetFilepath(ticker, objectName, object=None, prune=False):
+def _GetFilepath(ticker, objectName, object=None, prune=False):
 	if IsObjectInPackedData(objectName):
-		return GetFilepathPacked(ticker, objectName)
+		return _GetFilepathPacked(ticker, objectName)
 
 	fp = None
 	if not object is None:
@@ -86,7 +83,7 @@ def GetFilepath(ticker, objectName, object=None, prune=False):
 		elif pkl_exists:
 			fp = fp_base + ".pkl"
 	return fp
-def GetFilepathPacked(ticker, objectName):
+def _GetFilepathPacked(ticker, objectName):
 	if not IsObjectInPackedData(objectName):
 		return InferFilepath(ticker, objectName)
 	pkg = GetPackedDataCat(objectName)
@@ -98,7 +95,7 @@ def IsDatumCached(ticker, objectName):
 	if verbose:
 		print("IsDatumCached({0}, {1})".format(ticker, objectName))
 
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	if fp is None or (not os.path.isfile(fp)):
 		return False
 
@@ -114,7 +111,7 @@ def IsDatumCached(ticker, objectName):
 def _ReadData(ticker, objectName):
 	d = None
 
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	if fp is None or (not os.path.isfile(fp)):
 		return None
 
@@ -134,7 +131,7 @@ def _ReadData(ticker, objectName):
 
 def _ReadPackedData(ticker, objectName):
 	pkData = None
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	if os.path.isfile(fp):
 		with open(fp, 'rb') as inData:
 			pkData = pickle.load(inData)
@@ -162,7 +159,7 @@ def ReadCacheDatum(ticker, objectName, return_metadata_too=False):
 			if dtnow >= expiry:
 				if verbose:
 					print("Deleting expired datum '{0}/{1}'".format(ticker, objectName))
-				fp = GetFilepath(ticker, objectName)
+				fp = _GetFilepath(ticker, objectName)
 				os.remove(fp)
 				if return_metadata_too:
 					return None,None
@@ -201,7 +198,7 @@ def ReadCachePackedDatum(ticker, objectName, return_metadata_too=False):
 				if verbose:
 					print("Deleting expired packed datum '{0}/{1}'".format(ticker, objectName))
 				del pkData[objectName]
-				fp = GetFilepath(ticker, objectName)
+				fp = _GetFilepath(ticker, objectName)
 				with open(fp, 'wb') as outData:
 					pickle.dump(pkData, outData, 4)
 				if return_metadata_too:
@@ -241,7 +238,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None, metadata=None):
 	if not os.path.isdir(td):
 		os.makedirs(td)
 
-	fp = GetFilepath(ticker, objectName, object=datum, prune=True)
+	fp = _GetFilepath(ticker, objectName, object=datum, prune=True)
 
 	if verbose:
 		print("- storing {} at {}".format(objectName, fp))
@@ -296,7 +293,7 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
 		os.makedirs(td)
 
 	# Read cached metadata
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	pkData = _ReadPackedData(ticker, objectName)
 	if pkData is None:
 		pkData = {}
@@ -353,7 +350,6 @@ def ReadCacheMetadata(ticker, objectName, key):
 	else:
 		return md[key]
 
-
 def WriteCacheMetadata(ticker, objectName, key, value):
 	if IsObjectInPackedData(objectName):
 		return WriteCachePackedMetadata(ticker, objectName, key, value)
@@ -371,7 +367,7 @@ def WriteCacheMetadata(ticker, objectName, key, value):
 		print("WriteCacheMetadata() updated md to:")
 		print(d["metadata"])
 
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	if fp.endswith(".json"):
 		with open(fp, 'w') as outData:
 			json.dump(d, outData, default=yfcu.JsonEncodeValue)
@@ -394,9 +390,17 @@ def WriteCachePackedMetadata(ticker, objectName, key, value):
 		objData["metadata"] = {key:value}
 	else:
 		objData["metadata"][key] = value
-	fp = GetFilepath(ticker, objectName)
+	fp = _GetFilepath(ticker, objectName)
 	with open(fp, 'wb') as outData:
 		pickle.dump(pkData, outData, 4)
 
+
+def GetLastUpdateTime(ticker, objectName):
+	fp = _GetFilepath(ticker, objectName)
+	if (fp is None) or not os.path.isfile(fp):
+		return None
+
+	dt = datetime.utcfromtimestamp(os.path.getmtime(fp)).replace(tzinfo=ZoneInfo("UTC"))
+	return dt
 
 ResetCacheDirpath()
