@@ -3,7 +3,6 @@ from pprint import pprint
 from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
-import pytz
 
 import holidays
 import exchange_calendars as xcal
@@ -453,7 +452,7 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	td_1d = timedelta(days=1)
 	tz_name = GetExchangeTzName(exchange)
 	tz = ZoneInfo(tz_name)
-	tz_pytz = pytz.timezone(tz_name)
+	tz_utc = ZoneInfo("UTC")
 	ts_is_datetimes = isinstance(ts[0],datetime)
 	if ts_is_datetimes:
 		ts_day = [t.astimezone(tz).date() for t in ts]
@@ -498,21 +497,15 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 			weekSchedEnd = np.array([None]*n)
 			i_t = 0 ; i_s = 0
 			td = ts_day[i_t]
-			left  = pd.to_datetime(week_sched["open_day"].values ).tz_localize(tz_pytz)
-			right = pd.to_datetime(week_sched["close_day"].values).tz_localize(tz_pytz)
+			left  = pd.to_datetime(week_sched["open_day"].values ).tz_localize(tz)
+			right = pd.to_datetime(week_sched["close_day"].values).tz_localize(tz)
 			week_sched = pd.IntervalIndex.from_arrays(left, right, closed="left")
-			if ts_is_datetimes:
-				ts_pytz = pd.to_datetime([t.astimezone(tz_pytz) for t in ts])
-			else:
-				ts_pytz = pd.to_datetime(ts).tz_localize(tz_pytz)
-			idx = week_sched.get_indexer(ts_pytz)
+			idx = week_sched.get_indexer(ts)
 			f = idx!=-1
 			#
 			weekSchedStart[f] = week_sched.left[idx[f]].date
 			weekSchedEnd[f] = week_sched.right[idx[f]].date
 
-		if isinstance(ts[0], datetime):
-			ts = [pd.Timestamp(t.astimezone(tz_pytz)) for t in ts] # Convert to Pandas-friendly
 		intervals = pd.DataFrame(data={"interval_open":weekSchedStart, "interval_close":weekSchedEnd}, index=ts)
 
 	elif interval == yfcd.Interval.Days1:
@@ -524,37 +517,35 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		ts_day_df = pd.DataFrame(index=ts_day)
 		intervals = pd.merge(ts_day_df, sched, how="left", left_index=True, right_index=True)
 		intervals = intervals.rename(columns={"market_open":"interval_open", "market_close":"interval_close"})
-		# tz = ZoneInfo("UTC")
-		# intervals = [None if pd.isnull(x["market_open"].iloc[i]) else {"interval_open":x["market_open"].iloc[i].to_pydatetime().astimezone(tz), "interval_close":x["market_close"].iloc[i].to_pydatetime().astimezone(tz)} for i in range(len(ts))]
-		# pprint(intervals[0:4])
-		# quit()
 		intervals["interval_open"] = intervals["interval_open"].dt.date
 		intervals["interval_close"] = intervals["interval_close"].dt.date +td_1d
 
 	else:
 		td = yfcd.intervalToTimedelta[interval]
 		cal = GetCalendar(exchange)
-		tz_utc = pytz.timezone("UTC")
-		ts = [pd.Timestamp(t.astimezone(tz_pytz)) for t in ts] # Convert to Pandas-friendly for .loc[] below
-		ts_utc = [t.astimezone(tz_utc) for t in ts] # Convert to Pandas-friendly for .loc[] below
+		ts = [pd.Timestamp(t) for t in ts] # Convert to Pandas-friendly for .loc[] below
+		ts_utc = [t.astimezone(tz_utc) for t in ts] # Convert to Pandas-friendly for indexer
 		t0 = ts_utc[0]
 		tl = ts_utc[len(ts_utc)-1]
 		tis = cal.trading_index(t0-td, tl+td, period=yfcd.intervalToString[interval], intervals=True, force_close=True)
-		# tis_df = pd.DataFrame(data={"left":tis.left, "right":tis.right}, index=tis)
-		# tis_df["left"] = tis_df["left"].dt.tz_convert(tz_name)
-		# tis_df["right"] = tis_df["right"].dt.tz_convert(tz_name)
+		if debug:
+			print("- trading index:")
+			for ti in tis:
+				print(ti)
 		#
 		idx = tis.get_indexer(ts_utc)
+		f = idx!=-1
 		#
 		intervals = pd.DataFrame(index=ts)
 		intervals["interval_open"] = pd.NaT
 		intervals["interval_close"] = pd.NaT
-		f = idx!=-1
-		intervals.loc[f, "interval_open"] = tis.left[idx[f]].tz_convert(tz_name)
-		intervals.loc[f, "interval_close"] = tis.right[idx[f]].tz_convert(tz_name)
+		if f.any():
+			intervals.loc[intervals.index[f], "interval_open"] = tis.left[idx[f]].tz_convert(tz)
+			intervals.loc[intervals.index[f], "interval_close"] = tis.right[idx[f]].tz_convert(tz)
 
 	if debug:
-		print("GetTimestampCurrentInterval_batch() returning:")
+		print("GetTimestampCurrentInterval_batch() returning")
+
 	return intervals
 
 def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
@@ -660,6 +651,12 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 	TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
 	TypeCheckInterval(interval, "interval")
 
+	debug = False
+	# debug = True
+
+	if debug:
+		print("CalcIntervalLastDataDt_batch(interval={}, yf_lag={})".format(interval, yf_lag))
+
 	if not yf_lag is None:
 		TypeCheckTimedelta(yf_lag, "yf_lag")
 	else:
@@ -676,6 +673,9 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 	else:
 		iopens = intervals["interval_open"].values
 		icloses = intervals["interval_close"].values
+	if debug:
+		print("- intervals:")
+		print(intervals)
 
 	marketCloses = np.array([None]*n)
 	iopen0 = iopens[0]
@@ -692,9 +692,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 	if is_dt:
 		iopen0 = iopens[0]
 		if isinstance(iopen0, pd.Timestamp):
-			# iclose_days = [i.to_pydatetime().astimezone(tz).date() for i in icloses]
-			tz_pytz = pytz.timezone(tz_name)
-			iclose_days = [i.astimezone(tz_pytz).date() for i in icloses]
+			iclose_days = [i.astimezone(tz).date() for i in icloses]
 		else:
 			iclose_days = [i.astimezone(tz).date() for i in icloses]
 	else:
@@ -716,6 +714,9 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 			raise Exception("Lost data in merge")
 	icloses_df = icloses_df2
 	marketCloses = icloses_df["market_close"].dt.to_pydatetime()
+	if debug:
+		print("- icloses_df:")
+		print(icloses_df)
 
 	if (marketCloses==None).any():
 		raise Exception("Failed to map some intervals to schedule")
@@ -735,6 +736,9 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 			lastDataDt += late_data_allowance
 		else:
 			lastDataDt[intervalEnd_dt == marketCloses] += late_data_allowance
+
+	if debug:
+		print("CalcIntervalLastDataDt_batch() returning")
 
 	return lastDataDt
 
@@ -833,6 +837,75 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 	return False
 
 
+def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True):
+	TypeCheckStr(exchange, "exchange")
+	TypeCheckDateEasy(start, "start")
+	TypeCheckDateEasy(end, "end")
+	if start >= end:
+		raise Exception("start={} must be < end={}".format(start, end))
+	if not knownIntervalStarts is None:
+		if not isinstance(knownIntervalStarts, list) and not isinstance(knownIntervalStarts, np.ndarray):
+			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+			## Must be date
+			TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
+		else:
+			## Must be datetime
+			TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
+			if knownIntervalStarts[0].tzinfo is None:
+				raise Exception("'knownIntervalStarts' dates must be timezone-aware")
+
+	debug = False
+	# debug = True
+
+	if debug:
+		print("IdentifyMissingIntervals()")
+		print("- start={}, end={}".format(start, end))
+		print("- knownIntervalStarts:")
+		pprint(knownIntervalStarts)
+
+	intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef)
+	if intervals is None or len(intervals) == 0:
+		raise yfcd.NoIntervalsInRangeException(interval, start, end)
+	if debug:
+		print("- intervals:")
+		pprint(intervals)
+
+	if not knownIntervalStarts is None:
+		if isinstance(intervals[0], datetime) or isinstance(intervals[0], pd.Timestamp):
+			intervalStarts = [i[0].timestamp() for i in intervals]
+			knownIntervalStarts = [x.timestamp() for x in knownIntervalStarts]
+		else:
+			intervalStarts = [i[0] for i in intervals]
+
+		intervalStarts = np.array(intervalStarts)
+		knownIntervalStarts = np.array(knownIntervalStarts)
+		if intervalStarts.dtype.hasobject or knownIntervalStarts.dtype.hasobject:
+			## Apparently not optimised in numpy, faster to DIY
+			## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
+			knownIntervalStarts_set = set(knownIntervalStarts)
+			f_missing = ~np.array([elem in knownIntervalStarts_set for elem in intervalStarts])
+		else:
+			f_missing = np.isin(intervalStarts, knownIntervalStarts, invert=True)
+	else:
+		f_missing = np.full(len(intervals), True)
+
+	if debug:
+		print("- f_missing:")
+		pprint(f_missing)
+		print("- f_missing[0] = {} (type={})".format(f_missing[0], type(f_missing[0])))
+
+	intervals = np.array(intervals)
+	intervals_missing = intervals[f_missing]
+	intervals_missing_df = pd.DataFrame(data={"open":intervals_missing[:,0],"close":intervals_missing[:,1]}, index=np.where(f_missing)[0])
+	if debug:
+		print("- intervals_missing_df:")
+		print(intervals_missing_df)
+
+	if debug:
+		print("IdentifyMissingIntervals() returning")
+	return intervals_missing_df
+
 def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True, minDistanceThreshold=5):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDateEasy(start, "start")
@@ -869,51 +942,34 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 		print("- intervals:")
 		pprint(intervals)
 
-	if not knownIntervalStarts is None:
-		if isinstance(intervals[0], datetime) or isinstance(intervals[0], pd.Timestamp):
-			intervalStarts = [i[0].timestamp() for i in intervals]
-			knownIntervalStarts = [x.timestamp() for x in knownIntervalStarts]
-		else:
-			intervalStarts = [i[0] for i in intervals]
-
-		intervalStarts = np.array(intervalStarts)
-		knownIntervalStarts = np.array(knownIntervalStarts)
-		if intervalStarts.dtype.hasobject or knownIntervalStarts.dtype.hasobject:
-			## Apparently not optimised in numpy, faster to DIY
-			## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
-			knownIntervalStarts_set = set(knownIntervalStarts)
-			intervals_missing_data = ~np.array([elem in knownIntervalStarts_set for elem in intervalStarts])
-		else:
-			intervals_missing_data = np.isin(intervalStarts, knownIntervalStarts, invert=True)
-	else:
-		intervals_missing_data = np.ones(len(intervals))
-
+	intervals_missing_df = IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef)
 	if debug:
-		print("- intervals_missing_data:")
-		pprint(intervals_missing_data)
+		print("- intervals_missing_df:")
+		pprint(intervals_missing_df)
+
+	f_missing=np.full(len(intervals), False) ; f_missing[intervals_missing_df.index]=True
 
 	## Merge together near ranges if the distance between is below threshold.
 	## This is to reduce web requests
-	i_true = np.where(intervals_missing_data)[0]
+	i_true = np.where(f_missing)[0]
 	for i in range(len(i_true)-1):
 		i0 = i_true[i]
 		i1 = i_true[i+1]
 		if i1-i0 <= minDistanceThreshold+1:
 			## Mark all intervals between as missing, thus merging together 
 			## the pair of missing ranges
-			intervals_missing_data[i0+1:i1] = 1
-
+			f_missing[i0+1:i1] = True
 	if debug:
-		print("- intervals_missing_data:")
-		pprint(intervals_missing_data)
+		print("- f_missing:")
+		pprint(f_missing)
 
 	## Scan for contiguous sets of missing intervals:
 	ranges = []
-	i_true = np.where(intervals_missing_data)[0]
+	i_true = np.where(f_missing)[0]
 	if len(i_true) > 0:
 		start = None ; end = None
-		for i in range(len(intervals_missing_data)):
-			v = intervals_missing_data[i]
+		for i in range(len(f_missing)):
+			v = f_missing[i]
 			if v:
 				if start is None:
 					start = i ; end = i
@@ -925,7 +981,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 						ranges.append(r)
 						start = i ; end = i
 
-			if i == (len(intervals_missing_data)-1):
+			if i == (len(f_missing)-1):
 				r = (intervals[start][0], intervals[end][1])
 				ranges.append(r)
 
