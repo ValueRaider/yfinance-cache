@@ -75,7 +75,7 @@ class Test_Yfc_Backend(unittest.TestCase):
 
     def test_yf_lag(self):
         ## Only use high-volume stocks:
-        tkr_candidates = ["AZN.L", "ASML.AS", "IMP.JO", "INTC", "MEL.NZ"]
+        tkr_candidates = ["AZN.L", "ASML.AS", "BHG.JO", "INTC", "MEL.NZ"]
 
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
@@ -383,8 +383,9 @@ class Test_Yfc_Backend(unittest.TestCase):
         times = [time(h,30) for h in range(9,16)]
         dts = []
         for d in days:
-            for t in times:
-                dts.append(datetime.combine(d, t, tz))
+            if yfct.ExchangeOpenOnDay(exchange, d):
+                for t in times:
+                    dts.append(datetime.combine(d, t, tz))
 
         for lag in lags:
             responses = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
@@ -402,11 +403,12 @@ class Test_Yfc_Backend(unittest.TestCase):
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
         intervals = ["30m", "1h", "1d"]
-        start_d = date.today()
+        td_1d = timedelta(days=1)
+        start_d = date.today() -td_1d
         start_d = start_d - timedelta(days=start_d.weekday())
         while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
-            start_d -= timedelta(days=1)
-        end_d = start_d +timedelta(days=1)
+            start_d -= td_1d
+        end_d = start_d +td_1d
         for interval in intervals:
             df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
             self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
@@ -419,6 +421,64 @@ class Test_Yfc_Backend(unittest.TestCase):
         df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
         self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
 
+
+    def test_detect_stock_listing1(self):
+        # HLTH listed on 24/25 SEP 2021
+        # Stress-test listing-date detection:
+        tkr="HLTH"
+        dat = yfc.Ticker(tkr, session=self.session)
+
+        # Init cache:
+        dat.history(start="2021-09-24", end="2021-10-03", interval="1d")
+
+        # If detection failed, then next call will fail
+        start="2021-09-20"
+        try:
+            df = dat.history(start=start, end="2021-10-03", interval="1d")
+        except:
+            raise Exception("history() failed, indicates problem with detecting/handling listing-date")
+
+
+    def test_detect_stock_listing2(self):
+        # HLTH listed on 24/25 SEP 2021
+        # Stress-test listing-date detection:
+        tkr="HLTH"
+        dat = yfc.Ticker(tkr, session=self.session)
+
+        # Init cache:
+        dat.history(period="2y", interval="1d")
+
+        # If detection failed, then next call will fail
+        start="2021-09-20"
+        try:
+            df = dat.history(start=start, end="2021-10-03", interval="1d")
+        except:
+            raise Exception("history() failed, indicates problem with detecting/handling listing-date")
+
+
+    def test_history_bug_pnl(self):
+        # Ticker PNL.L missing 90minutes of trading on morning of 2022-07-18, 
+        # and Yahoo not returning NaN rows in place. So YFC needs to insert NaN rows
+
+        tkr="PNL.L"
+        exchange="LSE"
+        tz_name="Europe/London"
+        tz=ZoneInfo(tz_name)
+        dat = yfc.Ticker(tkr, session=self.session)
+
+        dt0 = datetime(2022,7,18, 8,0,tzinfo=tz)
+        dt1 = datetime(2022,7,18, 9,0,tzinfo=tz)
+
+        start = datetime(2022,7,18,8,0,tzinfo=tz)
+        end = datetime(2022,7,18,10,0,tzinfo=tz)
+        df = dat.history(start=start, end=end, interval="1h", keepna=True)
+        self.assertTrue(df.index[0]==dt0)
+        self.assertTrue(df.index[1]==dt1)
+
+        end = datetime(2022,7,18,16,0,tzinfo=tz)
+        df = dat.history(start=start, end=end, interval="1h", keepna=True)
+        self.assertTrue(df.index[0]==dt0)
+        self.assertTrue(df.index[1]==dt1)
 
 
 if __name__ == '__main__':
