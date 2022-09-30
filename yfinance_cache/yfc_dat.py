@@ -1,10 +1,103 @@
 from enum import Enum
 from datetime import timedelta
 from zoneinfo import ZoneInfo
-
+import numpy as np
 
 yf_data_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'Dividends', 'Stock Splits']
 yf_min_year = 1950
+
+
+class DateInterval:
+	def __init__(self, left, right, closed=None):
+		self.left = left
+		self.right = right
+
+		if closed is None:
+			self.closed = None
+		else:
+			if not closed in ["left","right"]:
+				raise Exception("closed must be left or right")
+			self.closed = closed
+
+	def __eq__(self, other):
+		return self.left==other.left and self.right==other.right and self.closed==other.closed
+
+	def __str__(self):
+		s = ""
+		if self.closed=="left":
+			s += '['
+		else:
+			s += '('
+		s += str(self.left) + ', ' + str(self.right)
+		if self.closed=="right":
+			s += ']'
+		else:
+			s += ')'
+		return s
+
+	def __repr__(self):
+		return self.__str__()
+
+class DateIntervalIndex:
+	def __init__(self, intervals, closed=None):
+		if not isinstance(intervals, np.ndarray):
+			self.array = np.array(intervals)
+		else:
+			self.array = intervals
+
+		if closed is None:
+			self.closed = None
+		else:
+			if not closed in ["left","right"]:
+				raise Exception("closed must be left or right")
+			self.closed = closed
+
+	@classmethod
+	def from_arrays(cls, left, right, closed=None):
+		if len(left) != len(right):
+			raise Exception("left and right must be equal length")
+		l = [DateInterval(left[i], right[i], closed) for i in range(len(left))]
+		return cls(l, closed)
+
+	@property
+	def left(self):
+		return np.array([x.left for x in self.array])
+
+	@property
+	def right(self):
+		return np.array([x.right for x in self.array])
+
+	@property
+	def shape(self):
+		return (len(self.array),2)
+
+	def __getitem__(self, i):
+		v = self.array[i]
+		if isinstance(v, np.ndarray):
+			v = DateIntervalIndex(v, self.closed)
+		return v
+
+	def __setitem__(self,i,v):
+		raise Exception("immutable")
+
+	def __eq__(self,other):
+		if not isinstance(other, DateIntervalIndex):
+			return False
+		if len(self.array) != len(other.array):
+			return False
+		if self.closed != other.closed:
+			return False
+		return np.equal(self.array, other.array).all()
+
+	def __str__(self):
+		s = "[ "
+		for x in self.array:
+			s += x.__str__() + " , "
+		s += "]"
+		return s
+
+	def __repr__(self):
+		return self.__str__()
 
 
 class Period(Enum):
@@ -147,6 +240,10 @@ exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)
 exchangeToYfLag["NZE"] = timedelta(minutes=20)
+
+
+# ASX after-market auction starts at 4:10pm, but no end time given. So allow 1 minute
+asx_auction_duration = timedelta(minutes=1)
 
 
 class NoIntervalsInRangeException(Exception):

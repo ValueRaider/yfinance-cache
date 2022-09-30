@@ -42,7 +42,6 @@ import os
 
 ## TODO:
 ## Test for handling days without trades. Happens most on Toronto exchange
-## Test using 'tz' argument in history()
 
 class Test_Yfc_Interface(unittest.TestCase):
 
@@ -59,7 +58,8 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.usa_tkr = "GME" # Stock split recently
         self.usa_market = "us_market"
         self.usa_exchange = "NMS"
-        self.usa_market_tz = ZoneInfo('US/Eastern')
+        self.usa_market_tz_name = 'US/Eastern'
+        self.usa_market_tz = ZoneInfo(self.usa_market_tz_name)
         self.usa_market_open_time  = time(hour=9, minute=30)
         self.usa_market_close_time = time(hour=16, minute=0)
         self.usa_dat = yfc.Ticker(self.usa_tkr, session=self.session)
@@ -304,6 +304,9 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_history_basics_hour_usa(self):
         # Check fetching single hour
+
+        yfct.SetExchangeTzName(self.usa_exchange, self.usa_market_tz_name)
+
         start_d = date.today() - timedelta(days=1)
         while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
             start_d -= timedelta(days=1)
@@ -521,7 +524,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                     print("Different shapes")
                     raise
                 try:
-                    self.assertTrue(df_yf.index.equals(df_yfc.index))
+                    self.assertTrue(np.equal(df_yf.index, df_yfc.index).all())
                 except:
                     print("df_yf:")
                     print(df_yf)

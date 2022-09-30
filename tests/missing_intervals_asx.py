@@ -57,8 +57,8 @@ class TestMissingIntervals_ASX(unittest.TestCase):
             ## Test 2: known intervals == range -> returns nothing
             startDt = dtc(day1, time(10,0),tz)
             endDt   = dtc(day2, time(16,0),tz)
-            knownIntervalStarts  = [dtc(day1, time(h,0), self.market_tz) for h in [10,11,12,13,14,15]]
-            knownIntervalStarts += [dtc(day2, time(h,0), self.market_tz) for h in [10,11,12,13,14,15]]
+            knownIntervalStarts  = [dtc(day1, time(h,0), self.market_tz) for h in [10,11,12,13,14,15,16]]
+            knownIntervalStarts += [dtc(day2, time(h,0), self.market_tz) for h in [10,11,12,13,14,15,16]]
             answer = None
             ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, startDt, endDt, interval, knownIntervalStarts)
             try:
@@ -274,7 +274,7 @@ class TestMissingIntervals_ASX(unittest.TestCase):
         startDt = dtc(day1,time(10),tz)
         endDt   = dtc(day2,time(16),tz)
         knownIntervalStarts = []
-        for h in [10   ,12  ,14,15]:
+        for h in [10   ,12  ,14,15,16]:
             knownIntervalStarts.append(dtc(day1,time(h),tz))
         for h in [10   ,12  ,14,15]:
             knownIntervalStarts.append(dtc(day2,time(h),tz))
@@ -308,3 +308,11 @@ class TestMissingIntervals_ASX(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(TestMissingIntervals_ASX)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)

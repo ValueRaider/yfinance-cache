@@ -6,6 +6,7 @@ from .context import yfc_dat as yfcd
 
 from datetime import datetime,date,time,timedelta
 from zoneinfo import ZoneInfo
+import pandas as pd
 
 ## 2022 calendar:
 ## X* = day X is public holiday that closed exchange
@@ -24,6 +25,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
         self.tz = 'Australia/Sydney'
         self.market_tz = ZoneInfo(self.tz)
         yfct.SetExchangeTzName(self.exchange, self.tz)
+
 
     def test_ExchangeOpenOnDay(self):
         # Weekdays
@@ -68,121 +70,21 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
         tz2 = yfct.GetExchangeTzName("ASX")
         self.assertEqual(tz2, "Australia/Sydney")
 
-    def test_GetScheduleIntervals_hourly(self):
-        interval = yfcd.Interval.Hours1
-
-        for d in [4,5,6,7,8]:
-            start_d = date(2022,4,d)
-            end_d   = date(2022,4,d+1)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            answer_times = [(time(10,0), time(11,0)), 
-                            (time(11,0), time(12,0)), 
-                            (time(12,0), time(13,0)), 
-                            (time(13,0), time(14,0)), 
-                            (time(14,0), time(15,0)), 
-                            (time(15,0), time(16,0))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-            start_d = date(2022,4,d)
-            start_dt = datetime.combine(start_d, time(11,0), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(14,0), tzinfo=self.market_tz)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
-            answer_times = [(time(11,0), time(12,0)),
-                            (time(12,0), time(13,0)),
-                            (time(13,0), time(14,0))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-            start_d = date(2022,4,d)
-            start_dt = datetime.combine(start_d, time(10,30), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(13,30), tzinfo=self.market_tz)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
-            answer_times = [(time(11,0), time(12,0)),
-                            (time(12,0), time(13,0))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-    def test_GetScheduleIntervals_dayWeek(self):
-        interval = yfcd.Interval.Days1
-        start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-        answer_days = [date(2022,4,4), date(2022,4,5), date(2022,4,6), date(2022,4,7), date(2022,4,8), 
-                        date(2022,4,11), date(2022,4,12), date(2022,4,13), date(2022,4,14)]
-        answer = [(answer_days[i], answer_days[i]+timedelta(days=1)) for i in range(len(answer_days))]
-        try:
-            self.assertEqual(response, answer)
-        except:
-            print("response:")
-            pprint(response)
-            print("answer:")
-            pprint(answer)
-            raise
-
-        intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
-        start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
-        answer = [(date(2022,4,4),date(2022,4,9)) , (date(2022,4,11),date(2022,4,15))]
-        for interval in intervals:
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-        # Start/end dates are in middle of week:
-        start_d = date(2022,4,6) # Wednesday
-        end_d = date(2022,4,20) # Wednesday
-        answer = [(date(2022,4,11),date(2022,4,15))]
-        for interval in intervals:
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
 
     def test_IsTimestampInActiveSession_marketTz(self):
-        hours = [] ; answers = []
-        hours.append(9)  ; answers.append(False) # Before open
-        hours.append(10) ; answers.append(True)  # During session
-        hours.append(16) ; answers.append(False) # Right on close
-        hours.append(17) ; answers.append(False) # After close
+        times = [] ; answers = []
+        times.append(time(9))  ; answers.append(False) # Before open
+        times.append(time(10)) ; answers.append(True)  # During session
+        times.append(time(16)) ; answers.append(True) # Start of auction period
+        times.append(time(16,11)) ; answers.append(False) # Right on close
+        times.append(time(17)) ; answers.append(False) # After close
 
         for d in [4,5,6,7,8]:
-            for i in range(len(hours)):
-                h = hours[i]
+            for i in range(len(times)):
+                t = times[i]
                 answer = answers[i]
 
-                dt = datetime(year=2022, month=4, day=d, hour=h, tzinfo=self.market_tz)
+                dt = datetime.combine(date(2022,4,d), t, tzinfo=self.market_tz)
                 response = yfct.IsTimestampInActiveSession(self.exchange, dt)
                 try:
                     self.assertEqual(response, answer)
@@ -206,20 +108,21 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
                 raise
 
     def test_IsTimestampInActiveSession_utcTz(self):
-        hours = [] ; answers = []
-        hours.append(13) ; answers.append(False) # Before open
-        hours.append(15) ; answers.append(True)  # During session
-        hours.append(21) ; answers.append(False) # Right on close
-        hours.append(22) ; answers.append(False) # After close
+        times = [] ; answers = []
+        times.append(time(9))  ; answers.append(False) # Before open
+        times.append(time(10)) ; answers.append(True)  # During session
+        times.append(time(16)) ; answers.append(True) # Start of auction period
+        times.append(time(16,11)) ; answers.append(False) # Right on close
+        times.append(time(17)) ; answers.append(False) # After close
 
         utc_tz = ZoneInfo("UTC")
 
         for d in [4,5,6,7,8]:
-            for i in range(len(hours)):
-                h = hours[i]
+            for i in range(len(times)):
+                t = times[i]
                 answer = answers[i]
 
-                dt = datetime(year=2022, month=4, day=d, hour=h, tzinfo=utc_tz)
+                dt = datetime.combine(date(2022,4,d), t, tzinfo=utc_tz)
                 response = yfct.IsTimestampInActiveSession(self.exchange, dt)
                 answer = False
                 try:
@@ -250,7 +153,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=10, tzinfo=self.market_tz)
             response = yfct.GetTimestampCurrentSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -297,7 +200,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
                 dt = datetime(year=2022, month=4, day=d, hour=7, tzinfo=self.market_tz)
                 response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
                 answer_open  = datetime(year=2022, month=4, day=d-1, hour=10, minute=0, tzinfo=self.market_tz)
-                answer_close = datetime(year=2022, month=4, day=d-1, hour=16, minute=0, tzinfo=self.market_tz)
+                answer_close = datetime(year=2022, month=4, day=d-1, hour=16, minute=11, tzinfo=self.market_tz)
                 try:
                     self.assertEqual(response["market_open"], answer_open)
                 except:
@@ -317,7 +220,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=10, tzinfo=self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -337,7 +240,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=20, tzinfo=self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -358,7 +261,8 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=10, tzinfo=self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=8, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=8, hour=16, minute=0, tzinfo=self.market_tz)
+            # answer_close = datetime(year=2022, month=4, day=8, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=8, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -380,7 +284,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=7, tzinfo=self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -405,7 +309,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=10, tzinfo=self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=next_d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=next_d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=next_d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -425,7 +329,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             dt = datetime(year=2022, month=4, day=d, hour=20, tzinfo=self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
             answer_open  = datetime(year=2022, month=4, day=next_d, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=next_d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=next_d, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -447,7 +351,7 @@ class Test_Market_Schedules_ASX(unittest.TestCase):
             response = yfct.GetTimestampNextSession(self.exchange, dt)
             # Monday 17th is holiday
             answer_open  = datetime(year=2022, month=4, day=11, hour=10, minute=0, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=4, day=11, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=11, hour=16, minute=11, tzinfo=self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
