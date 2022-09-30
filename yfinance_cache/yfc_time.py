@@ -4,7 +4,6 @@ from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
-import holidays
 import exchange_calendars as xcal
 
 import pandas as pd
