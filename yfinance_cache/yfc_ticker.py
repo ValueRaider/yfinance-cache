@@ -203,7 +203,6 @@ class Ticker:
 				d_now = dt_now.astimezone(tz_exchange).date()
 				sched = yfct.GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
 				# Discard days that haven't opened yet
-				# sched = sched[sched["market_open"]<=dt_now]
 				sched = sched[(sched["market_open"]+self.yf_lag)<=dt_now]
 				last_open_day = sched["market_open"][-1].date()
 				end = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
@@ -212,16 +211,6 @@ class Ticker:
 					start = datetime.datetime.combine(datetime.date(yfcd.yf_min_year, 1, 1), datetime.time(0), tz_exchange)
 				else:
 					start = yfct.DtSubtractPeriod(end, period)
-				# ctr = 0
-				# while not yfct.ExchangeOpenOnDay(exchange, start.date()):
-				# 	start -= td_1d
-				# 	ctr += 1
-				# 	if ctr > 5:
-				# 		ctr = -1 ; break
-				# if ctr==-1:
-				# 	# Search forward instead
-				# 	while not yfct.ExchangeOpenOnDay(exchange, start.date()):
-				# 		start += td_1d
 				while not yfct.ExchangeOpenOnDay(exchange, start.date()):
 					start += td_1d
 				start_d = start.date()
@@ -317,10 +306,6 @@ class Ticker:
 					else:
 						h = self._processYahooAdjustment(h, interval)
 						h_lastAdjustD = df_daily.index[-1].date()
-			if debug:
-				print("- h adjusted:")
-				print(h[["Close","Dividends","Volume","CSF","CDF"]])
-				print("- h_lastAdjustD = {}".format(h_lastAdjustD))
 
 		else:
 			## Performance TODO: only check expiry on datapoints not marked 'final'
@@ -395,9 +380,17 @@ class Ticker:
 						raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
 					rangePre_to_fetch = rangePre_to_fetch[0]
 				#
-				try:
-					rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, dt_now+td_1d, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-				except yfcd.NoIntervalsInRangeException:
+				target_end = dt_now
+				d = dt_now.astimezone(tz).date()
+				sched = yfct.GetExchangeSchedule(exchange, d, d+td_1d)
+				if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["market_open"].iloc[0]):
+					target_end = sched["market_close"].iloc[0]+datetime.timedelta(hours=2)
+				if h_end < target_end:
+					try:
+						rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+					except yfcd.NoIntervalsInRangeException:
+						rangePost_to_fetch = None
+				else:
 					rangePost_to_fetch = None
 				if not rangePost_to_fetch is None:
 					if len(rangePost_to_fetch) > 1:
@@ -440,6 +433,7 @@ class Ticker:
 				quiet = not period is None # YFC generated date range so don't print message
 				if debug:
 					quiet = False
+				# quiet = not debug
 				if interval == yfcd.Interval.Days1:
 					h = self._fetchAndAddRanges_contiguous(h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=quiet)
 					h_lastAdjustD = h.index[-1].date()
@@ -454,6 +448,10 @@ class Ticker:
 
 		if h is None:
 			raise Exception("history() is exiting without price data")
+
+		f_dups = h.index.duplicated()
+		if f_dups.any():
+			raise Exception("These timepoints have been duplicated: ", h.index[f_dups])
 
 		# Cache
 		self._history[interval] = h
@@ -675,6 +673,17 @@ class Ticker:
 
 			df = df_backup
 
+		if (not df is None) and not isinstance(df.index[0].tzinfo, ZoneInfo):
+			# Convert to ZoneInfo
+			df.index = df.index.tz_convert(tz_exchange)
+
+		if debug:
+			if df is None:
+				print("YFC: YF returned None")
+			else:
+				print("YFC: YF returned table:")
+				print(df[["Close","Dividends","Volume"]])
+
 		if pstr is None:
 			if df is None:
 				received_interval_starts = None
@@ -696,6 +705,9 @@ class Ticker:
 				## Normally Yahoo has already filled with NaNs but sometimes they forget/are late
 				nm = intervals_missing_df.shape[0]
 				if (interday and nm==1) or ((not interday) and nm<=2):
+					if debug:
+						print("- found missing intervals, inserting nans:")
+						print(intervals_missing_df)
 					df_missing = pd.DataFrame(data={k:[np.nan]*nm for k in yfcd.yf_data_cols}, index=intervals_missing_df["open"])
 					df_missing.index = pd.to_datetime(df_missing.index)
 					if interday:
@@ -715,10 +727,6 @@ class Ticker:
 		n = df.shape[0]
 
 		fetch_dt = fetch_dt_utc.replace(tzinfo=ZoneInfo("UTC"))
-
-		if debug:
-			print("YFC: YF returned table:")
-			print(df[["Close","Dividends","Volume"]])
 
 		if (n > 0) and (pstr is None):
 			## Remove any out-of-range data:
@@ -763,8 +771,10 @@ class Ticker:
 					sched_df = sched
 					sched_df["_date"] = sched_df.index.date
 					df2 = df2.merge(sched_df, on="_date", how="left")
-					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]<df2["market_open"]).values | (df2["_intervalStart"]>=df2["market_close"]).values)
+					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]==df2["market_close"]).values)
 					if f_drop.any():
+						if debug:
+							print("- dropping 0-volume rows starting at market close")
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
 						df = df[~f_drop]
@@ -775,6 +785,8 @@ class Ticker:
 					## Solution = drop:
 					f_na_zeroVol = f_na & (df["Volume"]==0).values
 					if f_na_zeroVol.any():
+						if debug:
+							print("- dropping 0-volume rows with no matching interval")
 						f_drop = f_na_zeroVol
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
@@ -791,6 +803,8 @@ class Ticker:
 								if (df.loc[dt,yfcd.yf_data_cols] == df.loc[last_dt,yfcd.yf_data_cols]).all():
 									f_drop[i] = True
 						if f_drop.any():
+							if debug:
+								print("- dropping rows with no interval that are identical to previous row")
 							intervalStarts = intervalStarts[~f_drop]
 							intervals = intervals[~f_drop]
 							df = df[~f_drop]
@@ -802,7 +816,7 @@ class Ticker:
 						dt = df.index[idx]
 						ctr += 1
 						if ctr < 10:
-							print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
+							print("Failed to map: {} (exchange={}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
 						elif ctr == 10:
 							print("- stopped printing at 10 failures")
 					raise Exception("Problem with dates returned by Yahoo, see above")

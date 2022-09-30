@@ -25,6 +25,7 @@ class Test_Market_Schedules_NZE(unittest.TestCase):
         self.market_tz = ZoneInfo(self.tz)
         yfct.SetExchangeTzName(self.exchange, self.tz)
 
+
     def test_ExchangeOpenOnDay(self):
         # Weekdays
         for d in [4, 5, 6, 7, 8]:
@@ -68,108 +69,6 @@ class Test_Market_Schedules_NZE(unittest.TestCase):
         tz2 = yfct.GetExchangeTzName("NZE")
         self.assertEqual(tz2, "Pacific/Auckland")
 
-    def test_GetScheduleIntervals_hourly(self):
-        interval = yfcd.Interval.Hours1
-
-        for d in [4,5,6,7,8]:
-            start_d = date(2022,4,d)
-            end_d   = date(2022,4,d+1)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            answer_times = [(time(10,0), time(11,0)), 
-                            (time(11,0), time(12,0)), 
-                            (time(12,0), time(13,0)), 
-                            (time(13,0), time(14,0)), 
-                            (time(14,0), time(15,0)), 
-                            (time(15,0), time(16,0)), 
-                            (time(16,0), time(16,45))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-            start_d = date(2022,4,d)
-            start_dt = datetime.combine(start_d, time(11,0), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(14,0), tzinfo=self.market_tz)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
-            answer_times = [(time(11,0), time(12,0)),
-                            (time(12,0), time(13,0)),
-                            (time(13,0), time(14,0))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-            start_d = date(2022,4,d)
-            start_dt = datetime.combine(start_d, time(10,30), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(13,30), tzinfo=self.market_tz)
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
-            answer_times = [(time(11,0), time(12,0)),
-                            (time(12,0), time(13,0))]
-            answer = [(datetime.combine(start_d, t1, self.market_tz), datetime.combine(start_d, t2, self.market_tz)) for (t1,t2) in answer_times]
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-
-    def test_GetScheduleIntervals_dayWeek(self):
-        interval = yfcd.Interval.Days1
-        start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-        answer_days = [date(2022,4,4), date(2022,4,5), date(2022,4,6), date(2022,4,7), date(2022,4,8), 
-                        date(2022,4,11), date(2022,4,12), date(2022,4,13), date(2022,4,14)]
-        answer = [(answer_days[i], answer_days[i]+timedelta(days=1)) for i in range(len(answer_days))]
-        try:
-            self.assertEqual(response, answer)
-        except:
-            print("response:")
-            pprint(response)
-            print("answer:")
-            pprint(answer)
-            raise
-
-        intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
-        start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
-        answer = [(date(2022,4,4),date(2022,4,9)) , (date(2022,4,11),date(2022,4,15))]
-        for interval in intervals:
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
-        # Start/end dates are in middle of week:
-        start_d = date(2022,4,6) # Wednesday
-        end_d = date(2022,4,20) # Wednesday
-        answer = [(date(2022,4,11),date(2022,4,15))]
-        for interval in intervals:
-            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("response:")
-                pprint(response)
-                print("answer:")
-                pprint(answer)
-                raise
 
     def test_IsTimestampInActiveSession_marketTz(self):
         times = [] ; answers = []

@@ -52,8 +52,8 @@ class Test_Yfc_Backend(unittest.TestCase):
         self.usa_tkr = "INTC"
         self.usa_market = "us_market"
         self.usa_exchange = "NMS"
-        self.usa_market_tz_name = 'US/Eastern'
-        self.usa_market_tz = ZoneInfo('US/Eastern')
+        self.usa_market_tz_name = 'America/New_York'
+        self.usa_market_tz = ZoneInfo('America/New_York')
         self.usa_market_open_time  = time(hour=9, minute=30)
         self.usa_market_close_time = time(hour=16, minute=0)
         self.usa_dat = yfc.Ticker(self.usa_tkr, session=self.session)
@@ -402,6 +402,9 @@ class Test_Yfc_Backend(unittest.TestCase):
 
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
+
+        yfct.SetExchangeTzName(self.usa_exchange, self.usa_market_tz_name)
+
         intervals = ["30m", "1h", "1d"]
         td_1d = timedelta(days=1)
         start_d = date.today() -td_1d
