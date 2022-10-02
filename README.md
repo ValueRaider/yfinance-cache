@@ -38,7 +38,7 @@ msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
 
 ## Installation
 
-Now available on PIP. But requires some changes to `yfinance` which I am working to merge in - some in now, some remaining. If willing to help test come say hello in https://github.com/yfinance-fork-team/yfinance-x/discussions
+Now available on PIP. But requires some changes to `yfinance` which I am slowly merging in - some already in, but some waiting until I have tested thoroughly. If willing to help test come say hello in https://github.com/yfinance-fork-team/yfinance-x/discussions
 
 ## Known issues / pending tasks
 
