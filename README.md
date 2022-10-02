@@ -38,16 +38,7 @@ msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
 
 ## Installation
 
-Now available on PIP. You will need my fork of `yfinance` on branch 'integrate' - this has various essential fixes (eventually will merge upstream): https://github.com/ValueRaider/yfinance/tree/integrate
-
-To override PIP install of `yfinance`:
-```
-import sys
-sys.path.insert(0, "path/to/my/fork/of/yfinance")
-import yfinance as yf
-import yfinance_cache as yfc
-print(yf) # verify loading my fork of version yfinance
-```
+Now available on PIP. But requires some changes to `yfinance` which I am slowly merging in - some already in, but some waiting until I have tested thoroughly. If willing to help test come say hello in https://github.com/yfinance-fork-team/yfinance-x/discussions
 
 ## Known issues / pending tasks
 
