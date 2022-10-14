@@ -38,7 +38,9 @@ msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
 
 ## Installation
 
-Now available on PIP. But requires some changes to `yfinance` which I am slowly merging in - some already in, but some waiting until I have tested thoroughly. If willing to help, pop a message in https://github.com/ranaroussi/yfinance/discussions
+Now available on PIP. But requires 'development' versions of yfinance and exchange_calendars (hopefully soon changes merged into main) - I advise against messing with PIP for these, instead used `sys.path` or `PYTHONPATH`:
+- yfinance 'dev' branch - https://github.com/ranaroussi/yfinance/tree/dev
+- forked exchange_calendars 'dev' branch - https://github.com/ValueRaider/exchange_calendars/tree/dev
 
 ## Known issues / pending tasks
 
