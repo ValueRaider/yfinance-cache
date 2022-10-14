@@ -228,7 +228,15 @@ class Ticker:
 			return None
 
 		if not start is None:
-			sched = yfct.GetExchangeSchedule(exchange, start.date(), start.date()+4*td_1d)
+			try:
+				sched = yfct.GetExchangeSchedule(exchange, start.date(), start.date()+7*td_1d)
+			except Exception as e:
+				if "Need to add mapping" in str(e):
+					raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(self.info["exchange"], self.ticker))
+				else:
+					raise
+			if sched is None:
+				raise Exception("sched is None for date range {}->{} and ticker {}".format(start.date(), start.date()+4*td_1d, self.ticker))
 			if sched["market_open"][0] > dt_now:
 				# Requested date range is in future
 				return None
@@ -451,7 +459,7 @@ class Ticker:
 
 		f_dups = h.index.duplicated()
 		if f_dups.any():
-			raise Exception("These timepoints have been duplicated: ", h.index[f_dups])
+			raise Exception("{}: These timepoints have been duplicated: {}".format(self.ticker, h.index[f_dups]))
 
 		# Cache
 		self._history[interval] = h
@@ -1618,8 +1626,9 @@ class Ticker:
 		df_1mins_lastDt = df_1mins.index[df_1mins.shape[0]-1].to_pydatetime()
 
 		lag = dt_now - df_1mins_lastDt
-		if lag > datetime.timedelta(minutes=40):
-			raise Exception("{}: calculated YF lag as {}, seems excessive".format(self.ticker, lag))
+		## Update: ignore all large lags
+		# if lag > datetime.timedelta(minutes=40):
+		# 	raise Exception("{}: calculated YF lag as {}, seems excessive".format(self.ticker, lag))
 		if lag < datetime.timedelta(seconds=0):
 			print("dt_now = {} (tz={})".format(dt_now, dt_now.tzinfo))
 			print("df_1mins:")

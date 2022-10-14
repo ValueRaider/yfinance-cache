@@ -57,7 +57,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 raise
 
             start_dt = datetime.combine(start_d, time(11,0), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(14,0), tzinfo=self.market_tz)
+            end_dt   = datetime.combine(start_d, time(14,0), tzinfo=self.market_tz)
             response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
             answer_times = [(time(11,0), time(12,0)),
                             (time(12,0), time(13,0)),
@@ -75,7 +75,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 raise
 
             start_dt = datetime.combine(start_d, time(10,30), tzinfo=self.market_tz)
-            end_dt = datetime.combine(start_d, time(13,30), tzinfo=self.market_tz)
+            end_dt   = datetime.combine(start_d, time(13,30), tzinfo=self.market_tz)
             response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_dt, end_dt, weeklyUseYahooDef=False)
             answer_times = [(time(11,0), time(12,0)),
                             (time(12,0), time(13,0))]
@@ -94,7 +94,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
     def test_GetScheduleIntervals_dayWeek(self):
         interval = yfcd.Interval.Days1
         start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
+        end_d   = date(2022,4,16) # next Saturday
         response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
         answer_days = [date(2022,4,4), date(2022,4,5), date(2022,4,6), date(2022,4,7), date(2022,4,8), 
                         date(2022,4,11), date(2022,4,12), date(2022,4,13), date(2022,4,14)]
@@ -110,9 +110,12 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
             raise
 
         intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
+
+        # weeklyUseYahooDef = False
         start_d = date(2022,4,4) # Monday
-        end_d = date(2022,4,16) # next Saturday
-        answer = yfcd.DateIntervalIndex.from_arrays([date(2022,4,4),date(2022,4,11)], [date(2022,4,9),date(2022,4,15)], closed="left")
+        end_d   = date(2022,4,16) # next Saturday
+        answer = yfcd.DateIntervalIndex([yfcd.DateInterval(date(2022,4,4), date(2022,4,9), closed="left"),
+                                         yfcd.DateInterval(date(2022,4,11),date(2022,4,15),closed="left")])
         for interval in intervals:
             response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
             try:
@@ -125,10 +128,40 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 raise
         # Start/end dates are in middle of week:
         start_d = date(2022,4,6) # Wednesday
-        end_d = date(2022,4,20) # Wednesday
-        answer = yfcd.DateIntervalIndex.from_arrays([date(2022,4,11)], [date(2022,4,15)], closed="left")
+        end_d   = date(2022,4,20) # Wednesday
+        answer = yfcd.DateIntervalIndex([yfcd.DateInterval(date(2022,4,11),date(2022,4,15),closed="left")])
         for interval in intervals:
             response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=False)
+            try:
+                self.assertTrue(response==answer)
+            except:
+                print("response:")
+                pprint(response)
+                print("answer:")
+                pprint(answer)
+                raise
+
+        # weeklyUseYahooDef = True
+        start_d = date(2022,4,4) # Monday
+        end_d   = date(2022,4,18) # next Monday
+        answer = yfcd.DateIntervalIndex([yfcd.DateInterval(date(2022,4,4), date(2022,4,11), closed="left"),
+                                         yfcd.DateInterval(date(2022,4,11),date(2022,4,18),closed="left")])
+        for interval in intervals:
+            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=True)
+            try:
+                self.assertTrue(response==answer)
+            except:
+                print("response:")
+                pprint(response)
+                print("answer:")
+                pprint(answer)
+                raise
+        # Start/end dates are in middle of week:
+        start_d = date(2022,4,6) # Wednesday
+        end_d   = date(2022,4,20) # Wednesday
+        answer = yfcd.DateIntervalIndex([yfcd.DateInterval(date(2022,4,11),date(2022,4,18),closed="left")])
+        for interval in intervals:
+            response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, weeklyUseYahooDef=True)
             try:
                 self.assertTrue(response==answer)
             except:
@@ -150,8 +183,8 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         intervals.append(yfcd.Interval.Mins90)
         intervals.append(yfcd.Interval.Hours1)
         times = []
-        times.append(time(10, 0))
-        times.append(time(13, 0))
+        times.append(time(10,0))
+        times.append(time(13,0))
         for i in range(len(intervals)):
             interval = intervals[i]
             interval_td = yfcd.intervalToTimedelta[interval]
@@ -197,24 +230,25 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                         pprint(answer)
                         raise
 
+        # weeklyUseYahooDef=True
         intervals = []
         intervals.append(yfcd.Interval.Days1)
         intervals.append(yfcd.Interval.Days5)
         intervals.append(yfcd.Interval.Week)
         times = []
-        times.append(time(10, 0))
-        times.append(time(15, 0))
+        times.append(time(10,0))
+        times.append(time(15,0))
         for i in range(len(intervals)):
             interval = intervals[i]
             for d in [4,5,6,7,8]:
                 day = date(2022,4,d)
                 for t in times:
                     dt = datetime.combine(day, t, self.market_tz)
-                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval)
+                    intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval, weeklyUseYahooDef=True)
                     if interval == yfcd.Interval.Days1:
                         answer = {"interval_open":day, "interval_close":day+timedelta(days=1)}
                     else:
-                        answer = {"interval_open":date(2022,4,4), "interval_close":date(2022,4,9)}
+                        answer = {"interval_open":date(2022,4,4), "interval_close":date(2022,4,11)}
                     try:
                         self.assertEqual(intervalRange, answer)
                     except:
@@ -263,10 +297,10 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         times.append(time(8))
         times.append(time(14))
         times.append(time(18))
-        answer = {"interval_open":day, "interval_close":day+timedelta(days=5)}
+        answer = {"interval_open":day, "interval_close":day+timedelta(days=7)}
         for i in range(len(intervals)):
             interval = intervals[i]
-            for d in [18,19,20,21,22]:
+            for d in range(18,25):
                 day = date(2022,4,d)
                 for t in times:
                     dt = datetime.combine(day, t, self.market_tz)
@@ -407,23 +441,6 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                     print("answer:")
                     pprint(answer)
                     raise
-        ## 2) weeklyUseYahooDef=True, so self.monday_pubHol treated as in-interval
-        for d in [16,17]:
-            day = date(2022,4,d)
-            dt = datetime.combine(day, t, self.market_tz)
-            for i in range(len(intervals)):
-                interval = intervals[i]
-                intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, dt, interval, weeklyUseYahooDef=True)
-                try:
-                    self.assertEqual(intervalRange, answer)
-                except:
-                    print("interval = {0}".format(interval))
-                    print("dt = {0}".format(dt))
-                    print("intervalRange:")
-                    pprint(intervalRange)
-                    print("answer:")
-                    pprint(answer)
-                    raise
 
     def test_GetTimestampCurrentInterval_weeklyOnPubHoliday(self):
         intervals = [yfcd.Interval.Days5, yfcd.Interval.Week]
@@ -435,7 +452,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 self.assertEqual(intervalRange, answer)
             except:
                 print("interval = {0}".format(interval))
-                print("d = {0}".format(d))
+                print("day={0}, weeklyUseYahooDef=False".format(day))
                 print("intervalRange:")
                 pprint(intervalRange)
                 print("answer:")
@@ -443,12 +460,12 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                 raise
 
             intervalRange = yfct.GetTimestampCurrentInterval(self.exchange, day, interval, weeklyUseYahooDef=True)
-            answer = {"interval_open":date(2022,4,18), "interval_close":date(2022,4,23)}
+            answer = {"interval_open":date(2022,4,18), "interval_close":date(2022,4,25)}
             try:
                 self.assertEqual(intervalRange, answer)
             except:
                 print("interval = {0}".format(interval))
-                print("d = {0}".format(d))
+                print("day={0}, weeklyUseYahooDef=True".format(day))
                 print("intervalRange:")
                 pprint(intervalRange)
                 print("answer:")
@@ -459,7 +476,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         interval = yfcd.Interval.Hours1
 
         dts = []
-        for d in range(4,20):
+        for d in range(4, 18):
             dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
             dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
             for h in range(10,16):
@@ -483,13 +500,17 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                     self.assertEqual(response["interval_close"], answer["interval_close"])
                 except:
                     print("Test fail with dt={}".format(dts[i]))
+                    print("response:")
+                    pprint(response)
+                    print("answer:")
+                    pprint(answer)
                     raise
 
     def test_GetTimestampCurrentInterval_daily_batch(self):
         interval = yfcd.Interval.Days1
 
         dts = []
-        for d in range(4,20):
+        for d in range(4,18):
             dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
             dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
             for h in range(10,16):
@@ -519,7 +540,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         interval = yfcd.Interval.Week
 
         dts = []
-        for d in range(4,20):
+        for d in range(4,18):
             dts.append(datetime(2022,4, d, 9,29,tzinfo=self.market_tz))
             dts.append(datetime(2022,4, d, 9,30,tzinfo=self.market_tz))
             for h in range(10,16):
@@ -544,6 +565,10 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                     self.assertEqual(response["interval_close"], answer["interval_close"])
                 except:
                     print("Test fail with dt={}".format(dts[i]))
+                    print("response:")
+                    print("{} -> {}".format(response["interval_open"], response["interval_close"]))
+                    print("answer:")
+                    print("{} -> {}".format(answer["interval_open"], answer["interval_close"]))
                     raise
 
         # weeklyUseYahooDef=False
@@ -578,8 +603,8 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         intervals.append(yfcd.Interval.Mins60)
         intervals.append(yfcd.Interval.Hours1)
         times = []
-        times.append(time(10,0))
-        times.append(time(14,0))
+        times.append(self.market_open_time)
+        times.append(time(14, 0))
         for i in range(len(intervals)):
             interval = intervals[i]
             interval_td = yfcd.intervalToTimedelta[interval]
@@ -700,7 +725,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         # If a day interval, is next working day regardless of today
         interval = yfcd.Interval.Days1
         times = []
-        times.append(time(10, 0))
+        times.append(self.market_open_time)
         times.append(time(15, 30))
         for d in [4,5,6,7,8]:
             for t in times:
@@ -724,7 +749,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
                     print("answer:")
                     pprint(answer)
                     raise
-        dt = datetime.combine(date(2022,4,9), t, self.market_tz)
+        dt = datetime.combine(date(2022,4,9), time(15,0), self.market_tz)
         intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
         answer = {}
         answer["interval_open"] = date(2022,4,11)
@@ -744,7 +769,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         intervals.append(yfcd.Interval.Days5)
         intervals.append(yfcd.Interval.Week)
         times = []
-        times.append(time(10, 0))
+        times.append(self.market_open_time)
         times.append(time(15, 30))
         # Next week
         answer = {}
@@ -752,7 +777,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         answer["interval_close"] = date(2022,4,15) # Skip Friday because holiday
         for i in range(len(intervals)):
             interval = intervals[i]
-            for d in [4,5,6,7,8,9]:
+            for d in range(4,11):
                 for t in times:
                     dt = datetime.combine(date(2022,4,d), t, self.market_tz)
                     intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval, weeklyUseYahooDef=False)
@@ -778,10 +803,10 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         # Next week
         answer = {}
         answer["interval_open"] = date(2022,4,11)
-        answer["interval_close"] = date(2022,4,16) # Treat Friday as active despite holiday
+        answer["interval_close"] = date(2022,4,18)
         for i in range(len(intervals)):
             interval = intervals[i]
-            for d in [4,5,6,7,8,9]:
+            for d in range(4,11):
                 for t in times:
                     dt = datetime.combine(date(2022,4,d), t, self.market_tz)
                     intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval, weeklyUseYahooDef=True)
@@ -875,7 +900,7 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         # If day interval, is next working day regardless of today
         interval = yfcd.Interval.Days1
         times = []
-        times.append(time(10, 0))
+        times.append(self.market_open_time)
         times.append(time(16, 0))
         for d in [4,5,6,7,8]:
             for t in times:
@@ -912,10 +937,10 @@ class Test_Market_Intervals_NZE(unittest.TestCase):
         for i in range(len(intervals)):
             interval = intervals[i]
             for dt in dates:
-                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval)
+                intervalRange = yfct.GetTimestampNextInterval(self.exchange, dt, interval, weeklyUseYahooDef=True)
                 answer = {}
-                answer["interval_open"]  = date(2022,4,4+7)
-                answer["interval_close"] = date(2022,4,4+7+5)
+                answer["interval_open"]  = date(2022,4,11)
+                answer["interval_close"] = date(2022,4,18)
                 try:
                     self.assertEqual(intervalRange, answer)
                 except:

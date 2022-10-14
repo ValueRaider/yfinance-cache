@@ -19,7 +19,6 @@ from zoneinfo import ZoneInfo
 class Test_Market_Schedules_NZE(unittest.TestCase):
 
     def setUp(self):
-        self.market = "nz_market"
         self.exchange = "NZE"
         self.tz = 'Pacific/Auckland'
         self.market_tz = ZoneInfo(self.tz)
@@ -192,26 +191,30 @@ class Test_Market_Schedules_NZE(unittest.TestCase):
 
     def test_GetTimestampMostRecentSession(self):
         for d in [4,5,6,7,8]:
-            if d > 4:
-                # Before open
-                dt = datetime(year=2022, month=4, day=d, hour=7, tzinfo=self.market_tz)
-                response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
-                answer_open  = datetime(year=2022, month=4, day=d-1, hour=10, minute=0,  tzinfo=self.market_tz)
-                answer_close = datetime(year=2022, month=4, day=d-1, hour=16, minute=45, tzinfo=self.market_tz)
-                try:
-                    self.assertEqual(response["market_open"], answer_open)
-                except:
-                    print("dt = {0}".format(dt))
-                    print("response = {0}".format(response["market_open"]))
-                    print("answer = {0}".format(answer_open))
-                    raise
-                try:
-                    self.assertEqual(response["market_close"], answer_close)
-                except:
-                    print("dt = {0}".format(dt))
-                    print("response = {0}".format(response["market_close"]))
-                    print("answer = {0}".format(answer_close))
-                    raise
+            if d == 4:
+                last_d = 1
+            else:
+                last_d = d-1
+
+            # Before open
+            dt = datetime(year=2022, month=4, day=d, hour=7, tzinfo=self.market_tz)
+            response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
+            answer_open  = datetime(year=2022, month=4, day=last_d, hour=10, minute=0,  tzinfo=self.market_tz)
+            answer_close = datetime(year=2022, month=4, day=last_d, hour=16, minute=45, tzinfo=self.market_tz)
+            try:
+                self.assertEqual(response["market_open"], answer_open)
+            except:
+                print("dt = {0}".format(dt))
+                print("response = {0}".format(response["market_open"]))
+                print("answer = {0}".format(answer_open))
+                raise
+            try:
+                self.assertEqual(response["market_close"], answer_close)
+            except:
+                print("dt = {0}".format(dt))
+                print("response = {0}".format(response["market_close"]))
+                print("answer = {0}".format(answer_close))
+                raise
 
             # During session
             dt = datetime(year=2022, month=4, day=d, hour=10, tzinfo=self.market_tz)

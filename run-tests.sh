@@ -2,28 +2,48 @@
 
 _main() (
 	rm "$HOME"/.cache/yfinance.cache
-	
-	ls tests | while read F ; do
-		if [ "$F" = "context.py" ] || [ "$F" = "__init__.py" ] || [ "$F" = "__pycache__" ]; then
-			continue
-		elif [ -d tests/"$F" ]; then
-			continue
-		elif [ "$F" = "yfc_adjust.py" ] || [ "$F" = "yfc_interface.py" ]; then
-			continue
-		fi
 
-		echo "Running tests in tests/$F ..."
-		F2=`basename -s .py $F`
-		python -m tests.$F2
+	set -e
+	
+	EXCHANGES=(usa nze asx tlv)
+	PERIODS=(h d w)
+
+	export PYTHONPATH="$HOME"/ReposForks/exchange_calendars.dev
+	
+	TESTS=(cache datetime-assumptions utils time_utils)
+	for T in "${TESTS[@]}" ; do
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
 	done
 
-	F=yfc_adjust
-	echo "Running tests in tests/$F.py ..."
-	python -m tests.$F
+	for E in "${EXCHANGES[@]}" ; do
+		T="market_schedules_$E"
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
+	done
+	for E in "${EXCHANGES[@]}" ; do
+		T="market_intervals_$E"
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
+	done
+	for E in "${EXCHANGES[@]}" ; do
+		T="missing_intervals_$E"
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
+	done
 
-	F=yfc_interface
-	echo "Running tests in tests/$F.py ..."
-	python -m tests.$F
+	for P in "${PERIODS[@]}" ; do
+		T="price_data_aging_1$P"
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
+	done
+
+	Y=(yf_assumptions yfc_backend yfc_adjust yfc_interface)
+	for T in "${Y[@]}" ; do
+		echo "Running tests in tests/$T ..."
+		python -m tests.$T
+	done
+
 )
 
 _main
