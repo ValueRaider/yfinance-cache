@@ -296,7 +296,7 @@ class TestMissingIntervals_NZE(unittest.TestCase):
 
         knownIntervalStarts = [date(2022,4,4)]
         answer = None
-        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, date(2022,4,4), date(2022,4,9), interval, knownIntervalStarts)
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, date(2022,4,4), date(2022,4,11), interval, knownIntervalStarts, weeklyUseYahooDef=True)
         try:
             self.assertEqual(ranges, answer)
         except:

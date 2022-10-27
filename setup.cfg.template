@@ -23,6 +23,7 @@ install_requires =
     yfinance >= 0.1.74
     pandas >= 1.5
     exchange_calendars >= 4.2.3
+    scipy >= 1.6.3
 
 [options.packages.find]
 where = ./

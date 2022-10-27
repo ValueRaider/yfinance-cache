@@ -39,25 +39,18 @@ class DateInterval:
 		return self.__str__()
 
 class DateIntervalIndex:
-	def __init__(self, intervals, closed=None):
+	def __init__(self, intervals):
 		if not isinstance(intervals, np.ndarray):
 			self.array = np.array(intervals)
 		else:
 			self.array = intervals
-
-		if closed is None:
-			self.closed = None
-		else:
-			if not closed in ["left","right"]:
-				raise Exception("closed must be left or right")
-			self.closed = closed
 
 	@classmethod
 	def from_arrays(cls, left, right, closed=None):
 		if len(left) != len(right):
 			raise Exception("left and right must be equal length")
 		l = [DateInterval(left[i], right[i], closed) for i in range(len(left))]
-		return cls(l, closed)
+		return cls(l)
 
 	@property
 	def left(self):
@@ -74,7 +67,7 @@ class DateIntervalIndex:
 	def __getitem__(self, i):
 		v = self.array[i]
 		if isinstance(v, np.ndarray):
-			v = DateIntervalIndex(v, self.closed)
+			v = DateIntervalIndex(v)
 		return v
 
 	def __setitem__(self,i,v):
@@ -84,8 +77,6 @@ class DateIntervalIndex:
 		if not isinstance(other, DateIntervalIndex):
 			return False
 		if len(self.array) != len(other.array):
-			return False
-		if self.closed != other.closed:
 			return False
 		return np.equal(self.array, other.array).all()
 
@@ -103,6 +94,7 @@ class DateIntervalIndex:
 class Period(Enum):
 	Days1 = 0
 	Days5 = 1
+	Week = 2
 	Months1 = 10
 	Months3 = 11
 	Months6 = 12
@@ -115,6 +107,7 @@ class Period(Enum):
 periodToString = {}
 periodToString[Period.Days1] = "1d"
 periodToString[Period.Days5] = "5d"
+periodToString[Period.Week] = "1wk"
 periodToString[Period.Months1] = "1mo"
 periodToString[Period.Months3] = "3mo"
 periodToString[Period.Months6] = "6mo"
@@ -136,7 +129,6 @@ class Interval(Enum):
 	Mins90 = 6
 	Hours1 = 10
 	Days1 = 20
-	Days5 = 21
 	Week = 30
 	Months1 = 40
 	Months3 = 41
@@ -150,7 +142,6 @@ intervalToString[Interval.Mins60] = "60m"
 intervalToString[Interval.Mins90] = "90m"
 intervalToString[Interval.Hours1] = "1h"
 intervalToString[Interval.Days1] = "1d"
-intervalToString[Interval.Days5] = "5d"
 intervalToString[Interval.Week] = "1wk"
 intervalToString[Interval.Months1] = "1mo"
 intervalToString[Interval.Months3] = "3mo"
@@ -165,26 +156,11 @@ intervalToTimedelta[Interval.Mins60] = timedelta(minutes=60)
 intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
 intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
 intervalToTimedelta[Interval.Days1] = timedelta(days=1)
-intervalToTimedelta[Interval.Days5] = timedelta(days=5)
 intervalToTimedelta[Interval.Week] = timedelta(days=7)
 # intervalToTimedelta[Interval.Months1] = None ## irregular time interval
 # intervalToTimedelta[Interval.Months3] = None ## irregular time interval
 
 
-# exchangeToMcalExchange = {}
-# exchangeToMcalExchange["AMS"] = "XAMS"
-# exchangeToMcalExchange["ASE"] = "NYSE"
-# exchangeToMcalExchange["EBS"] = "SIX"
-# exchangeToMcalExchange["IOB"] = "LSE"
-# exchangeToMcalExchange["JNB"] = "XJSE"
-# exchangeToMcalExchange["LSE"] = "LSE"
-# exchangeToMcalExchange["NCM"] = "NASDAQ"
-# exchangeToMcalExchange["NGM"] = "NASDAQ"
-# exchangeToMcalExchange["NMS"] = "NASDAQ"
-# exchangeToMcalExchange["NYQ"] = "NYSE"
-# exchangeToMcalExchange["PAR"] = "XPAR"
-# exchangeToMcalExchange["PNK"] = "NYSE"
-# exchangeToMcalExchange["TOR"] = "TSX"
 exchangeToXcalExchange = {}
 # USA:
 exchangeToXcalExchange["NYQ"] = "XNYS"
@@ -201,11 +177,14 @@ exchangeToXcalExchange["LSE"] = "XLON" # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
 exchangeToXcalExchange["AMS"] = "XAMS" # Amsterdam
 exchangeToXcalExchange["EBS"] = "XSWX" # Zurich
+exchangeToXcalExchange["ISE"] = "XDUB" # Ireland
+exchangeToXcalExchange["MCE"] = "XMAD" # Madrid
 exchangeToXcalExchange["MIL"] = "XMIL" # Milan
 exchangeToXcalExchange["OSL"] = "XOSL" # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR" # Paris
-exchangeToXcalExchange["GER"] = "XFRA" # Frankfurt. Germany also has XETRA, but that's part of Frankfurt exchange
+exchangeToXcalExchange["GER"] = "XFRA" # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
 # Other:
+exchangeToXcalExchange["TLV"] = "XTAE" # Israel
 exchangeToXcalExchange["JNB"] = "XJSE" # Johannesburg
 exchangeToXcalExchange["SAO"] = "BVMF" # Sao Paulo
 exchangeToXcalExchange["JPX"] = "JPX"  # Tokyo
@@ -231,19 +210,31 @@ exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
 exchangeToYfLag["GER"] = timedelta(minutes=15)
+exchangeToYfLag["ISE"] = timedelta(minutes=15)
+exchangeToYfLag["MCE"] = timedelta(minutes=15)
 exchangeToYfLag["MIL"] = timedelta(minutes=20)
 exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
 # Other:
+exchangeToYfLag["TLV"] = timedelta(minutes=20)
 exchangeToYfLag["JNB"] = timedelta(minutes=15)
 exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)
 exchangeToYfLag["NZE"] = timedelta(minutes=20)
 
-
-# ASX after-market auction starts at 4:10pm, but no end time given. So allow 1 minute
-asx_auction_duration = timedelta(minutes=1)
+# After-market auctions:
+exchangesWithAuction = set()
+exchangeAuctionDelay = {}
+exchangeAuctionDuration = {}
+# ASX after-market auction starts 10m after close but no end time given. So allow 1 minute
+exchangesWithAuction.add("ASX")
+exchangeAuctionDelay["ASX"] = timedelta(minutes=10)
+exchangeAuctionDuration["ASX"] = timedelta(minutes=1)
+# TLB after-market auction starts 9m after close but no end time given. So allow 1 minute
+exchangesWithAuction.add("TLV")
+exchangeAuctionDelay["TLV"] = timedelta(minutes=9)
+exchangeAuctionDuration["TLV"] = timedelta(minutes=2) # One extra minute because of randomised start time
 
 
 class NoIntervalsInRangeException(Exception):

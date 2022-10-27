@@ -1,49 +1,98 @@
+import numpy as np
 import unittest
+from pprint import pprint
 
-from .context import yfc_utils as yfcu
+class Test_Base(unittest.TestCase):
+    def verify_df(self, df, answer, rtol=None, different=False):
+        if df.shape[0] != answer.shape[0]:
+            # print("df:")
+            # print(df)
+            # print("answer:")
+            # print(answer)
 
-class TestUtils(unittest.TestCase):
+            missing_from_answer = sorted(list(set(df.index)-set(answer.index)))
+            print("missing_from_answer: #",len(missing_from_answer))
+            if len(missing_from_answer) <= 5:
+                pprint(missing_from_answer)
+            else:
+                pprint("{} ...".format(missing_from_answer[0:5]))
 
-    def setUp(self):
-        pass
+            if len(missing_from_answer) > 0:
+                print("First day missing from answer:")
+                print("df:")
+                print(df[df.index.date==missing_from_answer[0].date()])
+                print("answer:")
+                print(answer[answer.index.date==missing_from_answer[0].date()])
 
-    def test_sigfigs(self):
-        self.assertEqual(yfcu.GetSigFigs(1.0), 1)
-        self.assertEqual(yfcu.GetSigFigs(1.1), 2)
-        self.assertEqual(yfcu.GetSigFigs(9.0), 1)
-        self.assertEqual(yfcu.GetSigFigs(9.9), 2)
+            missing_from_df = sorted(list(set(answer.index)-set(df.index)))
+            print("missing_from_df: #",len(missing_from_df))
+            if len(missing_from_df) <= 5:
+                pprint(missing_from_df)
+            else:
+                pprint("{} ...".format(missing_from_df[0:5]))
 
-        self.assertEqual(yfcu.GetSigFigs(11.0), 2)
+            if len(missing_from_df) > 0:
+                print("First day missing from df:")
+                print("df:")
+                print(df[df.index.date==missing_from_df[0].date()])
+                print("answer:")
+                print(answer[answer.index.date==missing_from_df[0].date()])
 
+            raise Exception("Different #rows: df={}, answer={}".format(df.shape[0], answer.shape[0]))
 
-    def test_magnitude(self):
-        self.assertEqual(yfcu.GetMagnitude(1.0), 1)
-        self.assertEqual(yfcu.GetMagnitude(9.0), 1)
-        self.assertEqual(yfcu.GetMagnitude(9.9), 1)
+        if "Final?" in df.columns:
+            last_row_final = df["Final?"].values[-1]
+        else:
+            last_row_final = True
 
-        self.assertEqual(yfcu.GetMagnitude(0.1), -1)
-        self.assertEqual(yfcu.GetMagnitude(0.9), -1)
-        self.assertEqual(yfcu.GetMagnitude(0.99), -1)
+        dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+        for dc in dcs:
+            if not (dc in df.columns and dc in answer.columns):
+                continue
 
-        self.assertEqual(yfcu.GetMagnitude(0.01), -2)
-        self.assertEqual(yfcu.GetMagnitude(0.09), -2)
+            # if (rtol is None) or (rtol == 0):
+            #     f = np.array_equal(df[dc], answer[dc], equal_nan=True)
+            # else:
+            if rtol is None:
+                rtol = 0.0
+            f = np.isclose(df[dc].values, answer[dc].values, equal_nan=True, rtol=rtol)
 
+            if different:
+                # Test requires difference, not equality
+                f = ~f
+            else:
+                if not last_row_final:
+                    ## Ignore last row because data is live, can change between YF and YFC calls
+                    f[-1] = True
 
-    def test_calculateRounding(self):
-        self.assertEqual(yfcu.CalculateRounding(12345, 4), 0)
-        self.assertEqual(yfcu.CalculateRounding(1234, 4), 0)
-        self.assertEqual(yfcu.CalculateRounding(123, 4), 0)
+            try:
+                self.assertTrue(f.all())
+            except:
+                f = ~f
+                debug_cols_to_print = [dc]
+                debug_cols_to_print += [c for c in ["CSF","CDF"] if c in df.columns]
+                if sum(f) < 20:
+                    if different:
+                        print("{}/{} matches in column {}:".format(sum(f), df.shape[0], dc))
+                    else:
+                        print("{}/{} differences in column {}:".format(sum(f), df.shape[0], dc))
+                    print("- answer:")
+                    print(answer[f][[dc]])
+                    print("- result:")
+                    print(df[f][debug_cols_to_print])
+                else:
+                    if different:
+                        print("{}/{} matches in column {}".format(sum(f), df.shape[0], dc))
+                    else:
+                        print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
 
-        self.assertEqual(yfcu.CalculateRounding(123.4, 4), 1)
-        self.assertEqual(yfcu.CalculateRounding(12.34, 4), 2)
-        self.assertEqual(yfcu.CalculateRounding(1.234, 4), 3)
-        self.assertEqual(yfcu.CalculateRounding(.1234, 4), 4)
-
-        self.assertEqual(yfcu.CalculateRounding(123.4, 3), 0)
-        self.assertEqual(yfcu.CalculateRounding(12.34, 3), 1)
-        self.assertEqual(yfcu.CalculateRounding(1.234, 3), 2)
-        self.assertEqual(yfcu.CalculateRounding(.1234, 3), 3)
-
-
-if __name__ == '__main__':
-    unittest.main()
+                last_diff_idx = np.where(f)[0][-1]
+                x = df[dc][last_diff_idx]
+                y = answer[dc][last_diff_idx]
+                last_diff = x - y
+                print("- last_diff: {} - {} = {}".format(x, y, last_diff))
+                print("- answer:")
+                print(answer.iloc[last_diff_idx])
+                print("- result:")
+                print(df.iloc[last_diff_idx])
+                raise

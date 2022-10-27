@@ -1,6 +1,7 @@
-import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
+# import sys ; sys.path.insert(0, "/home/gonzo/ReposExternal/yfinance-dev")
 
 import unittest
+import tempfile
 from pprint import pprint
 
 from .context import yfc_dat as yfcd
@@ -8,10 +9,9 @@ from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
+from .utils import Test_Base
 
 import yfinance as yf
-
-import tempfile
 
 import pandas as pd
 import numpy as np
@@ -43,7 +43,7 @@ import os
 ## TODO:
 ## Test for handling days without trades. Happens most on Toronto exchange
 
-class Test_Yfc_Interface(unittest.TestCase):
+class Test_Yfc_Interface(Test_Base):
 
     def setUp(self):
         self.tempCacheDir = tempfile.TemporaryDirectory()
@@ -54,8 +54,13 @@ class Test_Yfc_Interface(unittest.TestCase):
         self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
         self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
-        # self.usa_tkr = "INTC"
-        self.usa_tkr = "GME" # Stock split recently
+        self.tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
+        self.tkrs.append("HLTH") # Listed recently
+        self.tkrs.append("GME") # Stock split recently
+        self.tkrs.append("BHP.AX") # ASX market has auction
+        self.tkrs.append("ICL.TA") # TLV market has auction and odd times
+
+        self.usa_tkr = "INTC"
         self.usa_market = "us_market"
         self.usa_exchange = "NMS"
         self.usa_market_tz_name = 'US/Eastern'
@@ -76,61 +81,6 @@ class Test_Yfc_Interface(unittest.TestCase):
     def tearDown(self):
         self.tempCacheDir.cleanup()
         self.session.close()
-
-
-    def verify_df(self, df, answer, rtol=None, different=False):
-        if df.shape[0] != answer.shape[0]:
-            raise Exception("Different #rows: df={}, answer={}".format(df.shape[0], answer.shape[0]))
-
-        dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
-        for dc in dcs:
-            if not (dc in df.columns and dc in answer.columns):
-                continue
-            if rtol is None:
-                f = (df[dc].values == answer[dc].values)
-            else:
-                f = np.isclose(df[dc].values, answer[dc].values, rtol=rtol)
-
-            if not different:
-                # Test that dfs are equal
-                try:
-                    self.assertTrue(f.all())
-                except:
-                    f_diff=~f ; f=None
-                    if sum(f_diff) < 20:
-                        print("{}/{} differences in column {}:".format(sum(f_diff), df.shape[0], dc))
-                        print("- answer:")
-                        print(answer[f_diff][[dc]])
-                        print("- result:")
-                        print(df[f_diff][[dc]])
-                    else:
-                        print("{}/{} diffs in column {}".format(sum(f_diff), df.shape[0], dc))
-
-                    last_diff_idx = np.where(f_diff)[0][-1]
-                    x = df[dc][last_diff_idx]
-                    y = answer[dc][last_diff_idx]
-                    last_diff = x - y
-                    print("- last_diff: {} - {} = {}".format(x, y, last_diff))
-                    print("- answer:")
-                    print(answer.iloc[last_diff_idx])
-                    print("- result:")
-                    print(df.iloc[last_diff_idx])
-                    raise
-
-            else:
-                # Test that dfs are different
-                try:
-                    self.assertFalse(f.all())
-                except:
-                    if sum(f) < 20:
-                        print("{}/{} matches in column {}:".format(sum(f), df.shape[0], dc))
-                        print("- answer:")
-                        print(answer[f][[dc]])
-                        print("- result:")
-                        print(df[f][[dc]])
-                    else:
-                        print("{}/{} matches in column {}".format(sum(f), df.shape[0], dc))
-                    raise
 
 
     def test_history_basics1_usa(self):
@@ -477,10 +427,7 @@ class Test_Yfc_Interface(unittest.TestCase):
 
 
     def test_periods(self):
-        #
-        tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
-        tkrs.append("HLTH") # Listed recently
-        tkrs.append("GME") # Stock split recently
+        tkrs = self.tkrs
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -521,39 +468,29 @@ class Test_Yfc_Interface(unittest.TestCase):
                     print(df_yf)
                     print("df_yfc: {}".format(df_yfc.shape))
                     print(df_yfc)
+                    missing_from_yf = df_yfc.index[~df_yfc.index.isin(df_yf.index)]
+                    missing_from_yfc = df_yf.index[~df_yf.index.isin(df_yfc.index)]
+                    if len(missing_from_yf)>0:
+                        print("missing_from_yf:")
+                        print(missing_from_yf)
+                    if len(missing_from_yfc)>0:
+                        print("missing_from_yfc:")
+                        # print(missing_from_yfc)
+                        print(df_yf.loc[missing_from_yfc])
+                        print(df_yfc["1998-10-25":"1998-11-05"])
                     print("Different shapes")
                     raise
                 try:
                     self.assertTrue(np.equal(df_yf.index, df_yfc.index).all())
                 except:
-                    print("df_yf:")
+                    print("df_yf:",df_yf.shape)
                     print(df_yf)
-                    print("df_yfc:")
+                    print("df_yfc:",df_yfc.shape)
                     print(df_yfc)
                     print("Index different")
                     raise
                 f = df_yfc["Final?"].values
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    elif c == "Adj Close" and not c in df_yfc.columns:
-                        continue
-                    try:
-                        if not f[-1]:
-                            ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
-                        else:
-                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
-                    except:
-                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
-                        print("Diff dates:")
-                        print(df_yf.index[f])
-                        print("Difference in column {}".format(c))
-                        last_dt = df_yfc.index[f][-1]
-                        v1 = df_yfc.loc[last_dt][c]
-                        v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
-                        raise
+                self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
                 # Fetch from cache should match
                 df_yf = df_yf_backup.copy()
@@ -561,51 +498,10 @@ class Test_Yfc_Interface(unittest.TestCase):
                 start_ts = max(df_yf.index.min(), df_yfc.index.min())
                 df_yf = df_yf[df_yf.index >= start_ts]
                 df_yfc = df_yfc[df_yfc.index >= start_ts]
-                try:
-                    self.assertEqual(df_yf.shape[0], df_yfc.shape[0])
-                except:
-                    print("df_yf: {}".format(df_yf.shape))
-                    print(df_yf)
-                    print("df_yfc: {}".format(df_yfc.shape))
-                    print(df_yfc)
-                    print("Different shapes")
-                    raise
-                try:
-                    self.assertTrue(np.equal(df_yf.index, df_yfc.index).all())
-                except:
-                        print("df_yf:")
-                        print(df_yf)
-                        print("df_yfc:")
-                        print(df_yfc)
-                        print("Index different")
-                        raise
-                f = df_yfc["Final?"].values
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    elif c == "Adj Close" and not c in df_yfc.columns:
-                        continue
-                    try:
-                        if not f[-1]:
-                            ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
-                        else:
-                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
-                    except:
-                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
-                        print("Diff dates:")
-                        print(df_yf.index[f])
-                        print("Difference in column {}".format(c))
-                        last_dt = df_yfc.index[f][-1]
-                        v1 = df_yfc.loc[last_dt][c]
-                        v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
-                        raise
+                self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
     def test_periods_with_persistent_caching(self):
-        tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
-        tkrs.append("HLTH") # Listed recently
-        tkrs.append("GME") # Stock split recently
+        tkrs = self.tkrs
         periods = [p for p in yfcd.Period]
         #
         for tkr in tkrs:
@@ -635,97 +531,17 @@ class Test_Yfc_Interface(unittest.TestCase):
                     if df_yfc.shape[0] == 0:
                         raise Exception("df_yfc is empty")
 
-                try:
-                    self.assertEqual(df_yf.shape[0], df_yfc.shape[0])
-                except:
-                    print("df_yf: {}".format(df_yf.shape))
-                    print(df_yf)
-                    print("df_yfc: {}".format(df_yfc.shape))
-                    print(df_yfc)
-                    print("Different shapes")
-                    raise
-                try:
-                    self.assertTrue(np.equal(df_yf.index, df_yfc.index).all())
-                except:
-                    print("df_yf:")
-                    print(df_yf)
-                    print("df_yfc:")
-                    print(df_yfc)
-                    print("Index different")
-                    raise
-                f = df_yfc["Final?"].values
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    elif c == "Adj Close" and not c in df_yfc.columns:
-                        continue
-                    try:
-                        if not f[-1]:
-                            ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
-                        else:
-                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
-                    except:
-                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
-                        print("Diff dates:")
-                        print(df_yf.index[f])
-                        print("Difference in column {}".format(c))
-                        last_dt = df_yfc.index[f][-1]
-                        v1 = df_yfc.loc[last_dt][c]
-                        v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: YFC={} - YF={} = {}".format(last_dt, v1, v2, v1-v2))
-                        raise
+                self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
                 # Fetch from cache should match
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
                 df_yfc = df_yfc[df_yfc.index >= start_ts]
-                try:
-                    self.assertEqual(df_yf.shape[0], df_yfc.shape[0])
-                except:
-                    print("df_yf: {}".format(df_yf.shape))
-                    print(df_yf)
-                    # print("df_yf 0-volume:")
-                    # print(df_yf[df_yf["Volume"]==0])
-                    print("df_yfc: {}".format(df_yfc.shape))
-                    print(df_yfc)
-                    print("Different shapes")
-                    raise
-                try:
-                    self.assertTrue(np.equal(df_yf.index, df_yfc.index).all())
-                except:
-                        print("df_yf:")
-                        print(df_yf)
-                        print("df_yfc:")
-                        print(df_yfc)
-                        print("Index different")
-                        raise
-                f = df_yfc["Final?"].values
-                for c in yfcd.yf_data_cols:
-                    if not c in df_yf.columns:
-                        continue
-                    elif c == "Adj Close" and not c in df_yfc.columns:
-                        continue
-                    try:
-                        if not f[-1]:
-                            ## Ignore last row because data is live, can change between YF and YFC calls
-                            self.assertTrue(np.equal(df_yf.loc[f,c].values, df_yfc.loc[f,c].values).all())
-                        else:
-                            self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
-                    except:
-                        f = ~np.equal(df_yf[c].values, df_yfc[c].values)
-                        print("Diff dates:")
-                        print(df_yf.index[f])
-                        print("Difference in column {}".format(c))
-                        last_dt = df_yfc.index[f][-1]
-                        v1 = df_yfc.loc[last_dt][c]
-                        v2 =  df_yf.loc[last_dt][c]
-                        print("Last diff: {}: {} - {} = {}".format(last_dt, v1, v2, v1-v2))
-                        raise
+                self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
 
     def test_history_live(self):
         # Fetch during live trading session
-        tkr_candidates = ["BHG.JO", "INTC", "MEL.NZ"]
+        tkr_candidates = self.tkrs
         interval = yfcd.Interval.Days1
 
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
@@ -775,7 +591,7 @@ class Test_Yfc_Interface(unittest.TestCase):
                 self.verify_df(df1, df2)
 
                 # Refetch after data aged, last row should be different
-                sleep(20)
+                sleep(30)
                 n = df1.shape[0]
                 df3 = dat.history(interval="1d", start=start_d, end=end_d, max_age=timedelta(seconds=1))
                 try:
@@ -813,10 +629,11 @@ class Test_Yfc_Interface(unittest.TestCase):
 
     def test_history_live_1h_evening(self):
         # Fetch during evening after active session
-        tkr_candidates = ["BHG.JO", "INTC", "MEL.NZ"]
+        tkr_candidates = self.tkrs
         interval = yfcd.Interval.Hours1
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        td_1d = timedelta(days=1)
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
             exchange = dat.info["exchange"]
@@ -827,23 +644,26 @@ class Test_Yfc_Interface(unittest.TestCase):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
                 if (not sched is None) and dt_now > sched["market_close"][0]:
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
-                    start_dt = sched["market_open"][0].to_pydatetime()
-                    end_dt = sched["market_close"][0].to_pydatetime()
 
-                    # Ensure Yahoo returns correct volume for first interval:
-                    start_dt -= timedelta(minutes=20)
+                    start = d_now
+                    end = d_now+td_1d
 
                     dt = sched["market_open"][0]
+                    if tkr.endswith(".TA"):
+                        # Align back to 9:30am
+                        dt = datetime.combine(dt.date(), time(9,30), tzinfo=tz)
                     expected_interval_starts = []
                     while dt < sched["market_close"][0]:
                         expected_interval_starts.append(dt)
                         dt += timedelta(hours=1)
 
                     ## Check that table covers expected date range
-                    df1 = dat.history(interval="1h", start=start_dt, end=end_dt)
+                    df1 = dat.history(interval="1h", start=start, end=end)
                     try:
                         self.assertTrue(np.array_equal(expected_interval_starts, df1.index))
                     except:
+                        print("sched:")
+                        print(sched)
                         print("expected_interval_starts:")
                         pprint(expected_interval_starts)
                         print("df1.index:")
@@ -852,18 +672,17 @@ class Test_Yfc_Interface(unittest.TestCase):
 
                     ## Finally, check it matches YF:
                     dat_yf = yf.Ticker(tkr, session=self.session)
-                    df_yf = dat_yf.history(interval="1h", start=start_dt, end=end_dt)
+                    df_yf = dat_yf.history(interval="1h", start=start, end=end)
                     # Note: Yahoo doesn't dividend-adjust hourly
-                    df1 = dat.history(start=start_dt, end=end_dt, interval="1h", adjust_divs=False)
-                    df_yf = dat_yf.history(start=start_dt, interval="1h")
+                    df1 = dat.history(start=start, end=end, interval="1h", adjust_divs=False)
+                    df_yf = dat_yf.history(start=start, interval="1h")
                     # Discard 0-volume data at market close
-                    td_1d = timedelta(days=1)
                     sched = yfct.GetExchangeSchedule(dat.info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
                     sched["_date"] = sched.index.date
                     df_yf["_date"] = df_yf.index.date
                     answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
                     answer2.index = df_yf.index ; df_yf = answer2
-                    f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+                    f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
                     df_yf = df_yf[~f_drop].drop("_date",axis=1)
                     # YF hourly volume is not split-adjusted, so adjust:
                     ss = df_yf["Stock Splits"].copy()
@@ -871,12 +690,12 @@ class Test_Yfc_Interface(unittest.TestCase):
                     ss_rcp = 1.0/ss
                     csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
                     df_yf["Volume"] /= csf
-                    df_yf = df_yf[df_yf.index<end_dt]
-                    self.verify_df(df1, df_yf, 1e-10)
+                    df_yf = df_yf[df_yf.index.date<end]
+                    self.verify_df(df1, df_yf, rtol=1e-10)
 
     def test_history_live_1d_evening(self):
         # Fetch during evening after active session
-        tkr_candidates = ["BHG.JO", "INTC", "MEL.NZ"]
+        tkr_candidates = self.tkrs
         interval = yfcd.Interval.Days1
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
@@ -914,11 +733,11 @@ class Test_Yfc_Interface(unittest.TestCase):
                     ## Finally, check it matches YF:
                     dat_yf = yf.Ticker(tkr, session=self.session)
                     df_yf = dat_yf.history(interval="1d", start=start_dt.date(), end=end_dt.date())
-                    self.verify_df(df1, df_yf, 1e-10)
+                    self.verify_df(df1, df_yf, rtol=1e-10)
 
     def test_history_live_1w_evening(self):
         # Fetch during evening after active session
-        tkr_candidates = ["BHG.JO", "INTC"]
+        tkr_candidates = self.tkrs
         interval = yfcd.Interval.Week
         #
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))

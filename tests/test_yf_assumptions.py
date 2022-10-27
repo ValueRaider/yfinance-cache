@@ -32,6 +32,9 @@ class TestYfAssumptions(unittest.TestCase):
 		self.exchangeLastHrInt = time(hour=15, minute=30)
 		self.exchangeCloseTime = time(hour=16, minute=0)
 
+	def tearDown(self):
+		self.session.close()
+
 
 	def test_minutes(self):
 		i = "1m"
@@ -45,12 +48,18 @@ class TestYfAssumptions(unittest.TestCase):
 
 		startDt = sched["market_open"][0]
 		endDt   = sched["market_open"][0]+timedelta(minutes=1)
-		# endDt   = sched["market_open"][0]+timedelta(minutes=2)
-		df = self.dat.history(interval=i, start=startDt.astimezone(ZoneInfo("UTC")), end=endDt.astimezone(ZoneInfo("UTC")))
-		df = df[df.index<=endDt]
+		df = self.dat.history(interval=i, start=startDt, end=endDt+timedelta(minutes=5))
+		df = df[df.index<endDt]
 		intervals = list(df.index.to_pydatetime())
 		answers = [sched["market_open"][0]]
-		self.assertEqual(intervals, answers)
+		try:
+			self.assertEqual(intervals, answers)
+		except:
+			print("df:")
+			print(df)
+			print("answer:")
+			print(answers)
+			raise
 
 
 	def test_hours(self):
@@ -58,7 +67,7 @@ class TestYfAssumptions(unittest.TestCase):
 
 		startDt = datetime.combine(self.day, self.exchangeOpenTime,  tzinfo=self.market_tz)
 		endDt   = datetime.combine(self.day, self.exchangeCloseTime, tzinfo=self.market_tz)
-		df = self.dat.history(interval=i, start=startDt.astimezone(ZoneInfo("UTC")), end=endDt.astimezone(ZoneInfo("UTC")), tz=None)
+		df = self.dat.history(interval=i, start=startDt, end=endDt, tz=None)
 		df = df[df.index<=endDt]
 		intervals = df.index.to_pydatetime()
 		intervals = list(intervals)
@@ -69,7 +78,7 @@ class TestYfAssumptions(unittest.TestCase):
 
 		startDt = datetime.combine(self.day, self.exchangeOpenTime, tzinfo=self.market_tz)
 		endDt   = datetime.combine(self.day, self.exchangeOpenTime, tzinfo=self.market_tz)+timedelta(hours=1)
-		df = self.dat.history(interval=i, start=startDt.astimezone(ZoneInfo("UTC")), end=endDt.astimezone(ZoneInfo("UTC")), tz=None)
+		df = self.dat.history(interval=i, start=startDt, end=endDt, tz=None)
 		df = df[df.index<=endDt]
 		intervals = df.index.to_pydatetime()
 		intervals = list(intervals)
@@ -77,8 +86,15 @@ class TestYfAssumptions(unittest.TestCase):
 		answers.append(datetime.combine(self.day, self.exchangeOpenTime, tzinfo=self.market_tz))
 		self.assertEqual(intervals, answers)
 
-	def tearDown(self):
-		self.session.close()
 
 if __name__ == '__main__':
     unittest.main()
+
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(TestYfAssumptions)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)
+
