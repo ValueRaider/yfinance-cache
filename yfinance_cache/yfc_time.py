@@ -4,6 +4,7 @@ from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
+import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/exchange_calendars.dev")
 import exchange_calendars as xcal
 
 import pandas as pd
@@ -47,7 +48,7 @@ def TypeCheckInterval(var, varName):
 	if not isinstance(var, yfcd.Interval):
 		raise Exception("'{}' must be yfcd.Interval not {}".format(varName, type(var)))
 def TypeCheckIntervalDt(dt, interval, varName, strict=True):
-	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 		if strict:
 			TypeCheckDateStrict(dt, varName)
 		else:
@@ -411,7 +412,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 		open_days = np.array([dt.to_pydatetime().astimezone(tz).date() for dt in s["open"]])
 		intervals = yfcd.DateIntervalIndex.from_arrays(open_days, open_days+td_1d, closed="left")
 
-	elif interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+	elif interval == yfcd.Interval.Week:
 		week_ranges = GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef)
 
 		intervals = yfcd.DateIntervalIndex.from_arrays([w[0] for w in week_ranges], [w[1] for w in week_ranges], closed="left")
@@ -527,7 +528,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 	i = None
 
 	tz = ZoneInfo(GetExchangeTzName(exchange))
-	if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+	if interval == yfcd.Interval.Week:
 		# Treat week intervals as special case, contiguous from first weekday open to last weekday open. 
 		# Not necessarily Monday->Friday because of public holidays.
 		# Unless 'weeklyUseYahooDef' is true, which means range from Monday to Friday.
@@ -631,7 +632,7 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	else:
 		ts_day = ts
 
-	if interval in [yfcd.Interval.Days5, yfcd.Interval.Week]:
+	if interval == yfcd.Interval.Week:
 		# Treat week intervals as special case, contiguous from first weekday open to last weekday open. 
 		# Not necessarily Monday->Friday because of public holidays.
 		# Unless 'weeklyUseYahooDef' is true, which means range from Monday to Friday.
@@ -683,9 +684,12 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		tl = ts[len(ts)-1]
 		tis = GetExchangeScheduleIntervals(exchange, interval, t0-td, tl+td)
 		if debug:
-			print("- trading index:")
+			print("- trading index:", type(tis))
 			for ti in tis:
 				print(ti)
+		tz_tis = tis[0].left.tzinfo
+		if ts[0].tzinfo != tz_tis:
+			ts = [t.astimezone(tz_tis) for t in ts]
 		idx = tis.get_indexer(ts)
 		f = idx!=-1
 		#
@@ -717,7 +721,7 @@ def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	ts_d = ts.astimezone(tz).date()
 
-	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 		if interval == yfcd.Interval.Days1:
 			next_day = ts_d + td_1d
 			s = GetTimestampNextSession(exchange, datetime.combine(next_day, time(0), tz))
@@ -828,7 +832,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
 	else:
 		late_data_allowance = timedelta(0)
 
-	if (interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]) or (intervalEnd_dt==intervalSched["market_close"][-1]):
+	if (interval in [yfcd.Interval.Days1, yfcd.Interval.Week]) or (intervalEnd_dt==intervalSched["market_close"][-1]):
 		## Is daily/weekly interval or last interval of day:
 		lastDataDt += late_data_allowance
 
@@ -926,7 +930,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
 	# For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
 	if exchange in ["JNB"]:
 		late_data_allowance = timedelta(minutes=15)
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 			lastDataDt += late_data_allowance
 		else:
 			lastDataDt[intervalEnd_dt == marketCloses] += late_data_allowance
@@ -985,7 +989,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 		print("- lastDataDt = {}".format(lastDataDt))
 
 	# Decide if was fetched after last Yahoo update
-	if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+	if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 		if fetch_dt >= lastDataDt:
 			## interval already closed before fetch, nothing to do.
 			if debug:
@@ -1018,7 +1022,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 			if debug:
 				print("- triggerExpiryOnClose and interval closed so return TRUE")
 			return True
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 			## If last fetch was anytime within interval, even post-market, 
 			## and dt_now is next day (or later) then trigger
 			if fetch_dt.date() <= intervalEnd_d and dt_now.date() > intervalEnd_d:
@@ -1040,7 +1044,7 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
 	if not knownIntervalStarts is None:
 		if not isinstance(knownIntervalStarts, list) and not isinstance(knownIntervalStarts, np.ndarray):
 			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 			## Must be date
 			TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
 		else:
@@ -1104,7 +1108,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 	if not knownIntervalStarts is None:
 		if not isinstance(knownIntervalStarts, list) and not isinstance(knownIntervalStarts, np.ndarray):
 			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
+		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
 			## Must be date or datetime
 			TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
 			if isinstance(knownIntervalStarts[0],datetime) and knownIntervalStarts[0].tzinfo is None:
@@ -1214,6 +1218,8 @@ def DtSubtractPeriod(dt, period):
 	if period==yfcd.Period.Days1:
 		rd = relativedelta(days=1)
 	elif period==yfcd.Period.Days5:
+		rd = relativedelta(days=5)
+	elif period==yfcd.Period.Week:
 		rd = relativedelta(days=7)
 	elif period==yfcd.Period.Months1:
 		rd = relativedelta(months=1)

@@ -1,12 +1,12 @@
 import unittest
 
-import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/yfinance-ValueRaider.integrate")
 import yfinance as yf
 from .context import yfc_dat as yfcd
 from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
+from .utils import Test_Base
 import pickle as pkl
 
 import tempfile
@@ -18,12 +18,14 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import os
 import requests_cache
+from pprint import pprint
 
 
-class Test_Unadjust(unittest.TestCase):
+# class Test_Unadjust(unittest.TestCase):
+class Test_Unadjust(Test_Base):
 
     def setUp(self):
-        self.tkrs = ["PNL.L", "I3E.L", "INTC", "GME", "AMC"]
+        self.tkrs = ["PNL.L", "I3E.L", "INTC", "GME", "AMC", "ESLT.TA"]
 
         self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
 
@@ -33,44 +35,6 @@ class Test_Unadjust(unittest.TestCase):
     def tearDown(self):
         self.tempCacheDir.cleanup()
         self.session.close()
-
-    def verify_df(self, df, answer, rtol=None):
-        if df.shape[0] != answer.shape[0]:
-            raise Exception("Different #rows: df={}, answer={}".format(df.shape[0], answer.shape[0]))
-
-        dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
-        for dc in dcs:
-            if not (dc in df.columns and dc in answer.columns):
-                continue
-            if rtol is None:
-                f = df[dc].values == answer[dc].values
-            else:
-                f = np.isclose(df[dc].values, answer[dc].values, rtol=rtol)
-            try:
-                self.assertTrue(f.all())
-            except:
-                f = ~f
-                debug_cols_to_print = [dc]
-                debug_cols_to_print += [c for c in ["CSF","CDF"] if c in df.columns]
-                if sum(f) < 20:
-                    print("{}/{} differences in column {}:".format(sum(f), df.shape[0], dc))
-                    print("- answer:")
-                    print(answer[f][[dc]])
-                    print("- result:")
-                    print(df[f][debug_cols_to_print])
-                else:
-                    print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
-
-                last_diff_idx = np.where(f)[0][-1]
-                x = df[dc][last_diff_idx]
-                y = answer[dc][last_diff_idx]
-                last_diff = x - y
-                print("- last_diff: {} - {} = {}".format(x, y, last_diff))
-                print("- answer:")
-                print(answer.iloc[last_diff_idx])
-                print("- result:")
-                print(df.iloc[last_diff_idx])
-                raise
 
     def test_cleanFetch(self):
         # Fetch with empty cache, no adjustment
@@ -209,6 +173,7 @@ class Test_Unadjust(unittest.TestCase):
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
+            tz = ZoneInfo(dat.info["exchangeTimezoneName"])
             df_yfc = dat.history(start=start_d, end=end_d, interval="1wk")
 
             dat_yf = yf.Ticker(tkr, session=self.session)
@@ -216,7 +181,7 @@ class Test_Unadjust(unittest.TestCase):
             # First compare against YF daily data (aggregated by week)
             df_yf = dat_yf.history(start=start_d, end=end_d, interval="1d")
             df_yf_weekly = df_yf.copy()
-            df_yf_weekly["_weekStart"] = (df_yf_weekly.index - pd.TimedeltaIndex(df_yf_weekly.index.weekday, 'D')).date
+            df_yf_weekly["_weekStart"] = pd.to_datetime(df_yf_weekly.index.tz_localize(None).to_period('W-SUN').start_time).tz_localize(tz)
             df_yf_weekly.loc[df_yf_weekly["Stock Splits"]==0,"Stock Splits"]=1
             df_yf_weekly = df_yf_weekly.groupby("_weekStart").agg(
                 Open=("Open", "first"),
@@ -231,15 +196,20 @@ class Test_Unadjust(unittest.TestCase):
             self.verify_df(df_yfc, df_yf_weekly, 1e-1)
 
             # Now compare against YF weekly
-            df_yf = dat_yf.history(start=start_d, end=end_d, interval="1wk")
+            if tkr.endswith(".TA"):
+                # YF struggles with TLV exchange
+                df_yf = dat_yf.history(start=start_d-timedelta(days=2), end=end_d, interval="1wk", repair=True)
+                df_yf = df_yf[df_yf.index.date>=start_d]
+            else:
+                df_yf = dat_yf.history(start=start_d, end=end_d, interval="1wk", repair=True)
             self.verify_df(df_yfc, df_yf, 1e-10)
 
     def test_weekly_append(self):
         start1_d = date(2022,1,3)
-        end1_d = date(2022,6,25)
+        end1_d = date(2022,6,27)
 
         start2_d = date(2022,6,27)
-        end2_d = date(2022,8,20)
+        end2_d = date(2022,8,22)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -249,16 +219,21 @@ class Test_Unadjust(unittest.TestCase):
             df = dat.history(start=start1_d, end=end2_d, interval="1wk")
 
             dat_yf = yf.Ticker(tkr, session=self.session)
-            answer = dat_yf.history(start=start1_d, end=end2_d, interval="1wk")
+            if tkr.endswith(".TA"):
+                # YF struggles with TLV exchange
+                answer = dat_yf.history(start=start1_d-timedelta(days=2), end=end2_d, interval="1wk", repair=True)
+                answer = answer[answer.index.date>=start1_d]
+            else:
+                answer = dat_yf.history(start=start1_d, end=end2_d, interval="1wk", repair=True)
 
             self.verify_df(df, answer, 5e-6)
 
     def test_weekly_prepend(self):
         start1_d = date(2022,4,4)
-        end1_d = date(2022,8,20)
+        end1_d = date(2022,8,22)
 
         start2_d = date(2022,1,3)
-        end2_d = date(2022,8,20)
+        end2_d = date(2022,8,22)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -268,19 +243,24 @@ class Test_Unadjust(unittest.TestCase):
             df = dat.history(start=start2_d, end=end2_d, interval="1wk")
 
             dat_yf = yf.Ticker(tkr, session=self.session)
-            answer = dat_yf.history(start=start2_d, end=end2_d, interval="1wk")
+            if tkr.endswith(".TA"):
+                # YF struggles with TLV exchange
+                answer = dat_yf.history(start=start2_d-timedelta(days=2), end=end2_d, interval="1wk", repair=True)
+                answer = answer[answer.index.date>=start2_d]
+            else:
+                answer = dat_yf.history(start=start2_d, end=end2_d, interval="1wk", repair=True)
 
             self.verify_df(df, answer, 5e-6)
 
     def test_weekly_insert1(self):
         start1_d = date(2022,1,3)
-        end1_d = date(2022,4,2)
+        end1_d = date(2022,4,4)
 
         start2_d = date(2022,4,4)
-        end2_d = date(2022,6,25)
+        end2_d = date(2022,6,27)
 
         start3_d = date(2022,6,27)
-        end3_d = date(2022,8,20)
+        end3_d = date(2022,8,22)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -291,19 +271,24 @@ class Test_Unadjust(unittest.TestCase):
             df = dat.history(start=start1_d, end=end3_d, interval="1wk")
 
             dat_yf = yf.Ticker(tkr, session=self.session)
-            answer = dat_yf.history(start=start1_d, end=end3_d, interval="1wk")
+            if tkr.endswith(".TA"):
+                # YF struggles with TLV exchange
+                answer = dat_yf.history(start=start1_d-timedelta(days=2), end=end3_d, interval="1wk", repair=True)
+                answer = answer[answer.index.date>=start1_d]
+            else:
+                answer = dat_yf.history(start=start1_d, end=end3_d, interval="1wk", repair=True)
 
             self.verify_df(df, answer, 5e-6)
 
     def test_weekly_insert2(self):
         start1_d = date(2022,1,3)
-        end1_d = date(2022,4,2)
+        end1_d = date(2022,4,4)
 
         start2_d = date(2022,4,4)
-        end2_d = date(2022,6,25)
+        end2_d = date(2022,6,27)
 
         start3_d = date(2022,6,27)
-        end3_d = date(2022,8,20)
+        end3_d = date(2022,8,22)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -314,7 +299,12 @@ class Test_Unadjust(unittest.TestCase):
             df = dat.history(start=start1_d, end=end3_d, interval="1wk")
 
             dat_yf = yf.Ticker(tkr, session=self.session)
-            answer = dat_yf.history(start=start1_d, end=end3_d, interval="1wk")
+            if tkr.endswith(".TA"):
+                # YF struggles with TLV exchange
+                answer = dat_yf.history(start=start1_d-timedelta(days=2), end=end3_d, interval="1wk", repair=True)
+                answer = answer[answer.index.date>=start1_d]
+            else:
+                answer = dat_yf.history(start=start1_d, end=end3_d, interval="1wk", repair=True)
 
             self.verify_df(df, answer, 5e-6)
 
@@ -333,7 +323,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc = dat.history(start=start_d, end=end_d, interval="1h")
             df_yf = dat_yf.history(start=start_d, end=end_d, interval="1d")
             df_yfc_daily = df_yfc.copy()
-            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date)
+            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
             df_yfc_daily = df_yfc_daily.groupby("_day").agg(
                 Open=("Open", "first"),
@@ -346,8 +336,9 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc_daily = df_yfc_daily.rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            # - ignore volume here
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
+            # - ignore volume here, and missing hour intervals
+            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             # Note: Yahoo doesn't dividend-adjust hourly
@@ -360,7 +351,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
@@ -390,7 +381,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
             df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d")
             df_yfc_daily = df_yfc.copy()
-            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date)
+            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
             df_yfc_daily = df_yfc_daily.groupby("_day").agg(
                 Open=("Open", "first"),
@@ -402,8 +393,9 @@ class Test_Unadjust(unittest.TestCase):
                 StockSplits=("Stock Splits", "prod")).rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            # - ignore volume here
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
+            # - ignore volume here, and missing hour intervals
+            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h", adjust_divs=False)
@@ -415,7 +407,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
             df_yf = df_yf[~f_drop].drop(["_date","market_open","market_close"],axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
@@ -445,7 +437,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
             df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d")
             df_yfc_daily = df_yfc.copy()
-            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date)
+            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
             df_yfc_daily = df_yfc_daily.groupby("_day").agg(
                 Open=("Open", "first"),
@@ -457,8 +449,9 @@ class Test_Unadjust(unittest.TestCase):
                 StockSplits=("Stock Splits", "prod")).rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            # - ignore volume here
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
+            # - ignore volume here, and missing hour intervals
+            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h", adjust_divs=False)
@@ -470,7 +463,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
@@ -504,7 +497,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
             df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d")
             df_yfc_daily = df_yfc.copy()
-            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date)
+            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
             df_yfc_daily = df_yfc_daily.groupby("_day").agg(
                 Open=("Open", "first"),
@@ -516,8 +509,9 @@ class Test_Unadjust(unittest.TestCase):
                 StockSplits=("Stock Splits", "prod")).rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            # - ignore volume here
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
+            # - ignore volume here, and missing hour intervals
+            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h", adjust_divs=False)
@@ -529,8 +523,8 @@ class Test_Unadjust(unittest.TestCase):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
-            df_yf = df_yf[~f_drop].drop("_date",axis=1)
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
+            df_yf = df_yf[~f_drop].drop(["_date","market_close","auction"],errors="ignore",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
             ss[ss==0.0] = 1.0
@@ -563,7 +557,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
             df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d")
             df_yfc_daily = df_yfc.copy()
-            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date)
+            df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
             df_yfc_daily = df_yfc_daily.groupby("_day").agg(
                 Open=("Open", "first"),
@@ -575,8 +569,8 @@ class Test_Unadjust(unittest.TestCase):
                 StockSplits=("Stock Splits", "prod")).rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            # - ignore volume here
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
+            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h", adjust_divs=False)
@@ -588,7 +582,7 @@ class Test_Unadjust(unittest.TestCase):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & ((df_yf.index<df_yf["market_open"]) | (df_yf.index>=df_yf["market_close"]))
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
