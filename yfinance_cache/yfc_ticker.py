@@ -1428,11 +1428,12 @@ class Ticker:
 			else:
 				cdf = np.full(df.shape[0], np.nan)
 				cdf[f_nna] = df.loc[f_nna,"Adj Close"] / df.loc[f_nna,"Close"]
+				cdf = pd.Series(cdf).fillna(method="bfill").fillna(method="ffill").values
 		
 		# Cumulative stock-split factor
 		if csf is None:
 			ss = df["Stock Splits"].copy()
-			ss[ss==0.0] = 1.0
+			ss[(ss==0.0)|ss.isna()] = 1.0
 			ss_rcp = 1.0/ss
 			csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
 			if not post_csf is None:
