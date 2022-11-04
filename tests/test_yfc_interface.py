@@ -1,5 +1,3 @@
-# import sys ; sys.path.insert(0, "/home/gonzo/ReposExternal/yfinance-dev")
-
 import unittest
 import tempfile
 from pprint import pprint
@@ -10,6 +8,7 @@ from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
 from .utils import Test_Base
+import pickle as pkl
 
 import yfinance as yf
 
@@ -130,7 +129,12 @@ class Test_Yfc_Interface(Test_Base):
 
         ## Hourly
         df1 = self.usa_dat.history(interval="1h", start=date(2022,2,7), end=date(2022,2,9))
-        self.assertEqual(df1.shape[0], 14)
+        try:
+            self.assertEqual(df1.shape[0], 14)
+        except:
+            print("df1:")
+            print(df1)
+            raise
         df2 = self.usa_dat.history(interval="1h", start=date(2022,2,7), end=date(2022,2,9))
         try:
             self.assertTrue(df1.equals(df2))
@@ -389,6 +393,10 @@ class Test_Yfc_Interface(Test_Base):
         # First, check during a live session
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
+            # Init info[] then delete session
+            dat.info
+            dat.session = None
+
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if yfct.IsTimestampInActiveSession(exchange, dt_now):
@@ -406,6 +414,10 @@ class Test_Yfc_Interface(Test_Base):
         # Second, check while exchange closed
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
+            # Init info[] then delete session
+            dat.info
+            dat.session = None
+
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             price_dt = dt_now - dat.yf_lag
@@ -436,6 +448,9 @@ class Test_Yfc_Interface(Test_Base):
                 self.tempCacheDir.cleanup() ; self.tempCacheDir = tempfile.TemporaryDirectory()
                 yfcm.SetCacheDirpath(self.tempCacheDir.name)
                 dat_yfc = yfc.Ticker(tkr, session=self.session)
+                # Init info[] then delete session
+                dat_yfc.info
+                dat_yfc.session = None
 
                 try:
                     df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
@@ -507,6 +522,11 @@ class Test_Yfc_Interface(Test_Base):
         for tkr in tkrs:
             dat_yf = yf.Ticker(tkr, session=self.session)
             dat_yfc = yfc.Ticker(tkr, session=self.session)
+            dat = yfc.Ticker(tkr, session=self.session)
+            # Init info[] then delete session
+            dat.info
+            dat.session = None
+
             for p in periods:
                 try:
                     df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
@@ -517,7 +537,7 @@ class Test_Yfc_Interface(Test_Base):
                     else:
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
-                sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
+                sched = yfct.GetExchangeSchedule(dat.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
                 df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
@@ -535,7 +555,8 @@ class Test_Yfc_Interface(Test_Base):
 
                 # Fetch from cache should match
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
-                df_yfc = df_yfc[df_yfc.index >= start_ts]
+                if not df_yfc is None:
+                    df_yfc = df_yfc[df_yfc.index >= start_ts]
                 self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
 
@@ -552,6 +573,10 @@ class Test_Yfc_Interface(Test_Base):
 
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
+            # Init info[] then delete session
+            dat.info
+            dat.session = None
+
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if yfct.IsTimestampInActiveSession(exchange, dt_now):
@@ -565,7 +590,10 @@ class Test_Yfc_Interface(Test_Base):
                     d += timedelta(days=1)
 
                 df1 = dat.history(interval="1d", start=start_d, end=end_d)
-                df_yf = yf.Ticker(tkr, session=self.session).history(interval="1d", start=start_d, end=end_d)
+
+                dat_yf = yf.Ticker(tkr, session=self.session)
+                dat_yf.info ; dat_yf.session = None
+                df_yf = dat_yf.history(interval="1d", start=start_d, end=end_d)
 
                 ## Check that table covers expected date range
                 try:
@@ -744,6 +772,10 @@ class Test_Yfc_Interface(Test_Base):
         d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
+            # Init info[] then delete session
+            dat.info
+            dat.session = None
+
             exchange = dat.info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if yfct.ExchangeOpenOnDay(exchange, d_now):
@@ -861,6 +893,40 @@ class Test_Yfc_Interface(Test_Base):
             df = dat.history(start=start_d, end=start_d+timedelta(days=1), interval="1h", keepna=True)
             idx = 1
             self.assertTrue(np.isnan(df["Close"][idx]))
+
+    def test_bug_prepending_nans(self):
+        tkr = "QDEL"
+        dat = yfc.Ticker(tkr)
+        # Init cache:
+        dat.history(period="1wk")
+
+        # Modify cache:
+        fp = os.path.join(self.tempCacheDir.name, tkr, "history-1d.pkl")
+        with open(fp, 'rb') as f:
+            d = pkl.load(f)
+        df = d["data"]
+        # - remove today
+        if df.index[-1].date()==date.today():
+            df = df.drop(df.index[-1])
+        # - remove all before last
+        if df.shape[0]>1:
+            df = df.drop(df.index[0:df.shape[0]-1])
+        if df.shape[0]!=1:
+            raise Exception("df should have 1 row")
+        # - set last interval to non-final
+        dt = df.index[0]
+        df.loc[dt,"Final?"] = False
+        fetch_dt = datetime.combine(dt.date(), time(12), tzinfo=dt.tz).astimezone(df.loc[dt,"FetchDate"].tz)
+        df.loc[dt,"FetchDate"] = fetch_dt
+        d["data"] = df
+        with open(fp, 'wb') as f:
+            pkl.dump(d, f, 4)
+
+        dat = yfc.Ticker(tkr)
+        df = dat.history(start=date.today()-timedelta(days=7))
+        self.assertFalse(df["Close"].isna().any())
+
+
 
 if __name__ == '__main__':
     unittest.main()

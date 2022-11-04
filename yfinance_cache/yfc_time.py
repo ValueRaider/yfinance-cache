@@ -104,7 +104,13 @@ def GetExchangeDataDelay(exchange):
 
 
 def GetCalendar(exchange):
-	cal = xcal.get_calendar(yfcd.exchangeToXcalExchange[exchange], start=str(yfcd.yf_min_year), cache=True)
+	cal_name = yfcd.exchangeToXcalExchange[exchange]
+	if cal_name in {"JPX","XTKS"}:
+		# These won't go before 1997
+		start = "1997"
+	else:
+		start = str(yfcd.yf_min_year)
+	cal = xcal.get_calendar(cal_name, start=start, cache=True)
 
 	df = cal.schedule
 	tz = ZoneInfo(GetExchangeTzName(exchange))
@@ -160,6 +166,12 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 	TypeCheckDateEasy(start, "start")
 	TypeCheckDateEasy(end, "end")
 
+	debug = False
+	# debug = True
+
+	if debug:
+		print("GetExchangeWeekSchedule(exchange={}, start={}, end={})".format(exchange, start, end))
+
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	td_1d = timedelta(days=1)
 	if not isinstance(start, datetime):
@@ -175,8 +187,6 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 		end_dt = end
 		end_d = end.astimezone(tz).date() +td_1d
 
-	debug = False
-
 	week_starts_sunday = (exchange in ["TLV"]) and (not weeklyUseYahooDef)
 	if debug:
 		print("- week_starts_sunday =", week_starts_sunday)
@@ -191,7 +201,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 	open_dts = pd.DatetimeIndex(open_dts).tz_convert(tz).tz_localize(None)
 
 	if debug:
-		print("open_dts:")
+		print("- open_dts:")
 		print(open_dts)
 
 	if week_starts_sunday:
@@ -201,7 +211,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 	weeks_keys = sorted(list(weeks.keys()))
 
 	if debug:
-		print("weeks:")
+		print("- weeks:")
 		# pprint(weeks)
 		for k in weeks:
 			print("- {}->{}".format(k.start_time, k.end_time))
@@ -215,7 +225,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 		week_ranges = [(w[0].date(), w[-1].date()+td_1d) for w in weeks.values()]
 
 	if debug:
-		print("week_ranges:")
+		print("- week_ranges:")
 		pprint(week_ranges)
 
 	first_week_cutoff = False
@@ -244,11 +254,11 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 			weeks2 = open_dts_wrap.groupby(open_dts_wrap.to_period("W"))
 
 		if debug:
-			print("open_dts_wrap:")
+			print("- open_dts_wrap:")
 			print(open_dts_wrap)
 
 		if debug:
-			print("weeks2:")
+			print("- weeks2:")
 			# pprint(weeks2)
 			for k in weeks2:
 				print("- ",k)
@@ -267,8 +277,8 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 				last_week_cutoff = True
 
 	if debug:
-		print("first_week_cutoff:", first_week_cutoff)
-		print("last_week_cutoff:", last_week_cutoff)
+		print("- first_week_cutoff:", first_week_cutoff)
+		print("- last_week_cutoff:", last_week_cutoff)
 
 	week_ranges = sorted(week_ranges, key=lambda x: x[0])
 	if last_week_cutoff:
@@ -278,6 +288,10 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 	if len(week_ranges) == 0:
 		week_ranges = None
 
+	if debug:
+		print("- week_ranges:")
+		print(week_ranges)
+		print("GetExchangeWeekSchedule() returning")
 	return week_ranges
 
 
@@ -414,8 +428,8 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
 	elif interval == yfcd.Interval.Week:
 		week_ranges = GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef)
-
-		intervals = yfcd.DateIntervalIndex.from_arrays([w[0] for w in week_ranges], [w[1] for w in week_ranges], closed="left")
+		if week_ranges is not None:
+			intervals = yfcd.DateIntervalIndex.from_arrays([w[0] for w in week_ranges], [w[1] for w in week_ranges], closed="left")
 
 	else:
 		raise Exception("Need to implement for interval={}".format(interval))
@@ -606,7 +620,8 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	if isinstance(ts,list):
 		ts = np.array(ts)
 	TypeCheckNpArray(ts, "ts")
-	TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
+	if len(ts) > 0:
+		TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
 	TypeCheckInterval(interval, "interval")
 	TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
 
@@ -616,8 +631,17 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	# debug = True
 
 	if debug:
-		print("GetTimestampCurrentInterval_batch(ts[0]={}, interval={}, weeklyUseYahooDef={})".format(ts[0], interval, weeklyUseYahooDef))
+		if len(ts)==0:
+			print("GetTimestampCurrentInterval_batch(ts=[], interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
+		else:
+			print("GetTimestampCurrentInterval_batch(ts[0]={}, interval={}, weeklyUseYahooDef={})".format(ts[0], interval, weeklyUseYahooDef))
 
+	if len(ts) == 0:
+		if debug:
+			print("- ts[] is empty")
+			print("GetTimestampCurrentInterval_batch() returning")
+		return None
+		
 	n = len(ts)
 	tz = ZoneInfo(GetExchangeTzName(exchange))
 	intervals = [None]*n
@@ -641,7 +665,6 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		tl = ts_day[-1] ; tl += timedelta(days=6-tl.weekday())+timedelta(days=7)
 		if debug:
 			print("t0={} ; tl={}".format(t0, tl))
-		sched = GetExchangeSchedule(exchange, t0, tl)
 
 		if weeklyUseYahooDef:
 			# Monday -> next Monday regardless of exchange schedule
@@ -1044,14 +1067,15 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
 	if not knownIntervalStarts is None:
 		if not isinstance(knownIntervalStarts, list) and not isinstance(knownIntervalStarts, np.ndarray):
 			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-			## Must be date
-			TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
-		else:
-			## Must be datetime
-			TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
-			if knownIntervalStarts[0].tzinfo is None:
-				raise Exception("'knownIntervalStarts' dates must be timezone-aware")
+		if len(knownIntervalStarts)>0:
+			if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
+				## Must be date
+				TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
+			else:
+				## Must be datetime
+				TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
+				if knownIntervalStarts[0].tzinfo is None:
+					raise Exception("'knownIntervalStarts' dates must be timezone-aware")
 
 	debug = False
 	# debug = True
@@ -1108,16 +1132,17 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 	if not knownIntervalStarts is None:
 		if not isinstance(knownIntervalStarts, list) and not isinstance(knownIntervalStarts, np.ndarray):
 			raise Exception("'knownIntervalStarts' must be list or numpy array not {0}".format(type(knownIntervalStarts)))
-		if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-			## Must be date or datetime
-			TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
-			if isinstance(knownIntervalStarts[0],datetime) and knownIntervalStarts[0].tzinfo is None:
-				raise Exception("'knownIntervalStarts' datetimes must be timezone-aware")
-		else:
-			## Must be datetime
-			TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
-			if knownIntervalStarts[0].tzinfo is None:
-				raise Exception("'knownIntervalStarts' dates must be timezone-aware")
+		if len(knownIntervalStarts)>0:
+			if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
+				## Must be date or datetime
+				TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
+				if isinstance(knownIntervalStarts[0],datetime) and knownIntervalStarts[0].tzinfo is None:
+					raise Exception("'knownIntervalStarts' datetimes must be timezone-aware")
+			else:
+				## Must be datetime
+				TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
+				if knownIntervalStarts[0].tzinfo is None:
+					raise Exception("'knownIntervalStarts' dates must be timezone-aware")
 
 	debug = False
 	# debug = True

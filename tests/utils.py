@@ -4,6 +4,14 @@ from pprint import pprint
 
 class Test_Base(unittest.TestCase):
     def verify_df(self, df, answer, rtol=None, different=False):
+        if (df is None or df.shape[0]==0) and (answer is None or answer.shape[0]==0):
+            return
+
+        if df is None:
+            print("df is None but answer is:")
+            print(answer)
+            raise Exception("df is None")
+
         if df.shape[0] != answer.shape[0]:
             # print("df:")
             # print(df)
@@ -73,7 +81,7 @@ class Test_Base(unittest.TestCase):
                 debug_cols_to_print += [c for c in ["CSF","CDF"] if c in df.columns]
                 if sum(f) < 20:
                     if different:
-                        print("{}/{} matches in column {}:".format(sum(f), df.shape[0], dc))
+                        print("{}/{} matches in column {} (expected differences):".format(sum(f), df.shape[0], dc))
                     else:
                         print("{}/{} differences in column {}:".format(sum(f), df.shape[0], dc))
                     print("- answer:")
@@ -82,7 +90,7 @@ class Test_Base(unittest.TestCase):
                     print(df[f][debug_cols_to_print])
                 else:
                     if different:
-                        print("{}/{} matches in column {}".format(sum(f), df.shape[0], dc))
+                        print("{}/{} matches in column {} (expected differences)".format(sum(f), df.shape[0], dc))
                     else:
                         print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
 

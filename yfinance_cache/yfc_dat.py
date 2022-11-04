@@ -165,13 +165,15 @@ exchangeToXcalExchange = {}
 # USA:
 exchangeToXcalExchange["NYQ"] = "XNYS"
 exchangeToXcalExchange["ASE"] = exchangeToXcalExchange["NYQ"]
-exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]
+exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # NYSE Arca
+exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
 # Canada:
 exchangeToXcalExchange["TOR"] = "XTSE" # Toronto
 exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"] # TSX Venture
+exchangeToXcalExchange["CNQ"] = exchangeToXcalExchange["TOR"] # CSE. TSX competitor, but has same hours
 # Europe:
 exchangeToXcalExchange["LSE"] = "XLON" # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
@@ -183,6 +185,7 @@ exchangeToXcalExchange["MIL"] = "XMIL" # Milan
 exchangeToXcalExchange["OSL"] = "XOSL" # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR" # Paris
 exchangeToXcalExchange["GER"] = "XFRA" # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
+exchangeToXcalExchange["STO"] = "XSTO" # Stockholm
 # Other:
 exchangeToXcalExchange["TLV"] = "XTAE" # Israel
 exchangeToXcalExchange["JNB"] = "XJSE" # Johannesburg
@@ -197,6 +200,7 @@ exchangeToYfLag = {}
 # USA:
 exchangeToYfLag["NYQ"] = timedelta(seconds=0)
 exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
+exchangeToYfLag["PCX"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
@@ -204,6 +208,7 @@ exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
 # Canada:
 exchangeToYfLag["TOR"] = timedelta(seconds=0)
 exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
+exchangeToYfLag["CNQ"] = exchangeToYfLag["TOR"]
 # Europe:
 exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
@@ -215,6 +220,7 @@ exchangeToYfLag["MCE"] = timedelta(minutes=15)
 exchangeToYfLag["MIL"] = timedelta(minutes=20)
 exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
+exchangeToYfLag["STO"] = timedelta(0)
 # Other:
 exchangeToYfLag["TLV"] = timedelta(minutes=20)
 exchangeToYfLag["JNB"] = timedelta(minutes=15)

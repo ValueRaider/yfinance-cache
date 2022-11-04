@@ -7,11 +7,10 @@ _main() (
 	export PYTHONPATH="$HOME"/ReposForks/exchange_calendars.dev:"$PYTHONPATH"
 	export PYTHONPATH="$HOME"/ReposExternal/yfinance.dev:"$PYTHONPATH"
 	
-	set -e
-	
-
 	rm "$HOME"/.cache/yfinance.cache
 
+	set -e
+	
 	TESTS=(cache datetime-assumptions utils time_utils)
 	for T in "${TESTS[@]}" ; do
 		echo "Running tests in tests/$T ..."

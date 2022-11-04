@@ -1,4 +1,3 @@
-import sys ; sys.path.insert(0, "/home/gonzo/ReposExternal/yfinance-dev")
 import yfinance as yf
 
 from . import yfc_cache_manager as yfcm
@@ -76,6 +75,9 @@ class Ticker:
 
 		self._debug = False
 		# self._debug = True
+		self._trace = False
+		# self._trace = True
+		self._trace_depth = 0
 
 	def history(self, 
 				interval="1d", 
@@ -97,6 +99,9 @@ class Ticker:
 		if debug:
 			print("")
 			print("YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
+		elif self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
 
 		td_1d = datetime.timedelta(days=1)
 		exchange = self.info['exchange']
@@ -287,7 +292,7 @@ class Ticker:
 					else:
 						h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
 			if h is None:
-				raise Exception("Failed to fetch date range {}->{}".format(start, end))
+				raise Exception("{}: Failed to fetch date range {}->{}".format(self.ticker, start, end))
 
 			# Adjust
 			if interval == yfcd.Interval.Days1:
@@ -325,6 +330,11 @@ class Ticker:
 				raise Exception("{}: Cached price data missing 'CSF' column, need to flush cache".format(self.ticker))
 
 			n = h.shape[0]
+			if n>0:
+				if debug:
+					print("- h lastDt = {}".format(h.index[-1]))
+				elif self._trace:
+					print(" "*self._trace_depth + "- h lastDt = {}".format(h.index[-1]))
 			if interday:
 				if isinstance(h.index[0], pd.Timestamp):
 					h_interval_dts = h.index.date
@@ -340,7 +350,7 @@ class Ticker:
 				last_expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 				if last_expired:
 					# Drop last row because expired
-					h = h[0:n-1]
+					h = h.drop(h.index[n-1])
 					h_interval_dts = h_interval_dts[0:n-1]
 			else:
 				expired = np.array([False]*n)
@@ -350,12 +360,14 @@ class Ticker:
 					fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
 					expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 				if expired.any():
-					h = h[~expired]
+					h = h[~expired].copy()
 					h_interval_dts = h_interval_dts[~expired]
 			#
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
 			# h_intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, idt, interval, weeklyUseYahooDef=True) for idt in h_interval_dts])
 			h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
+			if h_intervals is None:
+				h_intervals = pd.DataFrame(data={"interval_open":[], "interval_close":[]})
 			f_na = h_intervals["interval_open"].isna().values
 			if f_na.any():
 				print(h)
@@ -363,54 +375,57 @@ class Ticker:
 				if debug:
 					print("- found bad rows, deleting:")
 					print(h[f_na])
-				h = h[~f_na]
+				h = h[~f_na].copy()
 				h_intervals = h_intervals[~f_na]
-			if isinstance(h_intervals["interval_open"][0], datetime.datetime):
+			if h_intervals.shape[0]>0 and isinstance(h_intervals["interval_open"][0], datetime.datetime):
 				h_interval_opens = [x.to_pydatetime().astimezone(tz_exchange) for x in h_intervals["interval_open"]]
 			else:
 				h_interval_opens = h_intervals["interval_open"].values
 
 			if interval == yfcd.Interval.Days1:
-				# Ensure that daily data always up-to-date to now
-				h_start = h_intervals["interval_open"].iloc[0]
-				h_end = h_intervals["interval_close"].iloc[h_intervals.shape[0]-1]
-				if not isinstance(h_start, datetime.datetime):
-					h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
-					h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
-				#
-				if h_start <= start:
-					rangePre_to_fetch = None
+				if len(h_intervals)==0:
+					ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
 				else:
-					try:
-						rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-					except yfcd.NoIntervalsInRangeException:
+					# Ensure that daily data always up-to-date to now
+					h_start = h_intervals["interval_open"].iloc[0]
+					h_end = h_intervals["interval_close"].iloc[h_intervals.shape[0]-1]
+					if not isinstance(h_start, datetime.datetime):
+						h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
+						h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
+					#
+					if h_start <= start:
 						rangePre_to_fetch = None
-				if not rangePre_to_fetch is None:
-					if len(rangePre_to_fetch) > 1:
-						raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
-					rangePre_to_fetch = rangePre_to_fetch[0]
-				#
-				target_end = dt_now
-				d = dt_now.astimezone(tz).date()
-				sched = yfct.GetExchangeSchedule(exchange, d, d+td_1d)
-				if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["market_open"].iloc[0]):
-					target_end = sched["market_close"].iloc[0]+datetime.timedelta(hours=2)
-				if h_end < target_end:
-					try:
-						rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-					except yfcd.NoIntervalsInRangeException:
+					else:
+						try:
+							rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+						except yfcd.NoIntervalsInRangeException:
+							rangePre_to_fetch = None
+					if not rangePre_to_fetch is None:
+						if len(rangePre_to_fetch) > 1:
+							raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
+						rangePre_to_fetch = rangePre_to_fetch[0]
+					#
+					target_end = dt_now
+					d = dt_now.astimezone(tz).date()
+					sched = yfct.GetExchangeSchedule(exchange, d, d+td_1d)
+					if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["market_open"].iloc[0]):
+						target_end = sched["market_close"].iloc[0]+datetime.timedelta(hours=2)
+					if h_end < target_end:
+						try:
+							rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+						except yfcd.NoIntervalsInRangeException:
+							rangePost_to_fetch = None
+					else:
 						rangePost_to_fetch = None
-				else:
-					rangePost_to_fetch = None
-				if not rangePost_to_fetch is None:
-					if len(rangePost_to_fetch) > 1:
-						raise Exception("Expected only one element in rangePost_to_fetch[], but = {}".format(rangePost_to_fetch))
-					rangePost_to_fetch = rangePost_to_fetch[0]
-				ranges_to_fetch = []
-				if not rangePre_to_fetch is None:
-					ranges_to_fetch.append(rangePre_to_fetch)
-				if not rangePost_to_fetch is None:
-					ranges_to_fetch.append(rangePost_to_fetch)
+					ranges_to_fetch = []
+					if not rangePost_to_fetch is None:
+						if len(rangePost_to_fetch) > 1:
+							raise Exception("Expected only one element in rangePost_to_fetch[], but = {}".format(rangePost_to_fetch))
+						rangePost_to_fetch = rangePost_to_fetch[0]
+					if not rangePre_to_fetch is None:
+						ranges_to_fetch.append(rangePre_to_fetch)
+					if not rangePost_to_fetch is None:
+						ranges_to_fetch.append(rangePost_to_fetch)
 			else:
 				try:
 					ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
@@ -418,6 +433,20 @@ class Ticker:
 						ranges_to_fetch = []
 				except yfcd.NoIntervalsInRangeException:
 					ranges_to_fetch = []
+				except:
+					print("Ticker =",self.ticker)
+					raise
+			# Prune ranges in future:
+			for i in range(len(ranges_to_fetch)-1, -1, -1):
+				x = ranges_to_fetch[i][0]
+				if isinstance(x,(datetime.datetime, pd.Timestamp)) and x>dt_now:
+					if debug:
+						print("- deleting future range:", ranges_to_fetch[i])
+					del ranges_to_fetch[i]
+				elif datetime.datetime.combine(x, datetime.time(0),tzinfo=tz_exchange) > dt_now:
+					if debug:
+						print("- deleting future range:", ranges_to_fetch[i])
+					del ranges_to_fetch[i]
 			# Important that ranges_to_fetch in reverse order!
 			ranges_to_fetch.sort(key=lambda x:x[0], reverse=True)
 			if debug:
@@ -426,18 +455,19 @@ class Ticker:
 
 			interval_td = yfcd.intervalToTimedelta[interval]
 			if len(ranges_to_fetch) > 0:
-				# Ensure only one range max is after cached data:
-				h_last_dt = h.index[-1].to_pydatetime()
-				if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
-					h_last_dt = h_last_dt.astimezone(tz_exchange).date()
-				n = 0
-				for r in ranges_to_fetch:
-					if r[0] > h_last_dt:
-						n += 1
-				if n > 1:
-					print("ranges_to_fetch:")
-					pprint(ranges_to_fetch)
-					raise Exception("ranges_to_fetch contains {} ranges that occur after h_last_dt={}, expected 1 max".format(n, h_last_dt))
+				if h.shape[0]>0:
+					# Ensure only one range max is after cached data:
+					h_last_dt = h.index[-1].to_pydatetime()
+					if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+						h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+					n = 0
+					for r in ranges_to_fetch:
+						if r[0] > h_last_dt:
+							n += 1
+					if n > 1:
+						print("ranges_to_fetch:")
+						pprint(ranges_to_fetch)
+						raise Exception("ranges_to_fetch contains {} ranges that occur after h_last_dt={}, expected 1 max".format(n, h_last_dt))
 
 				# last_adjust_d = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 				quiet = not period is None # YFC generated date range so don't print message
@@ -456,7 +486,7 @@ class Ticker:
 				##       1) apply 2d median filter to h split-adjusted
 				##       2) use as mask to correct h
 
-		if h is None:
+		if (h is None) or h.shape[0]==0:
 			raise Exception("history() is exiting without price data")
 
 		f_dups = h.index.duplicated()
@@ -509,6 +539,9 @@ class Ticker:
 				print("- dividends:")
 				print(h.loc[f, cols])
 			print("")
+		elif self._trace:
+			print(" "*self._trace_depth + "YFC: history() returning")
+			self._trace_depth -= 1
 
 		return h
 
@@ -516,8 +549,15 @@ class Ticker:
 		debug = self._debug
 		# debug = True
 
+		log_msg = "YFC: {}: _fetchYfHistory(interval={} , pstr={} , start={} , end={})".format(self.ticker, interval, pstr, start, end)
 		if debug:
-			print("YFC: _fetchYfHistory(interval={} , pstr={} , start={} , end={})".format(interval, pstr, start, end))
+			print("")
+			print(log_msg)
+		elif self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + log_msg)
+		# else:
+		# 	print(log_msg)
 
 		period = None
 		if not pstr is None:
@@ -527,7 +567,7 @@ class Ticker:
 				# But keep 'period', useful to know
 				pstr = None
 
-		exchange = self.dat.info["exchange"]
+		exchange = self.info["exchange"]
 		tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
 		td = yfcd.intervalToTimedelta[interval]
 		istr = yfcd.intervalToString[interval]
@@ -546,6 +586,12 @@ class Ticker:
 			else:
 				end_d = end
 				end_dt = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
+			if isinstance(start, datetime.datetime):
+				start_dt = start
+				start_d = start.astimezone(tz_exchange).date()
+			else:
+				start_d = start
+				start_dt = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
 			if end_dt > dtnow:
 				exchange_midnight_dt = datetime.datetime.combine(dtnow_exchange.date()+td_1d, datetime.time(0), tz_exchange)
 				if isinstance(end, datetime.datetime):
@@ -560,6 +606,9 @@ class Ticker:
 			# Need to be 20 minutes earlier to get Yahoo to return correct volume.
 			# And rather than lookup trading day start, just shift any datetime
 			fetch_start -= datetime.timedelta(minutes=20)
+		if interval == yfcd.Interval.Week:
+			# Ensure aligned to week start:
+			fetch_start -= datetime.timedelta(days=fetch_start.weekday())
 
 		if interday:
 			if interval == yfcd.Interval.Days1:
@@ -588,6 +637,8 @@ class Ticker:
 		first_fetch_failed=False ; ex=None
 		df=None
 		try:
+			if debug:
+				print("- fetch_start={} ; fetch_end={}".format(fetch_start, fetch_end))
 			df = self.dat.history(period=pstr, 
 								interval=istr, 
 								start=fetch_start, end=fetch_end, 
@@ -601,6 +652,17 @@ class Ticker:
 								tz=None, # store raw data, localize myself
 								raise_errors=True,
 								kwargs=kwargs)
+			if debug:
+				if df is None:
+					print("- YF returned None")
+				else:
+					print("- YF returned table:")
+					print(df[["Close","Dividends","Volume"]])
+			if not fetch_start is None:
+				if isinstance(fetch_start, (datetime.datetime,pd.Timestamp)):
+					df = df[df.index>=fetch_start]
+				else:
+					df = df[df.index.date>=fetch_start]
 		except Exception as e:
 			first_fetch_failed = True
 			if "Data doesn't exist for startDate" in str(e):
@@ -662,43 +724,48 @@ class Ticker:
 			# Detect listing day
 			found_listing_day=False
 			listing_day=None
-			if pstr == "max":
-				found_listing_day = True
-			else:
-				tol = listing_date_check_tol
-				if not fetch_start is None:
-					start_d = fetch_start.date() if isinstance(fetch_start, datetime.datetime) else fetch_start
-					if (df.index[0].date() - start_d) > tol:
-						# Yahoo returned data starting significantly after requested start date, indicates
-						# request is before stock listed on exchange
-						found_listing_day = True
+			if df.shape[0]>0:
+				if pstr == "max":
+					found_listing_day = True
 				else:
-					start_expected = yfct.DtSubtractPeriod(fetch_dt_utc.date()+td_1d, yfcd.periodStrToEnum[pstr])
-					if interval == yfcd.Interval.Week:
-						start_expected -= datetime.timedelta(days=start_expected.weekday())
-					if (df.index[0].date() - start_expected) > tol:
-						found_listing_day = True
-			if debug:
-				print("- found_listing_day = {}".format(found_listing_day))
-			if found_listing_day:
-				listing_day = df.index[0].date()
+					tol = listing_date_check_tol
+					if not fetch_start is None:
+						fetch_start_d = fetch_start.date() if isinstance(fetch_start, datetime.datetime) else fetch_start
+						if (df.index[0].date() - fetch_start_d) > tol:
+							# Yahoo returned data starting significantly after requested start date, indicates
+							# request is before stock listed on exchange
+							found_listing_day = True
+					else:
+						start_expected = yfct.DtSubtractPeriod(fetch_dt_utc.date()+td_1d, yfcd.periodStrToEnum[pstr])
+						if interval == yfcd.Interval.Week:
+							start_expected -= datetime.timedelta(days=start_expected.weekday())
+						if (df.index[0].date() - start_expected) > tol:
+							found_listing_day = True
 				if debug:
-					print("YFC: inferred listing_date = {}".format(listing_day))
-				yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
-
-			if (not listing_day is None) and first_fetch_failed:
-				if end <= listing_day:
-					# Aha! Requested date range was entirely before listing
+					print("- found_listing_day = {}".format(found_listing_day))
+				if found_listing_day:
+					listing_day = df.index[0].date()
 					if debug:
-						print("- requested date range was before listing date")
-					return None
+						print("YFC: inferred listing_date = {}".format(listing_day))
+					yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
+
+				if (not listing_day is None) and first_fetch_failed:
+					if end <= listing_day:
+						# Aha! Requested date range was entirely before listing
+						if debug:
+							print("- requested date range was before listing date")
+						return None
 
 			df = df_backup
 
 			# Check that weekly aligned to Monday. If not, shift start date back 
 			# and re-fetch
-			if interval==yfcd.Interval.Week and (df.index[0].weekday()!=0):
+			if interval==yfcd.Interval.Week and df.shape[0]>0 and (df.index[0].weekday()!=0):
+				# Despite fetch_start aligned to Monday, sometimes Yahoo returns weekly 
+				# data starting a different day. Shifting back a little fixes
 				fetch_start -= datetime.timedelta(days=2)
+				#
+				# fetch_start -= datetime.timedelta(days=fetch_start.weekday())
 				if debug:
 					print("- weekly data not aligned to Monday, re-fetching from {}".format(fetch_start))
 				df = self.dat.history(period=pstr, interval=istr, 
@@ -714,7 +781,7 @@ class Ticker:
 				if interval==yfcd.Interval.Week and (df.index[0].weekday()!=0):
 					print("Date range requested: {} -> {}".format(fetch_start, fetch_end))
 					print(df)
-					raise Exception("Weekly data returned by YF doesn't being Monday but {}".format(df.index[0].weekday()))
+					raise Exception("Weekly data returned by YF doesn't begin Monday but {}".format(df.index[0].weekday()))
 
 		if (not df is None) and (df.index.tz is not None) and (not isinstance(df.index.tz, ZoneInfo)):
 			# Convert to ZoneInfo
@@ -724,9 +791,9 @@ class Ticker:
 			if df is None:
 				print("YFC: YF returned None")
 			else:
-				pass
-				# print("YFC: YF returned table:")
-				# print(df[["Close","Dividends","Volume"]])
+				# pass
+				print("YFC: YF returned table:")
+				print(df[["Close","Dividends","Volume"]])
 
 		if pstr is None:
 			if df is None:
@@ -736,14 +803,12 @@ class Ticker:
 					received_interval_starts = df.index.date
 				else:
 					received_interval_starts = df.index.to_pydatetime()
-			intervals_missing_df = yfct.IdentifyMissingIntervals(exchange, start, end, interval, received_interval_starts)
+			try:
+				intervals_missing_df = yfct.IdentifyMissingIntervals(exchange, start, end, interval, received_interval_starts)
+			except yfcd.NoIntervalsInRangeException:
+				intervals_missing_df = None
 			# Remove missing intervals today:
-			if intervals_missing_df.shape[0] > 0:
-				if interday:
-					intervals_missing_df = intervals_missing_df[intervals_missing_df["open"]<(datetime.date.today()-7*td_1d)]
-				else:
-					intervals_missing_df = intervals_missing_df[intervals_missing_df["open"].dt.date<(datetime.date.today()-7*td_1d)]
-			if intervals_missing_df.shape[0] > 0:
+			if (intervals_missing_df is not None) and intervals_missing_df.shape[0] > 0:
 				## If very few intervals and not today (so Yahoo should have data), 
 				## then assume no trading occurred and insert NaN rows.
 				## Normally Yahoo has already filled with NaNs but sometimes they forget/are late
@@ -772,14 +837,13 @@ class Ticker:
 
 		fetch_dt = fetch_dt_utc.replace(tzinfo=ZoneInfo("UTC"))
 
+		df = self._repairZeroPrices(df, interval)
 		df = self._repairUnitMixups(df, interval)
 
 		if (n > 0) and (pstr is None):
 			## Remove any out-of-range data:
 			## NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
 			if not end is None:
-				end_dt = end if isinstance(end,datetime.datetime) else datetime.datetime.combine(end, datetime.time(0), tz_exchange)
-				end_d = end_dt.astimezone(tz_exchange).date()
 				if interday:
 					df = df[df.index.date < end_d]
 				else:
@@ -788,7 +852,6 @@ class Ticker:
 			#
 			# And again for pre-start data:
 			if not start is None:
-				start_dt = start if isinstance(start,datetime.datetime) else datetime.datetime.combine(start, datetime.time(0), tz_exchange)
 				if interday:
 					df = df[df.index.date >= start_d]
 				else:
@@ -814,7 +877,7 @@ class Ticker:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
 					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
 					sched = yfct.GetExchangeSchedule(exchange, df2["_date"].min(), df2["_date"].max()+td_1d)
-					sched_df = sched
+					sched_df = sched.copy()
 					sched_df["_date"] = sched_df.index.date
 					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]==df2["market_close"]).values)
@@ -877,7 +940,11 @@ class Ticker:
 		df["FetchDate"] = pd.Timestamp(fetch_dt_utc).tz_localize("UTC")
 
 		if debug:
+			print(df)
 			print("_fetchYfHistory() returning")
+		elif self._trace:
+			print(" "*self._trace_depth + "_fetchYfHistory() returning")
+			self._trace_depth -= 1
 
 		return df
 
@@ -891,15 +958,11 @@ class Ticker:
 
 		h = None
 
-		# if not self._history is None:
-		# 	if interval in self._history.keys():
-		# 		h = self._history[interval]
-		# if (h is None) and yfcm.IsDatumCached(self.ticker, "history-"+istr):
-		# 	self._history[interval] = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
-		# 	h = self._history[interval]
-
 		if yfcm.IsDatumCached(self.ticker, "history-"+istr):
 			h = yfcm.ReadCacheDatum(self.ticker, "history-"+istr)
+
+		if not h is None and h.shape[0]==0:
+			h = None
 
 		return h
 
@@ -913,13 +976,21 @@ class Ticker:
 
 		if debug:
 			print("_fetchAndAddRanges_contiguous()")
+			print("- ranges_to_fetch:")
+			pprint(ranges_to_fetch)
+		elif self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_fetchAndAddRanges_contiguous()")
 
 		tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
-		h_first_dt = h.index[0].to_pydatetime()
-		h_last_dt = h.index[-1].to_pydatetime()
-		if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
-			h_first_dt = h_first_dt.astimezone(tz_exchange).date()
-			h_last_dt = h_last_dt.astimezone(tz_exchange).date()
+		if h.shape[0]==0:
+			h_first_dt = None ; h_last_dt = None
+		else:
+			h_first_dt = h.index[0].to_pydatetime()
+			h_last_dt = h.index[-1].to_pydatetime()
+			if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
+				h_first_dt = h_first_dt.astimezone(tz_exchange).date()
+				h_last_dt = h_last_dt.astimezone(tz_exchange).date()
 		td_1d = datetime.timedelta(days=1)
 		istr = yfcd.intervalToString[interval]
 
@@ -927,21 +998,26 @@ class Ticker:
 		if len(ranges_to_fetch) > 2:
 			pprint(ranges_to_fetch)
 			raise Exception("For contiguous data generated {}>2 ranges".format(len(ranges_to_fetch)))
-		n_pre=0 ; n_post=0
+		if h.shape[0]==0 and len(ranges_to_fetch)>1:
+			raise Exception("For contiguous data generated {} ranges, but h is empty".format(len(ranges_to_fetch)))
 		range_pre = None ; range_post = None
-		for r in ranges_to_fetch:
-			if r[0] > h_last_dt:
-				n_post += 1
-				range_post = r
-			elif r[0] < h_first_dt:
-				n_pre += 1
-				range_pre = r
-		if n_pre > 1:
-			pprint(ranges_to_fetch)
-			raise Exception("For contiguous data generated {}>1 ranges before h_first_dt".format(n_pre))
-		if n_post > 1:
-			pprint(ranges_to_fetch)
-			raise Exception("For contiguous data generated {}>1 ranges after h_last_dt".format(n_post))
+		if h.shape[0]==0 and len(ranges_to_fetch)==1:
+			range_pre = ranges_to_fetch[0]
+		else:
+			n_pre=0 ; n_post=0
+			for r in ranges_to_fetch:
+				if r[0] > h_last_dt:
+					n_post += 1
+					range_post = r
+				elif r[0] < h_first_dt:
+					n_pre += 1
+					range_pre = r
+			if n_pre > 1:
+				pprint(ranges_to_fetch)
+				raise Exception("For contiguous data generated {}>1 ranges before h_first_dt".format(n_pre))
+			if n_post > 1:
+				pprint(ranges_to_fetch)
+				raise Exception("For contiguous data generated {}>1 ranges after h_last_dt".format(n_post))
 
 		h2_pre = None ; h2_post = None
 		if not range_pre is None:
@@ -1007,6 +1083,9 @@ class Ticker:
 			# Simple append to bottom of table
 			# 1) adjust h2_post
 			h2_post = self._processYahooAdjustment(h2_post, interval)
+			if debug:
+				print("- h2_post:")
+				print(h2_post)
 
 			# 2) backport h2_post splits across entire h table
 			h2_csf = yfcu.GetCSF0(h2_post)
@@ -1041,7 +1120,10 @@ class Ticker:
 				print("- prepending new data")
 
 			# Simple prepend to top of table
-			post_csf = yfcu.GetCSF0(h)
+			if h.shape[0]==0:
+				post_csf = 1.0
+			else:
+				post_csf = yfcu.GetCSF0(h)
 			h2_pre = self._processYahooAdjustment(h2_pre, interval, post_csf=post_csf)
 
 			try:
@@ -1057,6 +1139,14 @@ class Ticker:
 		h.index = pd.to_datetime(h.index, utc=True).tz_convert(tz_exchange)
 		h = h.sort_index()
 
+		if debug:
+			print("- h:")
+			print(h)
+			print("_fetchAndAddRanges_contiguous() returning")
+		elif self._trace:
+			print(" "*self._trace_depth + "_fetchAndAddRanges_contiguous() returning")
+			self._trace_depth -= 1
+
 		return h
 
 	def _fetchAndAddRanges_sparse(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=False):
@@ -1070,12 +1160,11 @@ class Ticker:
 
 		if debug:
 			print("_fetchAndAddRanges_sparse()")
+		elif self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_fetchAndAddRanges_sparse()")
 
 		tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
-		h_last_dt = h.index[-1].to_pydatetime()
-		h_last_d = h_last_dt.date()
-		if not isinstance(ranges_to_fetch[0][0], datetime.datetime):
-			h_last_dt = h_last_dt.astimezone(tz_exchange).date()
 		td_1d = datetime.timedelta(days=1)
 
 		h_cache_key = "history-"+yfcd.intervalToString[interval]
@@ -1095,11 +1184,15 @@ class Ticker:
 			if debug:
 				print("- first_day_since_adjust = {}".format(first_day_since_adjust))
 			df_since = self.history(start=first_day_since_adjust, interval=yfcd.Interval.Days1, max_age=td_1d, auto_adjust=False)
-			if (df_since is None) or df_since.shape[0]==0:
+			if df_since is None:
 				cdf=1.0 ; csf=1.0
 			else:
-				cdf = yfcu.GetCDF0(df_since)
-				csf = yfcu.GetCSF0(df_since)
+				df_since = self._getCachedPrices(interval) ; df_since = df_since[df_since.index.date>=first_day_since_adjust]
+				if df_since.shape[0]==0:
+					cdf=1.0 ; csf=1.0
+				else:
+					cdf = yfcu.GetCDF0(df_since)
+					csf = yfcu.GetCSF0(df_since)
 
 		# Backport adjustment factors to h:
 		h["CSF"] *= csf
@@ -1131,6 +1224,9 @@ class Ticker:
 				else:
 					raise
 
+			if h2 is None:
+				raise Exception("YF returned None for: tkr={}, interval={}, start={}, end={}".format(self.ticker, interval, rstart, rend))
+
 			# Ensure h2 is split-adjusted. Sometimes Yahoo returns unadjusted data
 			h2 = self._processYahooAdjustment(h2, interval)
 			if debug:
@@ -1141,6 +1237,13 @@ class Ticker:
 			h.index = pd.to_datetime(h.index, utc=True).tz_convert(tz_exchange)
 
 		h = h.sort_index()
+
+		if debug:
+			print("_fetchAndAddRanges_sparse() returning")
+		elif self._trace:
+			print(" "*self._trace_depth + "_fetchAndAddRanges_sparse() returning")
+			self._trace_depth -= 1
+
 		return h
 
 	def _processYahooAdjustment(self, df, interval, post_csf=None):
@@ -1156,11 +1259,11 @@ class Ticker:
 		# Finally, add 'CSF' & 'CDF' columns to allow cheap on-demand adjustment
 
 		if not isinstance(df, pd.DataFrame):
-			raise Exception("'df' must be pd.DataFrame")
+			raise Exception("'df' must be pd.DataFrame not {}".format(type(df)))
 		if not isinstance(interval, yfcd.Interval):
-			raise Exception("'interval' must be yfcd.Interval")
-		if (not post_csf is None) and not isinstance(post_csf, (float,int)):
-			raise Exception("'post_csf' if set must be scalar numeric")
+			raise Exception("'interval' must be yfcd.Interval not {}".format(type(interval)))
+		if (not post_csf is None) and not isinstance(post_csf, (float,int,np.int64)):
+			raise Exception("'post_csf' if set must be scalar numeric not {}".format(type(post_csf)))
 
 		debug = False
 		debug = self._debug
@@ -1170,6 +1273,9 @@ class Ticker:
 			print("")
 			print("_processYahooAdjustment(interval={}, post_csf={}), {}->{}".format(interval, post_csf, df.index[0], df.index[-1]))
 			print(df[["Close","Dividends","Volume"]])
+		elif self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_processYahooAdjustment(interval={}, post_csf={}), {}->{}".format(interval, post_csf, df.index[0], df.index[-1]))
 
 		cdf = None
 		csf = None
@@ -1316,7 +1422,12 @@ class Ticker:
 
 		# Cumulative dividend factor
 		if cdf is None:
-			cdf = df["Adj Close"] / df["Close"]
+			f_nna = ~df["Close"].isna()
+			if not f_nna.any():
+				cdf = 1.0
+			else:
+				cdf = np.full(df.shape[0], np.nan)
+				cdf[f_nna] = df.loc[f_nna,"Adj Close"] / df.loc[f_nna,"Close"]
 		
 		# Cumulative stock-split factor
 		if csf is None:
@@ -1355,9 +1466,119 @@ class Ticker:
 		if debug:
 			print("_processYahooAdjustment() returning")
 			print(df[["Close","Dividends","Volume","CSF"]])
+		elif self._trace:
+			print(" "*self._trace_depth + "_processYahooAdjustment() returning")
 
 		return df
 		
+	def _reconstructInterval(self, df_row, interval, bad_fields):
+		if isinstance(df_row, pd.DataFrame) or not isinstance(df_row, pd.Series):
+			raise Exception("'df_row' must be a Pandas Series not", type(df_row))
+		if not isinstance(bad_fields, (list,set,np.ndarray)):
+			raise Exception("'bad_fields' must be a list/set not", type(bad_fields))
+
+		idx = df_row.name
+		start = idx.date()
+
+		if self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_reconstructInterval(interval={}, idx={}, bad_fields={})".format(interval, idx, bad_fields))
+
+		data_cols = [c for c in ["Open","High","Low","Close","Adj Close"] if c in df_row.index]
+
+		# If interval is weekly then can construct with daily. But if smaller intervals then 
+		# restricted to recent times:
+		# - daily = hourly restricted to last 730 days
+		sub_interval = None
+		td_range = None
+		if interval == yfcd.Interval.Week:
+			# Correct by fetching week of daily data
+			sub_interval = yfcd.Interval.Days1
+			td_range = datetime.timedelta(days=7)
+		elif interval == yfcd.Interval.Days1:
+			# Correct by fetching day of hourly data
+			sub_interval = yfcd.Interval.Hours1
+			td_range = datetime.timedelta(days=1)
+		else:
+			print("WARNING: Have not implemented repair for '{}' interval. Contact developers".format(interval))
+			return df_row
+
+		if sub_interval==yfcd.Interval.Hours1 and (datetime.date.today()-start) > datetime.timedelta(days=729):
+			# Don't bother requesting more price data, Yahoo will reject
+			return None
+		else:
+			new_vals = {}
+
+			if sub_interval==yfcd.Interval.Hours1:
+				df_fine = self.history(start=start, end=start+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
+			else:
+				df_fine = self.history(start=start-td_range, end=start+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
+
+			# First, check whether df_fine has different split-adjustment than df_row.
+			# If it is different, then adjust df_fine to match df_row
+			good_fields = list(set(data_cols)-set(bad_fields)-set("Adj Close"))
+			if len(good_fields)==0:
+				raise Exception("No good fields, so cannot determine whether different split-adjustment. Contact developers")
+			# median = df_row.loc[good_fields].median()
+			# median_fine = np.median(df_fine[good_fields].values)
+			# ratio = median/median_fine
+			# Better method to calculate split-adjustment:
+			df_fine_from_idx = df_fine[df_fine.index>=idx]
+			ratios = []
+			for f in good_fields:
+				if f=="Low":
+					ratios.append(df_row[f] / df_fine_from_idx[f].min())
+				elif f=="High":
+					ratios.append(df_row[f] / df_fine_from_idx[f].max())
+				elif f=="Open":
+					ratios.append(df_row[f] / df_fine_from_idx[f].iloc[0])
+				elif f=="Close":
+					ratios.append(df_row[f] / df_fine_from_idx[f].iloc[-1])
+			ratio = np.mean(ratios)
+			#
+			ratio_rcp = round(1.0/ratio, 1) ; ratio = round(ratio, 1)
+			if ratio==1 and ratio_rcp==1:
+				# Good!
+				pass
+			else:
+				if ratio>1:
+					# data has different split-adjustment than fine-grained data
+					# Adjust fine-grained to match
+					df_fine[data_cols] *= ratio
+				elif ratio_rcp>1:
+					# data has different split-adjustment than fine-grained data
+					# Adjust fine-grained to match
+					df_fine[data_cols] *= 1.0/ratio_rcp
+
+			if sub_interval != yfcd.Interval.Hours1:
+				df_last_week = df_fine[df_fine.index<idx]
+				df_fine = df_fine[df_fine.index>=idx]
+
+			if "High" in bad_fields:
+				new_vals["High"] = df_fine["High"].max()
+			if "Low" in bad_fields:
+				new_vals["Low"] = df_fine["Low"].min()
+			if "Open" in bad_fields:
+				if sub_interval != yfcd.Interval.Hours1 and idx != df_fine.index[0]:
+					# Exchange closed Monday. In this case, Yahoo sets Open to last week close
+					new_vals["Open"] = df_last_week["Close"][-1]
+					if "Low" in new_vals:
+						new_vals["Low"] = min(new_vals["Open"], new_vals["Low"])
+					elif new_vals["Open"] < df_row["Low"]:
+						new_vals["Low"] = new_vals["Open"]
+				else:
+					new_vals["Open"] = df_fine["Open"].iloc[0]
+			if "Close" in bad_fields:
+				new_vals["Close"] = df_fine["Close"].iloc[-1]
+				# Assume 'Adj Close' also corrupted, easier than detecting whether true
+				new_vals["Adj Close"] = df_fine["Adj Close"].iloc[-1]
+
+		if self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_reconstructInterval() returning")
+
+		return new_vals
+
 	def _repairUnitMixups(self, df, interval):
 		# Sometimes Yahoo returns few prices in cents/pence instead of $/£
 		# I.e. 100x bigger
@@ -1369,27 +1590,28 @@ class Ticker:
 			# Need multiple rows to confidently identify outliers
 			return df
 
-		debug = False
-		# debug = True
+		if self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_repairUnitMixups(interval={})".format(interval))
 
-		if debug:
-			print("_repairUnitMixups(tkr={}, interval={})".format(self.ticker, interval))
+		df2 = df.copy()
 
 		# Only import scipy if users actually want function. To avoid
 		# adding it to dependencies.
 		from scipy import ndimage as _ndimage
 
-		data_cols = ["Open","High","Low","Close"]
-		data_cols = [c for c in data_cols if c in df.columns]
-		n = df.shape[0]
-		median = _ndimage.median_filter(df[data_cols].values, size=(3,3), mode='mirror')
+		data_cols = ["High","Open","Low","Close"]  # Order important, separate High from Low
+		data_cols = [c for c in data_cols if c in df2.columns]
+		median = _ndimage.median_filter(df2[data_cols].values, size=(3,3), mode='wrap')
 
 		if (median==0).any():
+			print("Ticker =",self.ticker)
+			print("yf =",yf)
+			print("df:")
+			print(df)
 			raise Exception("median contains zeroes, why?")
-		ratio = np.zeros(median.shape)
-		ratio = df[data_cols].values/median
-		# ratio_rounded = (ratio/5).round()*5 # round ratio to nearest 5
-		ratio_rounded = (ratio/10).round()*10 # round ratio to nearest 10
+		ratio = df2[data_cols].values/median
+		ratio_rounded = (ratio/20).round()*20 # round ratio to nearest 20
 		f = (ratio_rounded)==100
 
 		# Store each mixup:
@@ -1399,113 +1621,22 @@ class Ticker:
 			if fj.any():
 				dc = data_cols[j]
 				for i in np.where(fj)[0]:
-					idx = df.index[i]
+					idx = df2.index[i]
 					if not idx in mixups:
-						mixups[idx] = {"data":df.loc[idx,data_cols], "fields":set([dc])}
+						mixups[idx] = {"data":df2.loc[idx,data_cols], "fields":set([dc])}
 					else:
 						mixups[idx]["fields"].add(dc)
 		n_mixups = len(mixups)
 
 		if len(mixups) > 0:
-			if debug:
-				print("mixups:")
-				pprint(mixups)
-
-			# Problem with Yahoo's mixup is they calculate high & low after, so they can be corrupted.
-			# If interval is weekly then can correct with daily. But if smaller intervals then 
-			# restricted to recent times:
-			# - daily = hourly restricted to last 730 days
-			sub_interval = None
-			td_range = None
-			if interval == yfcd.Interval.Week:
-				# Correct by fetching week of daily data
-				sub_interval = yfcd.Interval.Days1
-				td_range = datetime.timedelta(days=7)
-			elif interval == yfcd.Interval.Days1:
-				# Correct by fetching day of hourly data
-				sub_interval = yfcd.Interval.Hours1
-				td_range = datetime.timedelta(days=1)
-			else:
-				print("WARNING: Have not implemented repair for '{}' interval. Contact developers".format(interval))
-				return df
-
-			# This first pass will correct all errors in Open/Close/Adj Close columns.
-			# It will also *attempt* to correct Low/High columns, but only if can get price data.
+			# This first pass will correct all errors in Open/Close/AdjClose columns.
+			# It will also attempt to correct Low/High columns, but only if can get price data.
 			for idx in sorted(list(mixups.keys())):
 				m = mixups[idx]
-				# Although only some fields in row exhibit 100x error, normally the other fields are also corrupted, 
-				# so need to recalculate all fields in row.
-
-				if td_range is None:
-					raise Exception("was hoping this wouldn't happen")
-
-				start = idx.date()
-				if sub_interval=="1h" and (datetime.date.today()-start) > datetime.timedelta(days=729):
-					# Don't bother requesting more price data, Yahoo will reject
-					pass
-				else:
-					if sub_interval=="1h":
-						df_fine = self.history(start=idx.date(), end=idx.date()+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
-					else:
-						df_fine = self.history(start=idx.date()-td_range, end=idx.date()+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
-					if debug:
-						print("df_fine:")
-						print(df_fine[["Close","High"]])
-
-					# First, check whether df_fine has different split-adjustment than df.
-					# If it is different, then adjust df_fine to match df
-					good_fields = list(set(data_cols)-m["fields"])
-					median = df.loc[idx,good_fields].median()
-					median_fine = np.median(df_fine[good_fields].values)
-					ratio = round(median/median_fine, 1)
-					ratio_rcp = round(median_fine/median, 1)
-					if ratio==1 and ratio_rcp==1:
-						# Good!
-						pass
-					else:
-						if ratio>1:
-							# data has different split-adjustment than fine-grained data
-							# Adjust fine-grained to match
-							df_fine[data_cols] *= ratio
-						elif ratio_rcp>1:
-							# data has different split-adjustment than fine-grained data
-							# Adjust fine-grained to match
-							df_fine[data_cols] *= 1.0/ratio_rcp
-						median_fine = np.median(df_fine[good_fields].values)
-						ratio = round(median/median_fine, 1)
-						ratio_rcp = round(median_fine/median, 1)
-						if debug:
-							print("df_fine post adjust:")
-							print(df_fine[["Close","High"]])
-
-					if sub_interval != "1h":
-						# dt_before_week = df_fine.index[df_fine.index.get_loc(idx)-1]
-						df_last_week = df_fine[df_fine.index<idx]
-						df_fine = df_fine[df_fine.index>=idx]
-
-					if "High" in m["fields"]:
-						df.loc[idx, "High"] = df_fine["High"].max()
-						m["fields"].remove("High")
-					if "Low" in m["fields"]:
-						df.loc[idx, "Low"] = df_fine["Low"].min()
-						m["fields"].remove("Low")
-					if "Open" in m["fields"]:
-						if sub_interval != "1h" and idx != df_fine.index[0]:
-							# Exchange closed Monday. In this case, Yahoo sets Open to last week close
-							df.loc[idx, "Open"] = df_last_week["Close"][-1]
-							df.loc[idx, "Low"] = min(df.loc[idx, "Open"], df.loc[idx, "Low"])
-						else:
-							df.loc[idx, "Open"] = df_fine["Open"].iloc[0]
-						m["fields"].remove("Open")
-					if "Close" in m["fields"]:
-						df.loc[idx, "Close"] = df_fine["Close"].iloc[-1]
-						m["fields"].remove("Close")
-						# Assume 'Adj Close' also corrupted, easier than detecting whether true
-						# print(df.loc[idx])
-						# print(df_fine.iloc[0])
-						df.loc[idx, "Adj Close"] = df_fine["Adj Close"].iloc[-1]
-
-				if len(m["fields"])==0:
+				new_values = self._reconstructInterval(df2.loc[idx], interval, m["fields"])
+				if not new_values is None:
+					for k in new_values:
+						df2.loc[idx, k] = new_values[k]
 					del mixups[idx]
 
 			# This second pass will *crudely* "fix" any remaining errors in High/Low
@@ -1513,12 +1644,12 @@ class Ticker:
 			if len(mixups)>0:
 				for idx in sorted(list(mixups.keys())):
 					m = mixups[idx]
-					row = df.loc[idx,["Open","Close"]]
+					row = df2.loc[idx,["Open","Close"]]
 					if "High" in m["fields"]:
-						df.loc[idx,"High"] = row.max()
+						df2.loc[idx,"High"] = row.max()
 						m["fields"].remove("High")
 					if "Low" in m["fields"]:
-						df.loc[idx,"Low"] = row.min()
+						df2.loc[idx,"Low"] = row.min()
 						m["fields"].remove("Low")
 
 					if len(m["fields"])==0:
@@ -1529,7 +1660,51 @@ class Ticker:
 			if len(mixups)>0:
 				print("    ... and failed to correct {}".format(len(mixups)))
 
-		return df
+		if self._trace:
+			print(" "*self._trace_depth + "_repairUnitMixups() returning")
+			self._trace_depth -= 1
+
+		return df2
+
+	def _repairZeroPrices(self, df, interval):
+		# Sometimes Yahoo returns prices=0 when obviously wrong e.g. Volume>0 and Close>0.
+		# Easy to detect and fix
+
+		if df.shape[0] == 0:
+			return df
+		if df.shape[0] == 1:
+			# Need multiple rows to confidently identify outliers
+			return df
+
+		if self._trace:
+			self._trace_depth += 1
+			print(" "*self._trace_depth + "_repairZeroPrices(interval={}, date_range={}->{})".format(interval, df.index[0], df.index[-1]))
+
+		df2 = df.copy()
+
+		data_cols = ["Open","High","Low","Close"]
+		data_cols = [c for c in data_cols if c in df2.columns]
+		f_zeroes = (df2[data_cols]==0.0).values.any(axis=1)
+
+		n_fixed = 0
+		for i in np.where(f_zeroes)[0]:
+			idx = df2.index[i]
+			df_row = df2.loc[idx]
+			bad_fields = df2.columns[df_row.values==0.0].values
+			new_values = self._reconstructInterval(df2.loc[idx], interval, bad_fields)
+			if not new_values is None:
+				for k in new_values:
+					df2.loc[idx, k] = new_values[k]
+				n_fixed += 1
+
+		if n_fixed>0:
+			print("{}: fixed {} price=0.0 errors in {} price data".format(self.ticker, n_fixed, interval))
+
+		if self._trace:
+			print(" "*self._trace_depth + "_repairZeroPrices() returning")
+			self._trace_depth -= 1
+
+		return df2
 
 	@property
 	def info(self):
@@ -1788,79 +1963,84 @@ class Ticker:
 		exchange_str = "exchange-{0}".format(self.info["exchange"])
 		if yfcm.IsDatumCached(exchange_str, "yf_lag"):
 			self._yf_lag = yfcm.ReadCacheDatum(exchange_str, "yf_lag")
-			return self._yf_lag
-
-		## Have to calculate lag from YF data.
-		## To avoid circular logic will call YF directly, not use my cache. Because cache requires knowing lag.
-
-		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		if not yfct.IsTimestampInActiveSession(self.info["exchange"], dt_now):
-			## Exchange closed so used hardcoded delay, ...
-			self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
-
-			## ... but only until next session starts +1H:
-			s = yfct.GetTimestampNextSession(self.info["exchange"], dt_now)
-			expiry = s["market_open"] + datetime.timedelta(hours=1)
-
-			yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=expiry)
-			return self._yf_lag
-
-		## Calculate actual delay from live market data, and cache with expiry in 4 weeks
-
-		specified_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
-
-		## Because some stocks go days without any volume, need to 
-		## be sure today has volume
-		start_d = dt_now.date()-datetime.timedelta(days=7)
-		end_d = dt_now.date()+datetime.timedelta(days=1)
-		df_1d = self.dat.history(interval="1d", start=start_d, end=end_d)
-		start_d = df_1d.index[-1].date()
-		if start_d != dt_now.date():
-			self._yf_lag = specified_lag
-			return self._yf_lag
-
-		## Get last hour of 5m price data:
-		start_dt = dt_now-datetime.timedelta(hours=1)
-		try:
-			df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now, raise_errors=True)
-			df_5mins = df_5mins[df_5mins["Volume"]>0]
-		except:
-			df_5mins = None
-		if (df_5mins is None) or (df_5mins.shape[0] == 0):
-			# raise Exception("Failed to fetch 5m data for tkr={}, start={}".format(self.ticker, start_dt))
-			# print("WARNING: Failed to fetch 5m data for tkr={} so setting yf_lag to hardcoded default".format(self.ticker, start_dt))
-			self._yf_lag = specified_lag
-			return self._yf_lag
-		df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
-		df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
-
-		## Now 15 minutes of 1m price data around the last 5m candle:
-		dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=10)
-		dt2_end = df_5mins_lastDt + datetime.timedelta(minutes=5)
-		df_1mins = self.dat.history(interval="1m", start=dt2_start, end=dt2_end, raise_errors=True)
-		dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-		df_1mins_lastDt = df_1mins.index[df_1mins.shape[0]-1].to_pydatetime()
-
-		lag = dt_now - df_1mins_lastDt
-		## Update: ignore all large lags
-		# if lag > datetime.timedelta(minutes=40):
-		# 	raise Exception("{}: calculated YF lag as {}, seems excessive".format(self.ticker, lag))
-		if lag < datetime.timedelta(seconds=0):
-			print("dt_now = {} (tz={})".format(dt_now, dt_now.tzinfo))
-			print("df_1mins:")
-			print(df_1mins)
-			raise Exception("{}: calculated YF lag as {}, seems negative".format(self.ticker, lag))
-		expiry_td = datetime.timedelta(days=28)
-		if (lag > (2*specified_lag)) and (lag-specified_lag)>datetime.timedelta(minutes=2):
-			if df_1mins["Volume"][df_1mins.shape[0]-1] == 0:
-				## Ticker has low volume, ignore larger-than-expected lag. Just reduce the expiry, in case tomorrow has more volume
-				expiry_td = datetime.timedelta(days=1)
-			else:
-				#print("df_5mins:")
-				#print(df_5mins)
-				#raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
-				self._yf_lag = specified_lag
+			if self._yf_lag:
 				return self._yf_lag
-		self._yf_lag = lag
-		yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+expiry_td)
+
+		# ## Have to calculate lag from YF data.
+		# ## To avoid circular logic will call YF directly, not use my cache. Because cache requires knowing lag.
+		# dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+		# if not yfct.IsTimestampInActiveSession(self.info["exchange"], dt_now):
+		# 	## Exchange closed so used hardcoded delay, ...
+		# 	self._yf_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
+
+		# 	## ... but only until next session starts +1H:
+		# 	s = yfct.GetTimestampNextSession(self.info["exchange"], dt_now)
+		# 	expiry = s["market_open"] + datetime.timedelta(hours=1)
+
+		# 	yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=expiry)
+		# 	return self._yf_lag
+
+		# ## Calculate actual delay from live market data, and cache with expiry in 4 weeks
+
+		# specified_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
+
+		# ## Because some stocks go days without any volume, need to 
+		# ## be sure today has volume
+		# start_d = dt_now.date()-datetime.timedelta(days=7)
+		# end_d = dt_now.date()+datetime.timedelta(days=1)
+		# df_1d = self.dat.history(interval="1d", start=start_d, end=end_d)
+		# start_d = df_1d.index[-1].date()
+		# if start_d != dt_now.date():
+		# 	self._yf_lag = specified_lag
+		# 	return self._yf_lag
+
+		# ## Get last hour of 5m price data:
+		# start_dt = dt_now-datetime.timedelta(hours=1)
+		# try:
+		# 	df_5mins = self.dat.history(interval="5m", start=start_dt, end=dt_now, raise_errors=True)
+		# 	df_5mins = df_5mins[df_5mins["Volume"]>0]
+		# except:
+		# 	df_5mins = None
+		# if (df_5mins is None) or (df_5mins.shape[0] == 0):
+		# 	# raise Exception("Failed to fetch 5m data for tkr={}, start={}".format(self.ticker, start_dt))
+		# 	# print("WARNING: Failed to fetch 5m data for tkr={} so setting yf_lag to hardcoded default".format(self.ticker, start_dt))
+		# 	self._yf_lag = specified_lag
+		# 	return self._yf_lag
+		# df_5mins_lastDt = df_5mins.index[df_5mins.shape[0]-1].to_pydatetime()
+		# df_5mins_lastDt = df_5mins_lastDt.astimezone(ZoneInfo("UTC"))
+
+		# ## Now 15 minutes of 1m price data around the last 5m candle:
+		# dt2_start = df_5mins_lastDt - datetime.timedelta(minutes=10)
+		# dt2_end = df_5mins_lastDt + datetime.timedelta(minutes=5)
+		# df_1mins = self.dat.history(interval="1m", start=dt2_start, end=dt2_end, raise_errors=True)
+		# dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+		# df_1mins_lastDt = df_1mins.index[df_1mins.shape[0]-1].to_pydatetime()
+
+		# lag = dt_now - df_1mins_lastDt
+		# ## Update: ignore all large lags
+		# # if lag > datetime.timedelta(minutes=40):
+		# # 	raise Exception("{}: calculated YF lag as {}, seems excessive".format(self.ticker, lag))
+		# if lag < datetime.timedelta(seconds=0):
+		# 	print("dt_now = {} (tz={})".format(dt_now, dt_now.tzinfo))
+		# 	print("df_1mins:")
+		# 	print(df_1mins)
+		# 	raise Exception("{}: calculated YF lag as {}, seems negative".format(self.ticker, lag))
+		# expiry_td = datetime.timedelta(days=28)
+		# if (lag > (2*specified_lag)) and (lag-specified_lag)>datetime.timedelta(minutes=2):
+		# 	if df_1mins["Volume"][df_1mins.shape[0]-1] == 0:
+		# 		## Ticker has low volume, ignore larger-than-expected lag. Just reduce the expiry, in case tomorrow has more volume
+		# 		expiry_td = datetime.timedelta(days=1)
+		# 	else:
+		# 		#print("df_5mins:")
+		# 		#print(df_5mins)
+		# 		#raise Exception("{}: calculated YF lag as {}, greatly exceeds the specified lag {}".format(self.ticker, lag, specified_lag))
+		# 		self._yf_lag = specified_lag
+		# 		return self._yf_lag
+		# self._yf_lag = lag
+		# yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=dt_now+expiry_td)
+		# return self._yf_lag
+
+		# Just use specified lag
+		specified_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
+		self._yf_lag = specified_lag
 		return self._yf_lag
