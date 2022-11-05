@@ -93,6 +93,7 @@ def SetExchangeTzName(exchange, tz):
 		exchangeTzCache[exchange] = tz
 		yfcm.StoreCacheDatum("exchange-"+exchange, "tz", tz)
 
+calCache = {}
 
 def GetExchangeDataDelay(exchange):
 	TypeCheckStr(exchange, "exchange")
@@ -104,7 +105,13 @@ def GetExchangeDataDelay(exchange):
 
 
 def GetCalendar(exchange):
+	global calCache
+
 	cal_name = yfcd.exchangeToXcalExchange[exchange]
+
+	if cal_name in calCache:
+		return calCache[cal_name]
+
 	if cal_name in {"JPX","XTKS"}:
 		# These won't go before 1997
 		start = "1997"
@@ -119,6 +126,8 @@ def GetCalendar(exchange):
 
 	if (exchange in yfcd.exchangesWithAuction) and ("auction" not in df.columns):
 		df["auction"] = df["close"] + yfcd.exchangeAuctionDelay[exchange]
+
+	calCache[cal_name] = cal
 
 	return cal
 
@@ -155,7 +164,8 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	if "auction" in sched.columns:
 		cols.append("auction")
 	df = sched[cols].copy()
-	df = df.rename(columns={"open":"market_open","close":"market_close"})
+	rename_cols = {"open":"market_open","close":"market_close"}
+	df.columns = [rename_cols[col] if col in rename_cols else col for col in df.columns]
 	return df
 
 
@@ -409,7 +419,9 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 			# - combine
 			auctions_df = auctions_df.reset_index(drop=True)
 			intervals_df_last = auctions_df.loc[~auctions_df["interval_open"].isna(),["interval_open","interval_close"]]
-			auctions_df = auctions_df.loc[~auctions_df["auction_open"].isna(),["auction_open","auction_close"]].rename(columns={"auction_open":"interval_open","auction_close":"interval_close"})
+			auctions_df = auctions_df.loc[~auctions_df["auction_open"].isna(),["auction_open","auction_close"]]
+			rename_cols = {"auction_open":"interval_open","auction_close":"interval_close"}
+			auctions_df.columns = [rename_cols[col] if col in rename_cols else col for col in auctions_df.columns]
 			intervals_df = pd.concat([intervals_df_ex_last, intervals_df_last, auctions_df], sort=True).sort_values(by="interval_open").reset_index(drop=True)
 
 		intervals_df = intervals_df[(intervals_df["interval_open"]>=start_dt) & (intervals_df["interval_close"]<=end_dt)]
@@ -694,7 +706,8 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 		ts_day = pd.to_datetime(ts_day)
 		ts_day_df = pd.DataFrame(index=ts_day)
 		intervals = pd.merge(ts_day_df, sched, how="left", left_index=True, right_index=True)
-		intervals = intervals.rename(columns={"market_open":"interval_open", "market_close":"interval_close"})
+		rename_cols = {"market_open":"interval_open", "market_close":"interval_close"}
+		intervals.columns = [rename_cols[col] if col in rename_cols else col for col in intervals.columns]		
 		intervals["interval_open"] = intervals["interval_open"].dt.date
 		intervals["interval_close"] = intervals["interval_close"].dt.date +td_1d
 

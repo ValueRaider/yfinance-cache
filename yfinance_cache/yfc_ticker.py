@@ -345,13 +345,14 @@ class Ticker:
 			h_interval_dts = np.array(h_interval_dts)
 			if interval == yfcd.Interval.Days1:
 				# Daily data is always contiguous so only need to check last row
-				h_interval_dt = h_interval_dts[n-1]
-				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][n-1], tz=tz_exchange)
+				h_interval_dt = h_interval_dts[-1]
+				fetch_dt = yfct.ConvertToDatetime(h["FetchDate"].iloc[-1], tz=tz_exchange)
 				last_expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 				if last_expired:
 					# Drop last row because expired
-					h = h.drop(h.index[n-1])
+					h = h.drop(h.index[-1])
 					h_interval_dts = h_interval_dts[0:n-1]
+					n -= 1
 			else:
 				expired = np.array([False]*n)
 				f_final = h["Final?"].values
@@ -360,7 +361,7 @@ class Ticker:
 					fetch_dt = yfct.ConvertToDatetime(h["FetchDate"][idx], tz=tz_exchange)
 					expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, exchange, interval, yf_lag=self.yf_lag)
 				if expired.any():
-					h = h[~expired].copy()
+					h = h.drop(h.index[expired])
 					h_interval_dts = h_interval_dts[~expired]
 			#
 			## Potential perf improvement: tag rows as fully contiguous to avoid searching for gaps
@@ -503,7 +504,9 @@ class Ticker:
 
 		# Present table for user:
 		if (not start is None) and (not end is None):
-			h = h[np.logical_and(h.index>=pd.Timestamp(start), h.index<pd.Timestamp(end))].copy()
+			f_outside_range = (h.index<pd.Timestamp(start)) | (h.index>=pd.Timestamp(end))
+			if f_outside_range.any():
+				h = h.drop(h.index[f_outside_range])
 		if not keepna:
 			price_data_cols = [c for c in yfcd.yf_data_cols if c in h.columns]
 			mask_nan_or_zero = (h[price_data_cols].isna()|(h[price_data_cols]==0)).all(axis=1)
