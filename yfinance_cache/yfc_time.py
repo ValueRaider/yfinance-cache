@@ -95,6 +95,7 @@ def SetExchangeTzName(exchange, tz):
 		yfcm.StoreCacheDatum("exchange-"+exchange, "tz", tz)
 
 calCache = {}
+schedYearCache = {}
 schedYearsCache = {}
 schedDbMetadata = {}
 db_mem = sql.connect(":memory:")
@@ -150,25 +151,135 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	TypeCheckStr(exchange, "exchange")
 	TypeCheckDateStrict(start_d, "start_d")
 	TypeCheckDateStrict(end_d, "end_d")
-
 	if start_d >= end_d:
 		raise Exception("start_d={} must < end_d={}".format(start_d, end_d))
 
+	debug = False
+	# debug = True
+
+	if debug:
+		print("GetExchangeSchedule(exchange={}, start_d={}, end_d={}".format(exchange, start_d, end_d))
+
 	if not exchange in yfcd.exchangeToXcalExchange:
 		raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-	cal = GetCalendar(exchange)
 
-	sched = None
-	## loc[] is inclusive, but end_d should be treated as exclusive:
-	sched = cal.schedule[start_d:end_d-timedelta(days=1)]
+	end_d_sub1 = end_d-timedelta(days=1)
+
+	global schedYearCache
+	global schedYearsCache
+
+	num_years = end_d.year - start_d.year + 1
+	if num_years == 1:
+		# Try caching each year
+		year = start_d.year
+		if year is not None and exchange in schedYearCache and year in schedYearCache[exchange]:
+			s = schedYearCache[exchange][year]
+		else:
+			cal = GetCalendar(exchange)
+			s = cal.schedule
+			# Cache
+			if year is not None:
+				s_year = s.loc[str(year)].copy()
+				if exchange not in schedYearCache:
+					schedYearCache[exchange] = {}
+				schedYearCache[exchange][year] = s_year
+				s = s_year
+
+	elif num_years <= 2:
+		# Try caching 1-2 years:
+		year = start_d.year
+		if num_years in schedYearsCache and exchange in schedYearsCache[num_years] and year in schedYearsCache[num_years][exchange]:
+			s = schedYearsCache[num_years][exchange][year]
+		else:
+			cal = GetCalendar(exchange)
+			s = cal.schedule
+			s_years = s.loc[str(start_d.year):str(end_d_sub1.year)]
+			s_years = s_years.copy()
+			# Cache
+			if not num_years in schedYearsCache:
+				schedYearsCache[num_years] = {}
+			if not exchange in schedYearsCache[num_years]:
+				schedYearsCache[num_years][exchange] = {}
+			schedYearsCache[num_years][exchange][year] = s_years
+
+			s = s_years
+	else:
+		cal = GetCalendar(exchange)
+		s = cal.schedule
+
+	if not s is None:
+		sched = s.loc[start_d:end_d_sub1]
+	else:
+		sched = None
+
+	#
+	if (sched is None) or sched.shape[0] == 0:
+		df = None
+	else:
+		cols = ["open","close"]
+		if "auction" in sched.columns:
+			cols.append("auction")
+		# df = sched[cols].copy()
+		# rename_cols = {"open":"market_open","close":"market_close"}
+		# df.columns = [rename_cols[col] if col in rename_cols else col for col in df.columns]
+		df = sched[cols]
+
+	if debug:
+		# print("df:")
+		# print(df)
+		print("GetExchangeSchedule() returning")
+
+	return df
+
+
+	####
+	# Experiment with sqlite3. But pd.read_sql() -> _parse_date_columns() kills performance
+	####
+	global calCache
+	global schedDbMetadata
+	global db_mem
+	if not exchange in schedDbMetadata:
+		cal = GetCalendar(exchange)
+		tz = ZoneInfo(GetExchangeTzName(exchange))
+		cal.schedule["open"] = cal.schedule["open"].dt.tz_convert("UTC")
+		cal.schedule["close"] = cal.schedule["close"].dt.tz_convert("UTC")
+		cal.schedule.to_sql(exchange, db_mem, index_label="indexpd")
+		schedDbMetadata[exchange] = {}
+		schedDbMetadata[exchange]["columns"] = cal.schedule.columns.values
+	#
+	# query = "PRAGMA table_info('{}')".format(exchange)
+	# print("query:")
+	# print(query)
+	# c = db_mem.execute(query)
+	# table_schema = c.fetchall()
+	# print(table_schema)
+	# print(schedDbMetadata[exchange])
+	# quit()
+	#
+	tz_name = GetExchangeTzName(exchange)
+	tz_exchange = ZoneInfo(tz_name)
+	start_dt = datetime.combine(start_d, time(0), tzinfo=tz_exchange)
+	end_dt = datetime.combine(end_d, time(0), tzinfo=tz_exchange)
+	# index in sql is tz-naive, so discard tz from date range:
+	start_dt = pd.Timestamp(start_dt).tz_localize(None)
+	end_dt = pd.Timestamp(end_dt).tz_localize(None)
+	cols = [c for c in ["open","close","auction"] if c in schedDbMetadata[exchange]["columns"]]
+	query = "SELECT indexpd, {} FROM {} WHERE indexpd >= '{}' AND indexpd < '{}' ;".format(", ".join(cols), exchange, start_dt, end_dt)
+	sched = pd.read_sql(query, db_mem, parse_dates=["indexpd", "open","close"])
 	if (sched is None) or sched.shape[0] == 0:
 		return None
-
+	sched.index = pd.DatetimeIndex(sched["indexpd"])#.tz_localize(tz_name)
+	sched = sched.drop("indexpd",axis=1)
+	sched["open"] = sched["open"].dt.tz_convert(tz_exchange)
+	sched["close"] = sched["close"].dt.tz_convert(tz_exchange)
 	cols = ["open","close"]
 	if "auction" in sched.columns:
 		cols.append("auction")
-	df = sched[cols]
+	df = sched[cols].copy()
+	rename_cols = {"open":"market_open","close":"market_close"}
+	df.columns = [rename_cols[col] if col in rename_cols else col for col in df.columns]
 	return df
+	####
 
 
 def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
