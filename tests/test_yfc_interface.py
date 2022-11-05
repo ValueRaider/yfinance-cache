@@ -462,7 +462,7 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
+                df_yf = df_yf[np.isin(df_yf.index.date, sched["open"].dt.date)]
                 df_yf_backup = df_yf.copy()
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
@@ -538,7 +538,7 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[np.isin(df_yf.index.date, sched["market_open"].dt.date)]
+                df_yf = df_yf[np.isin(df_yf.index.date, sched["open"].dt.date)]
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
 
@@ -670,18 +670,18 @@ class Test_Yfc_Interface(Test_Base):
             d_now = dt_now.astimezone(ZoneInfo(tz)).date()
             if yfct.ExchangeOpenOnDay(exchange, d_now):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
-                if (not sched is None) and dt_now > sched["market_close"][0]:
+                if (not sched is None) and dt_now > sched["close"][0]:
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
 
                     start = d_now
                     end = d_now+td_1d
 
-                    dt = sched["market_open"][0]
+                    dt = sched["open"][0]
                     if tkr.endswith(".TA"):
                         # Align back to 9:30am
                         dt = datetime.combine(dt.date(), time(9,30), tzinfo=tz)
                     expected_interval_starts = []
-                    while dt < sched["market_close"][0]:
+                    while dt < sched["close"][0]:
                         expected_interval_starts.append(dt)
                         dt += timedelta(hours=1)
 
@@ -710,7 +710,7 @@ class Test_Yfc_Interface(Test_Base):
                     df_yf["_date"] = df_yf.index.date
                     answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
                     answer2.index = df_yf.index ; df_yf = answer2
-                    f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
+                    f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
                     df_yf = df_yf[~f_drop].drop("_date",axis=1)
                     # YF hourly volume is not split-adjusted, so adjust:
                     ss = df_yf["Stock Splits"].copy()
@@ -734,7 +734,7 @@ class Test_Yfc_Interface(Test_Base):
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if yfct.ExchangeOpenOnDay(exchange, d_now):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
-                if (not sched is None) and dt_now > sched["market_close"][0]:
+                if (not sched is None) and dt_now > sched["close"][0]:
                     start_dt = dt_now - timedelta(days=7)
                     end_dt = dt_now
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
@@ -780,7 +780,7 @@ class Test_Yfc_Interface(Test_Base):
             yfct.SetExchangeTzName(exchange, dat.info["exchangeTimezoneName"])
             if yfct.ExchangeOpenOnDay(exchange, d_now):
                 sched = yfct.GetExchangeSchedule(exchange, d_now, d_now+timedelta(days=1))
-                if (not sched is None) and dt_now > sched["market_close"][0]:
+                if (not sched is None) and dt_now > sched["close"][0]:
                     start_dt = dt_now - timedelta(days=dt_now.weekday())
                     end_dt = start_dt+timedelta(days=5)
                     tz = ZoneInfo(dat.info["exchangeTimezoneName"])
@@ -835,9 +835,9 @@ class Test_Yfc_Interface(Test_Base):
             sched = yfct.GetExchangeSchedule(exchange, d_now-5*td_1d, d_now+td_1d)
             if not sched is None:
                 for i in range(sched.shape[0]-1, -1, -1):
-                    if dt_now >= sched["market_close"].iloc[i]:
+                    if dt_now >= sched["close"].iloc[i]:
                         break
-                d = sched["market_close"].iloc[i].date()
+                d = sched["close"].iloc[i].date()
                 df = dat.history(start=d, end=d+td_1d, interval="1h")
 
                 try:

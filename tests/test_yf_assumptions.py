@@ -46,12 +46,12 @@ class TestYfAssumptions(unittest.TestCase):
 			day -= timedelta(days=1)
 		sched = yfct.GetExchangeSchedule(self.exchange, day, day+timedelta(days=1))
 
-		startDt = sched["market_open"][0]
-		endDt   = sched["market_open"][0]+timedelta(minutes=1)
+		startDt = sched["open"][0]
+		endDt   = sched["open"][0]+timedelta(minutes=1)
 		df = self.dat.history(interval=i, start=startDt, end=endDt+timedelta(minutes=5))
 		df = df[df.index<endDt]
 		intervals = list(df.index.to_pydatetime())
-		answers = [sched["market_open"][0]]
+		answers = [sched["open"][0]]
 		try:
 			self.assertEqual(intervals, answers)
 		except:

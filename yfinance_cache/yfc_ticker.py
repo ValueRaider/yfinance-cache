@@ -210,8 +210,8 @@ class Ticker:
 				d_now = dt_now.astimezone(tz_exchange).date()
 				sched = yfct.GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
 				# Discard days that haven't opened yet
-				sched = sched[(sched["market_open"]+self.yf_lag)<=dt_now]
-				last_open_day = sched["market_open"][-1].date()
+				sched = sched[(sched["open"]+self.yf_lag)<=dt_now]
+				last_open_day = sched["open"][-1].date()
 				end = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
 				end_d = end.date()
 				if period == yfcd.Period.Max:
@@ -244,7 +244,7 @@ class Ticker:
 					raise
 			if sched is None:
 				raise Exception("sched is None for date range {}->{} and ticker {}".format(start.date(), start.date()+4*td_1d, self.ticker))
-			if sched["market_open"][0] > dt_now:
+			if sched["open"][0] > dt_now:
 				# Requested date range is in future
 				return None
 
@@ -253,11 +253,11 @@ class Ticker:
 			# schedule opens/closes to determine days
 			sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+td_1d)
 			n = sched.shape[0]
-			if start < sched["market_open"][0]:
+			if start < sched["open"][0]:
 				start_d = start.date()
 			else:
 				start_d = start.date() +td_1d
-			if end >= sched["market_close"][n-1]:
+			if end >= sched["close"][n-1]:
 				end_d = end.date()+td_1d
 			else:
 				end_d = end.date()
@@ -371,7 +371,7 @@ class Ticker:
 				h_intervals = pd.DataFrame(data={"interval_open":[], "interval_close":[]})
 			f_na = h_intervals["interval_open"].isna().values
 			if f_na.any():
-				print(h)
+				print(h[f_na])
 				raise Exception("Bad rows found in prices table")
 				if debug:
 					print("- found bad rows, deleting:")
@@ -409,8 +409,8 @@ class Ticker:
 					target_end = dt_now
 					d = dt_now.astimezone(tz).date()
 					sched = yfct.GetExchangeSchedule(exchange, d, d+td_1d)
-					if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["market_open"].iloc[0]):
-						target_end = sched["market_close"].iloc[0]+datetime.timedelta(hours=2)
+					if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["open"].iloc[0]):
+						target_end = sched["close"].iloc[0]+datetime.timedelta(hours=2)
 					if h_end < target_end:
 						try:
 							rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
@@ -880,6 +880,8 @@ class Ticker:
 					## For some exchanges (e.g. JSE) Yahoo returns intraday timestamps right on market close. Remove them.
 					df2 = df.copy() ; df2["_date"] = df2.index.date ; df2["_intervalStart"] = df2.index
 					sched = yfct.GetExchangeSchedule(exchange, df2["_date"].min(), df2["_date"].max()+td_1d)
+					rename_cols = {"open":"market_open","close":"market_close"}
+					sched.columns = [rename_cols[c] if c in rename_cols else c for c in sched.columns]
 					sched_df = sched.copy()
 					sched_df["_date"] = sched_df.index.date
 					df2 = df2.merge(sched_df, on="_date", how="left")
@@ -1979,7 +1981,7 @@ class Ticker:
 
 		# 	## ... but only until next session starts +1H:
 		# 	s = yfct.GetTimestampNextSession(self.info["exchange"], dt_now)
-		# 	expiry = s["market_open"] + datetime.timedelta(hours=1)
+		# 	expiry = s["open"] + datetime.timedelta(hours=1)
 
 		# 	yfcm.StoreCacheDatum(exchange_str, "yf_lag", self._yf_lag, expiry=expiry)
 		# 	return self._yf_lag

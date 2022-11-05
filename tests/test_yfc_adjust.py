@@ -351,7 +351,7 @@ class Test_Unadjust(Test_Base):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
@@ -407,8 +407,8 @@ class Test_Unadjust(Test_Base):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
-            df_yf = df_yf[~f_drop].drop(["_date","market_open","market_close"],axis=1)
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
+            df_yf = df_yf[~f_drop].drop(["_date","open","close"],axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
             ss[ss==0.0] = 1.0
@@ -463,7 +463,7 @@ class Test_Unadjust(Test_Base):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
@@ -523,8 +523,8 @@ class Test_Unadjust(Test_Base):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
-            df_yf = df_yf[~f_drop].drop(["_date","market_close","auction"],errors="ignore",axis=1)
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
+            df_yf = df_yf[~f_drop].drop(["_date","close","auction"],errors="ignore",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
             ss[ss==0.0] = 1.0
@@ -582,7 +582,7 @@ class Test_Unadjust(Test_Base):
             df_yf["_date"] = df_yf.index.date
             answer2 = df_yf.merge(sched, on="_date", how="left", validate="many_to_one")
             answer2.index = df_yf.index ; df_yf = answer2
-            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["market_close"])
+            f_drop = (df_yf["Volume"]==0).values & (df_yf.index>=df_yf["close"])
             df_yf = df_yf[~f_drop].drop("_date",axis=1)
             # YF hourly volume is not split-adjusted, so adjust:
             ss = df_yf["Stock Splits"].copy()
