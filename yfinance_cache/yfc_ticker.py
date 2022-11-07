@@ -87,16 +87,15 @@ class Ticker:
 				adjust_splits=True, adjust_divs=True,
 				keepna=False,
 				proxy=None, rounding=False, 
-				tz=None,
-				**kwargs):
+				debug=True):
 
 		if prepost:
 			raise Exception("pre and post-market caching currently not implemented. If you really need it raise an issue on Github")
 
-		debug = self._debug
-		# debug = True
+		debug_yfc = self._debug
+		# debug_yfc = True
 
-		if debug:
+		if debug_yfc:
 			print("")
 			print("YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
 		elif self._trace:
@@ -228,7 +227,7 @@ class Ticker:
 			if start is None:
 				start = datetime.datetime.combine(end.date()-td_1d, datetime.time(0), tz_exchange)
 
-		if debug:
+		if debug_yfc:
 			print("- start={} , end={}".format(start, end))
 
 		if (not start is None) and start==end:
@@ -281,16 +280,16 @@ class Ticker:
 		h_lastAdjustD = None
 		if h is None:
 			if not period is None:
-				h = self._fetchYfHistory(pstr, interval, None, None, prepost, proxy, kwargs)
+				h = self._fetchYfHistory(pstr, interval, None, None, prepost, proxy, debug)
 			else:
 				if interval == yfcd.Interval.Days1:
 					# Ensure daily always up-to-now
-					h = self._fetchYfHistory(pstr, interval, start_d, d_tomorrow, prepost, proxy, kwargs)
+					h = self._fetchYfHistory(pstr, interval, start_d, d_tomorrow, prepost, proxy, debug)
 				else:
 					if interday:
-						h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, kwargs)
+						h = self._fetchYfHistory(pstr, interval, start_d, end_d, prepost, proxy, debug)
 					else:
-						h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, kwargs)
+						h = self._fetchYfHistory(pstr, interval, start, end, prepost, proxy, debug)
 			if h is None:
 				raise Exception("{}: Failed to fetch date range {}->{}".format(self.ticker, start, end))
 
@@ -307,7 +306,7 @@ class Ticker:
 					h_lastAdjustD = h_lastDt.date()
 				else:
 					try:
-						df_daily = self.history(start=next_day, interval=yfcd.Interval.Days1, max_age=td_1d, auto_adjust=False)
+						df_daily = self.history(start=next_day, interval=yfcd.Interval.Days1, max_age=td_1d)
 					except yfcd.NoPriceDataInRangeException:
 						df_daily = None
 					except Exception as e:
@@ -331,7 +330,7 @@ class Ticker:
 
 			n = h.shape[0]
 			if n>0:
-				if debug:
+				if debug_yfc:
 					print("- h lastDt = {}".format(h.index[-1]))
 				elif self._trace:
 					print(" "*self._trace_depth + "- h lastDt = {}".format(h.index[-1]))
@@ -373,7 +372,7 @@ class Ticker:
 			if f_na.any():
 				print(h[f_na])
 				raise Exception("Bad rows found in prices table")
-				if debug:
+				if debug_yfc:
 					print("- found bad rows, deleting:")
 					print(h[f_na])
 				h = h[~f_na].copy()
@@ -450,7 +449,7 @@ class Ticker:
 					del ranges_to_fetch[i]
 			# Important that ranges_to_fetch in reverse order!
 			ranges_to_fetch.sort(key=lambda x:x[0], reverse=True)
-			if debug:
+			if debug_yfc:
 				print("- ranges_to_fetch:")
 				pprint(ranges_to_fetch)
 
@@ -472,15 +471,14 @@ class Ticker:
 
 				# last_adjust_d = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 				quiet = not period is None # YFC generated date range so don't print message
-				if debug:
+				if debug_yfc:
 					quiet = False
-				# quiet = not debug
+				# quiet = not debug_yfc
 				if interval == yfcd.Interval.Days1:
-					h = self._fetchAndAddRanges_contiguous(h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=quiet)
+					h = self._fetchAndAddRanges_contiguous(h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=quiet)
 					h_lastAdjustD = h.index[-1].date()
 				else:
-					h = self._fetchAndAddRanges_sparse(h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=quiet)
-					# h_lastAdjustD = self._getCachedPrices(yfcd.Interval.Days1).index[-1].date()
+					h = self._fetchAndAddRanges_sparse(h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=quiet)
 					h_lastAdjustD = self._history[yfcd.Interval.Days1].index[-1].date()
 
 				## TODO: scan all of 'h' for price outliers, because YF won't catch all e.g. when fetching one row:
@@ -498,7 +496,7 @@ class Ticker:
 		self._history[interval] = h
 		yfcm.StoreCacheDatum(self.ticker, h_cache_key, self._history[interval])
 		if not h_lastAdjustD is None:
-			if debug:
+			if debug_yfc:
 				print("- writing LastAdjustD={} to md of {}/{}".format(h_lastAdjustD, self.ticker, h_cache_key))
 			yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
 
@@ -532,7 +530,7 @@ class Ticker:
 			# Round to 4 sig-figs
 			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
 
-		if debug:
+		if debug_yfc:
 			print("YFC: history() returning")
 			# print(h[["Close","Volume"]])
 			cols = [c for c in ["Close","Dividends","Volume","CDF","CSF"] if c in h.columns]
@@ -548,12 +546,12 @@ class Ticker:
 
 		return h
 
-	def _fetchYfHistory(self, pstr, interval, start, end, prepost, proxy, kwargs):
-		debug = self._debug
-		# debug = True
+	def _fetchYfHistory(self, pstr, interval, start, end, prepost, proxy, debug):
+		debug_yfc = self._debug
+		# debug_yfc = True
 
 		log_msg = "YFC: {}: _fetchYfHistory(interval={} , pstr={} , start={} , end={})".format(self.ticker, interval, pstr, start, end)
-		if debug:
+		if debug_yfc:
 			print("")
 			print(log_msg)
 		elif self._trace:
@@ -623,7 +621,7 @@ class Ticker:
 			elif interval == yfcd.Interval.Months3:
 				listing_date_check_tol = datetime.timedelta(days=35*3)
 
-		if debug:
+		if debug_yfc:
 			if not pstr is None:
 				print("YFC: {}: fetching {} period".format(self.ticker, pstr))
 			else:
@@ -640,7 +638,7 @@ class Ticker:
 		first_fetch_failed=False ; ex=None
 		df=None
 		try:
-			if debug:
+			if debug_yfc:
 				print("- fetch_start={} ; fetch_end={}".format(fetch_start, fetch_end))
 			df = self.dat.history(period=pstr, 
 								interval=istr, 
@@ -652,10 +650,9 @@ class Ticker:
 								back_adjust=False, # store raw data, adjust myself
 								proxy=proxy, 
 								rounding=False, # store raw data, round myself
-								tz=None, # store raw data, localize myself
 								raise_errors=True,
-								kwargs=kwargs)
-			if debug:
+								debug=debug)
+			if debug_yfc:
 				if df is None:
 					print("- YF returned None")
 				else:
@@ -682,7 +679,7 @@ class Ticker:
 			df_backup = df
 			if first_fetch_failed and (not fetch_end is None):
 				# Try with wider date range, maybe entire range is just before listing date
-				if debug:
+				if debug_yfc:
 					print("- retrying YF fetch with wider date range")
 
 				fetch_start -= 2*listing_date_check_tol
@@ -690,19 +687,23 @@ class Ticker:
 				if debug:
 					print("- first fetch failed, trying again with longer range: {} -> {}".format(fetch_start, fetch_end))
 				try:
-					df = self.dat.history(period=pstr, 
-										interval=istr, 
-										start=fetch_start, end=fetch_end, 
-										prepost=prepost, 
-										actions=True, # Always fetch
-										keepna=True, 
-										auto_adjust=False, # store raw data, adjust myself
-										back_adjust=False, # store raw data, adjust myself
-										proxy=proxy, 
-										rounding=False, # store raw data, round myself
-										tz=None, # store raw data, localize myself
-										raise_errors=True,
-										kwargs=kwargs)
+					df_wider = self.dat.history(period=pstr, 
+												interval=istr, 
+												start=fetch_start, end=fetch_end, 
+												prepost=prepost, 
+												actions=True, # Always fetch
+												keepna=True, 
+												auto_adjust=False, # store raw data, adjust myself
+												back_adjust=False, # store raw data, adjust myself
+												proxy=proxy, 
+												rounding=False, # store raw data, round myself
+												raise_errors=True,
+												debug=debug)
+					if debug_yfc:
+						print("- second fetch returned:")
+						print(df_wider)
+					if df_wider is None or df_wider.shape[0]==0:
+						raise Exception("No data found for this date range")
 				except Exception as e:
 					if "Data doesn't exist for startDate" in str(e):
 						second_fetch_failed = True
@@ -744,18 +745,18 @@ class Ticker:
 							start_expected -= datetime.timedelta(days=start_expected.weekday())
 						if (df.index[0].date() - start_expected) > tol:
 							found_listing_day = True
-				if debug:
+				if debug_yfc:
 					print("- found_listing_day = {}".format(found_listing_day))
 				if found_listing_day:
 					listing_day = df.index[0].date()
-					if debug:
+					if debug_yfc:
 						print("YFC: inferred listing_date = {}".format(listing_day))
 					yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
 
 				if (not listing_day is None) and first_fetch_failed:
 					if end <= listing_day:
 						# Aha! Requested date range was entirely before listing
-						if debug:
+						if debug_yfc:
 							print("- requested date range was before listing date")
 						return None
 
@@ -767,9 +768,7 @@ class Ticker:
 				# Despite fetch_start aligned to Monday, sometimes Yahoo returns weekly 
 				# data starting a different day. Shifting back a little fixes
 				fetch_start -= datetime.timedelta(days=2)
-				#
-				# fetch_start -= datetime.timedelta(days=fetch_start.weekday())
-				if debug:
+				if debug_yfc:
 					print("- weekly data not aligned to Monday, re-fetching from {}".format(fetch_start))
 				df = self.dat.history(period=pstr, interval=istr, 
 									start=fetch_start, end=fetch_end, 
@@ -777,9 +776,8 @@ class Ticker:
 									auto_adjust=False, back_adjust=False, 
 									proxy=proxy, 
 									rounding=False, # store raw data, round myself
-									tz=None, # store raw data, localize myself
 									raise_errors=True,
-									kwargs=kwargs)
+									debug=debug)
 
 				if interval==yfcd.Interval.Week and (df.index[0].weekday()!=0):
 					print("Date range requested: {} -> {}".format(fetch_start, fetch_end))
@@ -790,7 +788,7 @@ class Ticker:
 			# Convert to ZoneInfo
 			df.index = df.index.tz_convert(tz_exchange)
 
-		if debug:
+		if debug_yfc:
 			if df is None:
 				print("YFC: YF returned None")
 			else:
@@ -817,7 +815,7 @@ class Ticker:
 				## Normally Yahoo has already filled with NaNs but sometimes they forget/are late
 				nm = intervals_missing_df.shape[0]
 				if (interday and nm==1) or ((not interday) and nm<=2):
-					if debug:
+					if debug_yfc:
 						print("- found missing intervals, inserting nans:")
 						print(intervals_missing_df)
 					df_missing = pd.DataFrame(data={k:[np.nan]*nm for k in yfcd.yf_data_cols}, index=intervals_missing_df["open"])
@@ -887,7 +885,7 @@ class Ticker:
 					df2 = df2.merge(sched_df, on="_date", how="left")
 					f_drop = (df2["Volume"]==0).values & ((df2["_intervalStart"]==df2["market_close"]).values)
 					if f_drop.any():
-						if debug:
+						if debug_yfc:
 							print("- dropping 0-volume rows starting at market close")
 						intervalStarts = intervalStarts[~f_drop]
 						intervals = intervals[~f_drop]
@@ -899,7 +897,7 @@ class Ticker:
 					## Solution = drop:
 					f_na_zeroVol = f_na & (df["Volume"]==0).values
 					if f_na_zeroVol.any():
-						if debug:
+						if debug_yfc:
 							print("- dropping {} 0-volume rows with no matching interval".format(sum(f_na_zeroVol)))
 						f_drop = f_na_zeroVol
 						intervalStarts = intervalStarts[~f_drop]
@@ -917,7 +915,7 @@ class Ticker:
 								if (df.loc[dt,yfcd.yf_data_cols] == df.loc[last_dt,yfcd.yf_data_cols]).all():
 									f_drop[i] = True
 						if f_drop.any():
-							if debug:
+							if debug_yfc:
 								print("- dropping rows with no interval that are identical to previous row")
 							intervalStarts = intervalStarts[~f_drop]
 							intervals = intervals[~f_drop]
@@ -944,7 +942,7 @@ class Ticker:
 
 		df["FetchDate"] = pd.Timestamp(fetch_dt_utc).tz_localize("UTC")
 
-		if debug:
+		if debug_yfc:
 			print(df)
 			print("_fetchYfHistory() returning")
 		elif self._trace:
@@ -968,18 +966,27 @@ class Ticker:
 
 		if not h is None and h.shape[0]==0:
 			h = None
+		elif h is not None:
+			f_na = h["CDF"].isna()
+			if f_na.any():
+				h["CDF"] = h["CDF"].fillna(method="bfill").fillna(method="ffill")
+				f_na = h["CDF"].isna()
+				if f_na.any():
+					raise Exception("CDF NaN repair failed")
+				h_cache_key = "history-"+yfcd.intervalToString[interval]
+				yfcm.StoreCacheDatum(self.ticker, h_cache_key, h)
 
 		return h
 
-	def _fetchAndAddRanges_contiguous(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=False):
+	def _fetchAndAddRanges_contiguous(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=False):
 		# Fetch each range, appending/prepending to cached data
 		if (ranges_to_fetch is None) or len(ranges_to_fetch) == 0:
 			return h
 
-		debug = self._debug
-		# debug = True
+		debug_yfc = self._debug
+		# debug_yfc = True
 
-		if debug:
+		if debug_yfc:
 			print("_fetchAndAddRanges_contiguous()")
 			print("- ranges_to_fetch:")
 			pprint(ranges_to_fetch)
@@ -1029,7 +1036,7 @@ class Ticker:
 			r = range_pre
 			check_for_listing = False
 			try:
-				h2_pre = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, kwargs)
+				h2_pre = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, debug)
 			except yfcd.NoPriceDataInRangeException:
 				if interval == yfcd.Interval.Days1 and r[1]-r[0]==td_1d:
 					## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
@@ -1047,7 +1054,7 @@ class Ticker:
 			if check_for_listing:
 				df = None
 				try:
-					df = self._fetchYfHistory(pstr, interval, r[0], r[1]+td_1d*7, prepost, proxy, kwargs)
+					df = self._fetchYfHistory(pstr, interval, r[0], r[1]+td_1d*7, prepost, proxy, debug)
 				except:
 					# Discard
 					pass
@@ -1060,7 +1067,7 @@ class Ticker:
 		if not range_post is None:
 			r = range_post
 			try:
-				h2_post = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, kwargs)
+				h2_post = self._fetchYfHistory(pstr, interval, r[0], r[1], prepost, proxy, debug)
 			except yfcd.NoPriceDataInRangeException:
 				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
 				## Could add additional condition of dividend previous day (seems to mess up table).
@@ -1082,20 +1089,20 @@ class Ticker:
 			# De-adjust the new data, and backport any new events in cached data
 			# Note: Yahoo always returns split-adjusted price, so reverse it
 
-			if debug:
+			if debug_yfc:
 				print("- appending new data")
 
 			# Simple append to bottom of table
 			# 1) adjust h2_post
 			h2_post = self._processYahooAdjustment(h2_post, interval)
-			if debug:
+			if debug_yfc:
 				print("- h2_post:")
 				print(h2_post)
 
 			# 2) backport h2_post splits across entire h table
 			h2_csf = yfcu.GetCSF0(h2_post)
 			if h2_csf != 1.0:
-				if debug:
+				if debug_yfc:
 					print("- backporting new data CSF={} across cached".format(h2_csf))
 				h["CSF"] *= h2_csf
 				if not h2_pre is None:
@@ -1104,7 +1111,7 @@ class Ticker:
 			# 2) backport h2_post divs across entire h table
 			h2_cdf = yfcu.GetCDF0(h2_post)
 			if h2_cdf != 1.0:
-				if debug:
+				if debug_yfc:
 					print("- backporting new data CDF={} across cached".format(h2_cdf))
 				h["CDF"] *= h2_cdf
 				# Note: don't need to backport across h2_pre because already 
@@ -1121,7 +1128,7 @@ class Ticker:
 				raise
 
 		if not h2_pre is None:
-			if debug:
+			if debug_yfc:
 				print("- prepending new data")
 
 			# Simple prepend to top of table
@@ -1144,7 +1151,7 @@ class Ticker:
 		h.index = pd.to_datetime(h.index, utc=True).tz_convert(tz_exchange)
 		h = h.sort_index()
 
-		if debug:
+		if debug_yfc:
 			print("- h:")
 			print(h)
 			print("_fetchAndAddRanges_contiguous() returning")
@@ -1154,16 +1161,16 @@ class Ticker:
 
 		return h
 
-	def _fetchAndAddRanges_sparse(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, kwargs, quiet=False):
+	def _fetchAndAddRanges_sparse(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=False):
 		# Fetch each range, but can be careless regarding de-adjust because
 		# getting events from the carefully-managed daily data
 		if (ranges_to_fetch is None) or len(ranges_to_fetch) == 0:
 			return h
 
-		debug = self._debug
-		# debug = True
+		debug_yfc = self._debug
+		# debug_yfc = True
 
-		if debug:
+		if debug_yfc:
 			print("_fetchAndAddRanges_sparse()")
 		elif self._trace:
 			self._trace_depth += 1
@@ -1186,9 +1193,9 @@ class Ticker:
 		if first_day_since_adjust > dt_now.astimezone(tz_exchange).date():
 			cdf=1.0 ; csf=1.0
 		else:
-			if debug:
+			if debug_yfc:
 				print("- first_day_since_adjust = {}".format(first_day_since_adjust))
-			df_since = self.history(start=first_day_since_adjust, interval=yfcd.Interval.Days1, max_age=td_1d, auto_adjust=False)
+			df_since = self.history(start=first_day_since_adjust, interval=yfcd.Interval.Days1, max_age=td_1d)#, auto_adjust=False)
 			if df_since is None:
 				cdf=1.0 ; csf=1.0
 			else:
@@ -1208,16 +1215,16 @@ class Ticker:
 		for rstart,rend in ranges_to_fetch:
 			r_start_earliest = min(rstart, r_start_earliest)
 		r_start_earliest_d = r_start_earliest.date() if isinstance(r_start_earliest, datetime.datetime) else r_start_earliest
-		if debug:
+		if debug_yfc:
 			print("- r_start_earliest = {}".format(r_start_earliest))
 		df_daily = self.history(start=r_start_earliest_d, interval=yfcd.Interval.Days1, max_age=td_1d)
 
 		# Fetch each range, and adjust for splits that occurred after
 		for rstart,rend in ranges_to_fetch:
-			if debug:
+			if debug_yfc:
 				print("- fetching {} -> {}".format(rstart, rend))
 			try:
-				h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, kwargs)
+				h2 = self._fetchYfHistory(pstr, interval, rstart, rend, prepost, proxy, debug)
 			except yfcd.NoPriceDataInRangeException:
 				## If only trying to fetch 1 day of 1d data, then print warning instead of exception.
 				## Could add additional condition of dividend previous day (seems to mess up table).
@@ -1234,7 +1241,7 @@ class Ticker:
 
 			# Ensure h2 is split-adjusted. Sometimes Yahoo returns unadjusted data
 			h2 = self._processYahooAdjustment(h2, interval)
-			if debug:
+			if debug_yfc:
 				print("- h2 adjusted:")
 				print(h2[["Close","Dividends","Volume","CSF","CDF"]])
 
@@ -1243,7 +1250,7 @@ class Ticker:
 
 		h = h.sort_index()
 
-		if debug:
+		if debug_yfc:
 			print("_fetchAndAddRanges_sparse() returning")
 		elif self._trace:
 			print(" "*self._trace_depth + "_fetchAndAddRanges_sparse() returning")
@@ -1270,11 +1277,11 @@ class Ticker:
 		if (not post_csf is None) and not isinstance(post_csf, (float,int,np.int64)):
 			raise Exception("'post_csf' if set must be scalar numeric not {}".format(type(post_csf)))
 
-		debug = False
-		debug = self._debug
-		# debug = True
+		debug_yfc = False
+		debug_yfc = self._debug
+		# debug_yfc = True
 
-		if debug:
+		if debug_yfc:
 			print("")
 			print("_processYahooAdjustment(interval={}, post_csf={}), {}->{}".format(interval, post_csf, df.index[0], df.index[-1]))
 			print(df[["Close","Dividends","Volume"]])
@@ -1366,12 +1373,13 @@ class Ticker:
 			if ss_ratio > 1.01:
 				for c in price_data_cols:
 					df[c] *= ss_ratioRcp
-				if debug:
-					print("Applying 1:{.2f} stock-split".format(ss_ratio))
+				if debug_yfc:
+					# print("Applying 1:{.2f} stock-split".format(ss_ratio))
+					print("Applying 1:{} stock-split".format(round(ss_ratio,2)))
 			elif ss_ratioRcp > 1.01:
 				for c in price_data_cols:
 					df[c] *= ss_ratio
-				if debug:
+				if debug_yfc:
 					print("Applying {.2f}:1 reverse-split-split".format(ss_ratioRcp))
 			# Note: volume always returned unadjusted
 
@@ -1405,13 +1413,13 @@ class Ticker:
 			df_daily = self.history(start=df.index[-1].date()+td_7d, interval=yfcd.Interval.Days1)
 			if (not df_daily is None) and df_daily.shape[0] > 0:
 				post_csf = yfcu.GetCSF0(df_daily)
-				if debug:
+				if debug_yfc:
 					print("- post_csf of daily date range {}->{} = {}".format(df_daily.index[0], df_daily.index[-1], post_csf))
 
 		elif interval in [yfcd.Interval.Months1,yfcd.Interval.Months3]:
 			raise Exception("not implemented")
 
-		if debug:
+		if debug_yfc:
 			print("- post_csf =",post_csf)
 
 		# If 'df' does not contain all stock splits until present, then
@@ -1460,7 +1468,7 @@ class Ticker:
 		df["CSF"] = csf
 		df["CDF"] = cdf
 
-		if debug:
+		if debug_yfc:
 			print("- unadjusted:")
 			print(df[["Close","Dividends","Volume","CSF","CDF"]])
 			f = df["Dividends"]!=0.0
@@ -1469,7 +1477,7 @@ class Ticker:
 				print(df.loc[f, ["Close","Dividends","Volume","CSF","CDF"]])
 			print("")
 
-		if debug:
+		if debug_yfc:
 			print("_processYahooAdjustment() returning")
 			print(df[["Close","Dividends","Volume","CSF"]])
 		elif self._trace:

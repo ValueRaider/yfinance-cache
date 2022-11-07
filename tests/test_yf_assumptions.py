@@ -67,7 +67,7 @@ class TestYfAssumptions(unittest.TestCase):
 
 		startDt = datetime.combine(self.day, self.exchangeOpenTime,  tzinfo=self.market_tz)
 		endDt   = datetime.combine(self.day, self.exchangeCloseTime, tzinfo=self.market_tz)
-		df = self.dat.history(interval=i, start=startDt, end=endDt, tz=None)
+		df = self.dat.history(interval=i, start=startDt, end=endDt)
 		df = df[df.index<=endDt]
 		intervals = df.index.to_pydatetime()
 		intervals = list(intervals)
@@ -78,7 +78,7 @@ class TestYfAssumptions(unittest.TestCase):
 
 		startDt = datetime.combine(self.day, self.exchangeOpenTime, tzinfo=self.market_tz)
 		endDt   = datetime.combine(self.day, self.exchangeOpenTime, tzinfo=self.market_tz)+timedelta(hours=1)
-		df = self.dat.history(interval=i, start=startDt, end=endDt, tz=None)
+		df = self.dat.history(interval=i, start=startDt, end=endDt)
 		df = df[df.index<=endDt]
 		intervals = df.index.to_pydatetime()
 		intervals = list(intervals)

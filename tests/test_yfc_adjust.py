@@ -87,8 +87,8 @@ class Test_Unadjust(Test_Base):
         df = dat.history(start="2022-01-01", end="2022-08-20", adjust_divs=False, adjust_splits=False)
         self.verify_df(df, answer_noadjust, 1e-10)
 
-        df = dat.history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
-        answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
+        df = dat.history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
+        answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
         self.verify_df(df, answer_splitAdjusted, 1e-7)
 
         df = dat.history(start="2022-01-01",end="2022-08-20")
@@ -115,8 +115,8 @@ class Test_Unadjust(Test_Base):
         df = dat.history(start="2022-01-01", end="2022-08-20", adjust_divs=False, adjust_splits=False)
         self.verify_df(df, answer_noadjust, 1e-10)
 
-        df = dat.history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
-        answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
+        df = dat.history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
+        answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
         self.verify_df(df, answer_splitAdjusted, 5e-6)
 
         df = dat.history(start="2022-01-01",end="2022-08-20")
