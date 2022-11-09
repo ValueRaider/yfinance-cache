@@ -450,7 +450,7 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[np.isin(df_yf.index.date, sched["open"].dt.date)]
+                df_yf = df_yf[yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)]
                 df_yf_backup = df_yf.copy()
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
@@ -459,8 +459,8 @@ class Test_Yfc_Interface(Test_Base):
                 td = abs(df_yf.index.min() - df_yfc.index.min())
                 if td < timedelta(days=28):
                     start_ts = max(df_yf.index.min(), df_yfc.index.min())
-                    df_yf = df_yf[df_yf.index >= start_ts]
-                    df_yfc = df_yfc[df_yfc.index >= start_ts]
+                    df_yf = df_yf.loc[start_ts:]
+                    df_yfc = df_yfc.loc[start_ts:]
                     if df_yfc.shape[0] == 0:
                         raise Exception("df_yfc is empty")
 
@@ -471,8 +471,8 @@ class Test_Yfc_Interface(Test_Base):
                     print(df_yf)
                     print("df_yfc: {}".format(df_yfc.shape))
                     print(df_yfc)
-                    missing_from_yf = df_yfc.index[~df_yfc.index.isin(df_yf.index)]
-                    missing_from_yfc = df_yf.index[~df_yf.index.isin(df_yfc.index)]
+                    missing_from_yf = df_yfc.index[yfcu.np_isin_optimised(df_yfc.index, df_yf.index, invert=True)]
+                    missing_from_yfc = df_yf.index[yfcu.np_isin_optimised(df_yf.index, df_yfc.index, invert=True)]
                     if len(missing_from_yf)>0:
                         print("missing_from_yf:")
                         print(missing_from_yf)
@@ -499,8 +499,8 @@ class Test_Yfc_Interface(Test_Base):
                 df_yf = df_yf_backup.copy()
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
                 start_ts = max(df_yf.index.min(), df_yfc.index.min())
-                df_yf = df_yf[df_yf.index >= start_ts]
-                df_yfc = df_yfc[df_yfc.index >= start_ts]
+                df_yf = df_yf.loc[start_ts:]
+                df_yfc = df_yfc.loc[start_ts:]
                 self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
     def test_periods_with_persistent_caching(self):
@@ -521,7 +521,7 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[np.isin(df_yf.index.date, sched["open"].dt.date)]
+                df_yf = df_yf[yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)]
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
 
@@ -529,8 +529,8 @@ class Test_Yfc_Interface(Test_Base):
                 td = abs(df_yf.index.min() - df_yfc.index.min())
                 if td < timedelta(days=28):
                     start_ts = max(df_yf.index.min(), df_yfc.index.min())
-                    df_yf = df_yf[df_yf.index >= start_ts]
-                    df_yfc = df_yfc[df_yfc.index >= start_ts]
+                    df_yf = df_yf.loc[start_ts:]
+                    df_yfc = df_yfc.loc[start_ts:]
                     if df_yfc.shape[0] == 0:
                         raise Exception("df_yfc is empty")
 
@@ -539,7 +539,7 @@ class Test_Yfc_Interface(Test_Base):
                 # Fetch from cache should match
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
                 if not df_yfc is None:
-                    df_yfc = df_yfc[df_yfc.index >= start_ts]
+                    df_yfc = df_yfc.loc[start_ts:]
                 self.verify_df(df_yfc, df_yf, rtol=1e-15)
 
 

@@ -151,3 +151,23 @@ def GetCDF0(df, close_day_before=None):
 
 	return cdf
 
+
+def np_isin_optimised(a, b, invert=False):
+	if not isinstance(a, np.ndarray):
+		a = np.array(a)
+	if not isinstance(b, np.ndarray):
+		b = np.array(b)
+	if a.dtype.hasobject or b.dtype.hasobject:
+		## Apparently not optimised in numpy, faster to DIY
+		## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
+		b_set = set(b)
+		x = np.array([elem in b_set for elem in a])
+		if invert:
+			x = ~x
+	else:
+		if invert:
+			x = np.isin(a, b, invert=True)
+		else:
+			x = np.isin(a, b)
+	return x
+

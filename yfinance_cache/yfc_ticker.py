@@ -208,8 +208,12 @@ class Ticker:
 				pstr = None
 				d_now = dt_now.astimezone(tz_exchange).date()
 				sched = yfct.GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
-				# Discard days that haven't opened yet
-				sched = sched[(sched["open"]+self.yf_lag)<=dt_now]
+				dt_now_sub_lag = dt_now-self.yf_lag
+				if sched["open"].iloc[-1] > dt_now_sub_lag:
+					# Discard days that haven't opened yet
+					opens = pd.DatetimeIndex(sched["open"])
+					x = opens.get_indexer([dt_now_sub_lag], method="bfill")[0]  # If not exact match, search forward
+					sched = sched.iloc[:x]
 				last_open_day = sched["open"][-1].date()
 				end = datetime.datetime.combine(last_open_day+td_1d, datetime.time(0), tz_exchange)
 				end_d = end.date()
@@ -502,9 +506,7 @@ class Ticker:
 
 		# Present table for user:
 		if (not start is None) and (not end is None):
-			f_outside_range = (h.index<pd.Timestamp(start)) | (h.index>=pd.Timestamp(end))
-			if f_outside_range.any():
-				h = h.drop(h.index[f_outside_range])
+			h = h.loc[start:end-datetime.timedelta(milliseconds=1)]
 		if not keepna:
 			price_data_cols = [c for c in yfcd.yf_data_cols if c in h.columns]
 			mask_nan_or_zero = (h[price_data_cols].isna()|(h[price_data_cols]==0)).all(axis=1)
@@ -759,8 +761,6 @@ class Ticker:
 						if debug_yfc:
 							print("- requested date range was before listing date")
 						return None
-
-			df = df_backup
 
 			# Check that weekly aligned to Monday. If not, shift start date back 
 			# and re-fetch

@@ -13,6 +13,7 @@ import sqlite3 as sql
 
 from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
+from . import yfc_utils as yfcu
 
 
 def TypeCheckStr(var, varName):
@@ -1232,16 +1233,7 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
 		if debug:
 			print("- intervalStarts:")
 			print(intervalStarts)
-
-		intervalStarts = np.array(intervalStarts)
-		knownIntervalStarts = np.array(knownIntervalStarts)
-		if intervalStarts.dtype.hasobject or knownIntervalStarts.dtype.hasobject:
-			## Apparently not optimised in numpy, faster to DIY
-			## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
-			knownIntervalStarts_set = set(knownIntervalStarts)
-			f_missing = ~np.array([elem in knownIntervalStarts_set for elem in intervalStarts])
-		else:
-			f_missing = np.isin(intervalStarts, knownIntervalStarts, invert=True)
+		f_missing = yfcu.np_isin_optimised(intervalStarts, knownIntervalStarts, invert=True)
 	else:
 		f_missing = np.full(intervals.shape[0], True)
 
