@@ -410,7 +410,7 @@ class Ticker:
 						rangePre_to_fetch = rangePre_to_fetch[0]
 					#
 					target_end = dt_now
-					d = dt_now.astimezone(tz).date()
+					d = dt_now.astimezone(tz_exchange).date()
 					sched = yfct.GetExchangeSchedule(exchange, d, d+td_1d)
 					if (not sched is None) and (sched.shape[0]>0) and (dt_now > sched["open"].iloc[0]):
 						target_end = sched["close"].iloc[0]+datetime.timedelta(hours=2)
@@ -443,12 +443,21 @@ class Ticker:
 			# Prune ranges in future:
 			for i in range(len(ranges_to_fetch)-1, -1, -1):
 				x = ranges_to_fetch[i][0]
-				if isinstance(x,(datetime.datetime, pd.Timestamp)) and x>dt_now:
-					if debug:
-						print("- deleting future range:", ranges_to_fetch[i])
-					del ranges_to_fetch[i]
-				elif datetime.datetime.combine(x, datetime.time(0),tzinfo=tz_exchange) > dt_now:
-					if debug:
+				delete_range = False
+				if isinstance(x,(datetime.datetime, pd.Timestamp)):
+					if x>dt_now:
+						delete_range = True
+					else:
+						sched = yfct.GetExchangeSchedule(exchange, x.date(), x.date()+3*td_1d)
+						delete_range = dt_now<(sched["open"].iloc[0]+self.yf_lag)
+				else:
+					if datetime.datetime.combine(x, datetime.time(0),tzinfo=tz_exchange)>dt_now:
+						delete_range = True
+					else:
+						sched = yfct.GetExchangeSchedule(exchange, x, x+3*td_1d)
+						delete_range = dt_now<(sched["open"].iloc[0]+self.yf_lag)
+				if delete_range:
+					if debug_yfc:
 						print("- deleting future range:", ranges_to_fetch[i])
 					del ranges_to_fetch[i]
 			# Important that ranges_to_fetch in reverse order!
@@ -485,10 +494,6 @@ class Ticker:
 					h = self._fetchAndAddRanges_sparse(h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=quiet)
 					h_lastAdjustD = self._history[yfcd.Interval.Days1].index[-1].date()
 
-				## TODO: scan all of 'h' for price outliers, because YF won't catch all e.g. when fetching one row:
-				##       1) apply 2d median filter to h split-adjusted
-				##       2) use as mask to correct h
-
 		if (h is None) or h.shape[0]==0:
 			raise Exception("history() is exiting without price data")
 
@@ -505,46 +510,61 @@ class Ticker:
 			yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
 
 		# Present table for user:
+		h_copied = False
 		if (not start is None) and (not end is None):
 			h = h.loc[start:end-datetime.timedelta(milliseconds=1)]
 		if not keepna:
 			price_data_cols = [c for c in yfcd.yf_data_cols if c in h.columns]
 			mask_nan_or_zero = (h[price_data_cols].isna()|(h[price_data_cols]==0)).all(axis=1)
-			h = h.drop(mask_nan_or_zero.index[mask_nan_or_zero])
+			if mask_nan_or_zero.any():
+				h = h.drop(mask_nan_or_zero.index[mask_nan_or_zero])
+				h_copied = True
 		if h.shape[0] == 0:
-			return None
-		if not actions:
-			h = h.drop(["Dividends","Stock Splits"], axis=1)
+			h = None
 		else:
-			if not "Dividends" in h.columns:
-				raise Exception("Dividends column missing from table")
-		if adjust_splits:
-			for c in ["Open","Close","Low","High","Dividends"]:
-				h[c] *= h["CSF"]
-			h["Volume"] /= h["CSF"]
-		if adjust_divs:
-			for c in ["Open","Close","Low","High"]:
-				h[c] *= h["CDF"]
-		else:
-			h["Adj Close"] = h["Close"] * h["CDF"]
-		h = h.drop(["CSF","CDF"], axis=1)
-		if rounding:
-			# Round to 4 sig-figs
-			h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
+			if not actions:
+				h = h.drop(["Dividends","Stock Splits"], axis=1)
+			else:
+				if not "Dividends" in h.columns:
+					raise Exception("Dividends column missing from table")
 
-		if debug_yfc:
-			print("YFC: history() returning")
-			# print(h[["Close","Volume"]])
-			cols = [c for c in ["Close","Dividends","Volume","CDF","CSF"] if c in h.columns]
-			print(h[cols])
-			f = h["Dividends"]!=0.0
-			if f.any():
-				print("- dividends:")
-				print(h.loc[f, cols])
-			print("")
-		elif self._trace:
-			print(" "*self._trace_depth + "YFC: history() returning")
-			self._trace_depth -= 1
+			if adjust_splits:
+				if not h_copied:
+					h = h.copy()
+				for c in ["Open","Close","Low","High","Dividends"]:
+					h[c] *= h["CSF"]
+				h["Volume"] /= h["CSF"]
+			if adjust_divs:
+				if not h_copied:
+					h = h.copy()
+				for c in ["Open","Close","Low","High"]:
+					h[c] *= h["CDF"]
+			else:
+				if not h_copied:
+					h = h.copy()
+				h["Adj Close"] = h["Close"] * h["CDF"]
+			h = h.drop(["CSF","CDF"], axis=1)
+
+			if rounding:
+				# Round to 4 sig-figs
+				if not h_copied:
+					h = h.copy()
+				h[["Open","Close","Low","High"]] = np.round(h[["Open","Close","Low","High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
+
+			if debug_yfc:
+				print("YFC: history() returning")
+				# print(h[["Close","Volume"]])
+				cols = [c for c in ["Close","Dividends","Volume","CDF","CSF"] if c in h.columns]
+				print(h[cols])
+				if "Dividends" in h.columns:
+					f = h["Dividends"]!=0.0
+					if f.any():
+						print("- dividends:")
+						print(h.loc[f, cols])
+				print("")
+			elif self._trace:
+				print(" "*self._trace_depth + "YFC: history() returning")
+				self._trace_depth -= 1
 
 		return h
 
@@ -612,6 +632,16 @@ class Ticker:
 		if interval == yfcd.Interval.Week:
 			# Ensure aligned to week start:
 			fetch_start -= datetime.timedelta(days=fetch_start.weekday())
+		if fetch_start is not None:
+			if not isinstance(fetch_start, (datetime.datetime, pd.Timestamp)):
+				fetch_start_dt = datetime.datetime.combine(fetch_start, datetime.time(0), tz_exchange)
+			else:
+				fetch_start_dt = fetch_start
+		if fetch_end is not None:
+			if not isinstance(fetch_end, (datetime.datetime, pd.Timestamp)):
+				fetch_end_dt = datetime.datetime.combine(fetch_end, datetime.time(0), tz_exchange)
+			else:
+				fetch_end_dt = fetch_end
 
 		if interday:
 			if interval == yfcd.Interval.Days1:
@@ -660,11 +690,8 @@ class Ticker:
 				else:
 					print("- YF returned table:")
 					print(df[["Close","Dividends","Volume"]])
-			if not fetch_start is None:
-				if isinstance(fetch_start, (datetime.datetime,pd.Timestamp)):
-					df = df[df.index>=fetch_start]
-				else:
-					df = df[df.index.date>=fetch_start]
+			if df is None or df.shape[0]==0:
+				raise Exception("No data found for this date range")
 		except Exception as e:
 			first_fetch_failed = True
 			if "Data doesn't exist for startDate" in str(e):
@@ -672,11 +699,23 @@ class Ticker:
 			elif "No data found for this date range" in str(e):
 				ex = yfcd.NoPriceDataInRangeException(self.ticker,istr,start,end)
 			else:
+				print("df:")
+				print(df)
 				raise e
+		if not first_fetch_failed and not fetch_start is None:
+			# if isinstance(fetch_start, (datetime.datetime,pd.Timestamp)):
+			# 	df = df[df.index>=fetch_start]
+			# else:
+			# 	df = df[df.index.date>=fetch_start]
+			df = df.loc[fetch_start_dt:]
+			if df.shape[0]==0:
+				first_fetch_failed = True
+				ex = yfcd.NoPriceDataInRangeException(self.ticker,istr,start,end)
 
 		fetch_dt_utc = datetime.datetime.utcnow()
 
 		second_fetch_failed=False
+		df_wider = None
 		if interday:
 			df_backup = df
 			if first_fetch_failed and (not fetch_end is None):
@@ -686,7 +725,15 @@ class Ticker:
 
 				fetch_start -= 2*listing_date_check_tol
 				fetch_end += 2*listing_date_check_tol
-				if debug:
+				if not isinstance(fetch_start, (datetime.datetime, pd.Timestamp)):
+					fetch_start_dt = datetime.datetime.combine(fetch_start, datetime.time(0), tz_exchange)
+				else:
+					fetch_start_dt = fetch_start
+				if not isinstance(fetch_end, (datetime.datetime, pd.Timestamp)):
+					fetch_end_dt = datetime.datetime.combine(fetch_end, datetime.time(0), tz_exchange)
+				else:
+					fetch_end_dt = fetch_end
+				if debug_yfc:
 					print("- first fetch failed, trying again with longer range: {} -> {}".format(fetch_start, fetch_end))
 				try:
 					df_wider = self.dat.history(period=pstr, 
@@ -714,9 +761,12 @@ class Ticker:
 					else:
 						raise e
 
-				if debug:
-					print("- second fetch returned:")
-					print(df)
+				if df_wider is not None:
+					df = df_wider
+					if not fetch_start is None:
+						df = df.loc[fetch_start_dt:]
+					if not fetch_end is None:
+						df = df.loc[:fetch_end_dt-datetime.timedelta(milliseconds=1)]
 
 			if first_fetch_failed:
 				if second_fetch_failed:
@@ -784,7 +834,7 @@ class Ticker:
 					print(df)
 					raise Exception("Weekly data returned by YF doesn't begin Monday but {}".format(df.index[0].weekday()))
 
-		if (not df is None) and (df.index.tz is not None) and (not isinstance(df.index.tz, ZoneInfo)):
+		if (not df is None) and (df.shape[0]>0) and (df.index.tz is not None) and (not isinstance(df.index.tz, ZoneInfo)):
 			# Convert to ZoneInfo
 			df.index = df.index.tz_convert(tz_exchange)
 
