@@ -27,7 +27,7 @@ class Test_Unadjust(Test_Base):
     def setUp(self):
         self.tkrs = ["PNL.L", "I3E.L", "INTC", "GME", "AMC", "ESLT.TA"]
 
-        self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
+        self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'), expire_after=60*60)
 
         self.tempCacheDir = tempfile.TemporaryDirectory()
         yfcm.SetCacheDirpath(self.tempCacheDir.name)
