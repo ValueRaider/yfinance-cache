@@ -79,6 +79,12 @@ class Ticker:
 		# self._trace = True
 		self._trace_depth = 0
 
+		# Manage potential for infinite recursion during price repair:
+		self._record_stack_trace = True
+		# self._record_stack_trace = False
+		self._stack_trace = []
+		self._infinite_recursion_detected = False
+
 	def history(self, 
 				interval="1d", 
 				max_age=None, # defaults to half of interval
@@ -250,6 +256,28 @@ class Ticker:
 			if sched["open"][0] > dt_now:
 				# Requested date range is in future
 				return None
+
+		# All date checks passed, so can begin fetching
+
+		if self._record_stack_trace:
+			# Log function calls to detect and manage infinite recursion
+			if len(self._stack_trace)==0:
+				fn_tuple = ("{}: history()".format(self.ticker), "interval={}".format(interval), "start={}".format(start), "end={}".format(end), "period={}".format(period))
+			else:
+				fn_tuple = ("history()", "interval={}".format(interval), "start={}".format(start), "end={}".format(end), "period={}".format(period))
+			if fn_tuple in self._stack_trace:
+				# Detected a potential recursion loop
+				reconstruct_detected = False
+				for i in range(len(self._stack_trace)-1, -1, -1):
+					if "_reconstructInterval" in str(self._stack_trace[i]):
+						reconstruct_detected = True
+						break
+				if reconstruct_detected:
+					self._stack_trace.append(fn_tuple)
+					for i in range(len(self._stack_trace)):
+						print("  "*i + str(self._stack_trace[i]))
+					raise Exception("YFC detected recursion loop during price repair. Probably best to exclude '{}' until Yahoo fix their end.".format(self.ticker))
+			self._stack_trace.append(fn_tuple)
 
 		if ((start_d is None) or (end_d is None)) and (not start is None) and (not end is None):
 			# if start_d/end_d not set then start/end are datetimes, so need to inspect
@@ -565,6 +593,19 @@ class Ticker:
 			elif self._trace:
 				print(" "*self._trace_depth + "YFC: history() returning")
 				self._trace_depth -= 1
+
+		if self._record_stack_trace:
+			# Pop stack trace
+			if len(self._stack_trace) == 0:
+				raise Exception("Failing to correctly push/pop stack trace (is empty too early)")
+			if not self._stack_trace[-1] == fn_tuple:
+				for i in range(len(self._stack_trace)):
+					print("  "*i + str(self._stack_trace[i]))
+				raise Exception("Failing to correctly push/pop stack trace (see above)")
+			self._stack_trace.pop(len(self._stack_trace)-1)
+			if len(self._stack_trace)==0:
+				# Reset:
+				self._infinite_recursion_detected = False
 
 		return h
 
@@ -1575,10 +1616,43 @@ class Ticker:
 		else:
 			new_vals = {}
 
+			if self._record_stack_trace:
+				# Log function calls to detect and manage infinite recursion
+				fn_tuple = ("_reconstructInterval()", "dt={}".format(idx), "interval={}".format(interval))
+				if fn_tuple in self._stack_trace:
+					# Detected a potential recursion loop
+					reconstruct_detected = False
+					for i in range(len(self._stack_trace)-1, -1, -1):
+						if "_reconstructInterval" in str(self._stack_trace[i]):
+							reconstruct_detected = True
+							break
+					if reconstruct_detected:
+						self._infinite_recursion_detected = True
+				self._stack_trace.append(fn_tuple)
+
+			# Infinite loop potential here via repair:
+			# - request fine-grained data e.g. 1H
+			# - 1H requires accurate dividend data
+			# - triggers fetch of 1D data which must be kept contiguous
+			# - triggers fetch of older 1D data which requires repair using 1H data -> recursion loop
+			# Solution:
+			# 1) add tuple to fn stack buy with YF=True
+			# 2) if that tuple already in stack then raise Exception
 			if sub_interval==yfcd.Interval.Hours1:
-				df_fine = self.history(start=start, end=start+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
+				fetch_start = start
 			else:
-				df_fine = self.history(start=start-td_range, end=start+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
+				fetch_start = start - td_range
+			if self._infinite_recursion_detected:
+				for i in range(len(self._stack_trace)):
+					print("  "*i + str(self._stack_trace[i]))
+				raise Exception("WARNING: Infinite recursion detected (see stack trace above). Switch to fetching prices direct from YF")
+				# print("WARNING: Infinite recursion detected (see stack trace above). Switch to fetching prices direct from YF")
+				df_fine = self.dat.history(start=fetch_start, end=start+td_range, interval=yfcd.intervalToString[sub_interval], auto_adjust=False, repair=True)
+			elif interval in [yfcd.Interval.Days1] or self._infinite_recursion_detected:
+				# Assume infinite recursion will happen
+				df_fine = self.dat.history(start=fetch_start, end=start+td_range, interval=yfcd.intervalToString[sub_interval], auto_adjust=False, repair=True)
+			else:
+				df_fine = self.history(start=fetch_start, end=start+td_range, interval=sub_interval, adjust_splits=True, adjust_divs=False)
 
 			# First, check whether df_fine has different split-adjustment than df_row.
 			# If it is different, then adjust df_fine to match df_row
@@ -1638,6 +1712,16 @@ class Ticker:
 				new_vals["Close"] = df_fine["Close"].iloc[-1]
 				# Assume 'Adj Close' also corrupted, easier than detecting whether true
 				new_vals["Adj Close"] = df_fine["Adj Close"].iloc[-1]
+
+			if self._record_stack_trace:
+				# Pop stack trace
+				if len(self._stack_trace) == 0:
+					raise Exception("Failing to correctly push/pop stack trace (is empty too early)")
+				if not self._stack_trace[-1] == fn_tuple:
+					for i in range(len(self._stack_trace)):
+						print("  "*i + str(self._stack_trace[i]))
+					raise Exception("Failing to correctly push/pop stack trace (see above)")
+				self._stack_trace.pop(len(self._stack_trace)-1)
 
 		if self._trace:
 			self._trace_depth += 1
