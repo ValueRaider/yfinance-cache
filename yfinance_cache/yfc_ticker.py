@@ -1109,7 +1109,8 @@ class Ticker:
 					h2_pre["CSF"] *= h2_csf
 
 			# 2) backport h2_post divs across entire h table
-			h2_cdf = yfcu.GetCDF0(h2_post)
+			close_day_before = h["Close"].iloc[-1]
+			h2_cdf = yfcu.GetCDF0(h2_post, close_day_before)
 			if h2_cdf != 1.0:
 				if debug_yfc:
 					print("- backporting new data CDF={} across cached".format(h2_cdf))
@@ -1203,7 +1204,8 @@ class Ticker:
 				if df_since.shape[0]==0:
 					cdf=1.0 ; csf=1.0
 				else:
-					cdf = yfcu.GetCDF0(df_since)
+					close_day_before = self.history(start=h_lastAdjustD, end=h_lastAdjustD+td_1d)["Close"].iloc[-1]
+					cdf = yfcu.GetCDF0(df_since, close_day_before)
 					csf = yfcu.GetCSF0(df_since)
 
 		# Backport adjustment factors to h:

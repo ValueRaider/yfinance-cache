@@ -484,6 +484,112 @@ class Test_Yfc_Backend(unittest.TestCase):
         self.assertTrue(df.index[1]==dt1)
 
 
+    def test_GetCDF0(self):
+        tkr = "I3E.L"
+        tz = ZoneInfo("Europe/London")
+
+        # Setup DataFrame with real data:
+
+        columns = ["Close", "Adj Close", "Dividends"]
+
+        df_rows = []
+
+        dt = datetime.combine(date(2022,10,14), time(0), tz)
+        prices = [23.2, 23.2, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,10,13), time(0), tz)
+        prices = [23.55, 23.55, 0.1425]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,10,12), time(0), tz)
+        prices = [24.15, 24.01, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,10,11), time(0), tz)
+        prices = [24.2, 24.06, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+
+        dt = datetime.combine(date(2022,9,16), time(0), tz)
+        prices = [23.4, 23.26, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,9,15), time(0), tz)
+        prices = [24.5, 24.36, 0.1425]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,9,14), time(0), tz)
+        prices = [24.7, 24.41, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,9,13), time(0), tz)
+        prices = [24.35, 24.07, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+
+        dt = datetime.combine(date(2022,8,12), time(0), tz)
+        prices = [29.95, 29.6, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,8,11), time(0), tz)
+        prices = [29.7, 29.35, 0.1425]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,8,10), time(0), tz)
+        prices = [29.3, 28.82, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+        dt = datetime.combine(date(2022,8,9), time(0), tz)
+        prices = [29.15, 28.67, 0]
+        r = pd.Series(data=prices, index=columns, name=dt)
+        df_rows.append(r)
+
+        df = pd.DataFrame(df_rows)
+        df["CDF"] = df["Adj Close"] / df["Close"]
+
+        df = df.sort_index(ascending=False)
+
+        # Test: no dividends in data
+        df_tc = df.iloc[0:1]
+        cdf0 = yfcu.GetCDF0(df_tc)
+        self.assertEqual(cdf0, 1.0)
+
+        # Test: 1x dividend in data, in middle of table
+        df_tc = df.iloc[0:3]
+        cdf0_answer = df_tc["CDF"].iloc[-1]
+        try:
+            cdf0 = yfcu.GetCDF0(df_tc)
+            self.assertEqual(cdf0, cdf0_answer)
+        except:
+            print("df_tc:")
+            print(df_tc)
+            raise
+
+        # Test: 1x dividend in data, in oldest row
+        df_tc = df.iloc[0:2]
+        close_before = df["Close"].iloc[2]
+        cdf0_answer = df["CDF"].iloc[2]
+        try:
+            cdf0 = yfcu.GetCDF0(df_tc, close_before)
+            self.assertAlmostEqual(cdf0, cdf0_answer, delta=0.0002)
+        except:
+            print("df_tc:")
+            print(df_tc)
+            raise
+
+        # Test: 1x dividend in data, at most recent row:
+        df_tc = df.iloc[1:3]
+        cdf0_answer = df_tc["CDF"].iloc[-1]
+        try:
+            cdf0 = yfcu.GetCDF0(df_tc)
+            self.assertEqual(cdf0, cdf0_answer)
+        except:
+            print("df_tc:")
+            print(df_tc)
+            raise
+
+
 if __name__ == '__main__':
     unittest.main()
 
