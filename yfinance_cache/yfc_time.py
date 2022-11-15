@@ -181,6 +181,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 			# Cache
 			if year is not None:
 				s_year = s.loc[str(year)].copy()
+				s_year["idx_nanos"] = s_year.index.values.astype("int64")
 				if exchange not in schedYearCache:
 					schedYearCache[exchange] = {}
 				schedYearCache[exchange][year] = s_year
@@ -196,6 +197,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 			s = cal.schedule
 			s_years = s.loc[str(start_d.year):str(end_d_sub1.year)]
 			s_years = s_years.copy()
+			s_years["idx_nanos"] = s_years.index.values.astype("int64")
 			# Cache
 			if not num_years in schedYearsCache:
 				schedYearsCache[num_years] = {}
@@ -207,9 +209,14 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 	else:
 		cal = GetCalendar(exchange)
 		s = cal.schedule
+		s["idx_nanos"] = s.index.values.astype("int64")
 
 	if not s is None:
-		sched = s.loc[start_d:end_d_sub1]
+		start_ts = pd.Timestamp(start_d)
+		end_ts = pd.Timestamp(end_d_sub1)
+		slice_start = s["idx_nanos"].values.searchsorted(start_ts.value, side="left")
+		slice_end = s["idx_nanos"].values.searchsorted(end_ts.value, side="right")
+		sched = s[slice_start:slice_end]
 	else:
 		sched = None
 
