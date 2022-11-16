@@ -316,7 +316,8 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
     cal = GetCalendar(exchange)
 
-    open_dts = cal.schedule.loc[start_d.isoformat():(end_d-td_1d).isoformat()]["open"]
+    open_dts = GetExchangeSchedule(exchange, start_d, end_d)["open"]
+
     if len(open_dts) == 0:
         return None
     open_dts = pd.DatetimeIndex(open_dts).tz_convert(tz).tz_localize(None)
@@ -329,11 +330,11 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         weeks = open_dts.groupby(open_dts.to_period("W-SAT"))
     else:
         weeks = open_dts.groupby(open_dts.to_period("W"))
-    weeks_keys = sorted(list(weeks.keys()))
+    weeks_keys = sorted(list(weeks.keys()))  # 0.14%
+    weeks_keys_arr = pd.arrays.PeriodArray(pd.Series(weeks_keys))
 
     if debug:
         print("- weeks:")
-        # pprint(weeks)
         for k in weeks:
             print("- {}->{}".format(k.start_time, k.end_time))
             print(weeks[k].date)
@@ -341,9 +342,12 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 
     if weeklyUseYahooDef:
         td_7d = timedelta(days=7)
-        week_ranges = [(w.start_time.date(), w.start_time.date()+td_7d) for w in weeks.keys()]
+        week_starts = weeks_keys_arr.start_time.date
+        week_ends = week_starts + td_7d
+        week_ranges = np.stack([week_starts, week_ends], axis=1)
     else:
-        week_ranges = [(w[0].date(), w[-1].date()+td_1d) for w in weeks.values()]
+        week_ranges = np.array([(w[0].date(), w[-1].date()) for w in weeks.values()])
+        week_ranges[:,1] += td_1d
 
     if debug:
         print("- week_ranges:")
@@ -401,13 +405,14 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         print("- first_week_cutoff:", first_week_cutoff)
         print("- last_week_cutoff:", last_week_cutoff)
 
-    week_ranges = sorted(week_ranges, key=lambda x: x[0])
+    week_ranges = np.sort(week_ranges, axis=0)
     if last_week_cutoff:
-        del week_ranges[-1]
+        week_ranges = np.delete(week_ranges, -1, axis=0)
     if first_week_cutoff:
-        del week_ranges[0]
-    if len(week_ranges) == 0:
+        week_ranges = np.delete(week_ranges, 0, axis=0)
+    if week_ranges.shape[0] == 0:
         week_ranges = None
+    week_ranges = week_ranges.tolist()
 
     if debug:
         print("- week_ranges:")
