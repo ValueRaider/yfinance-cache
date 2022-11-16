@@ -354,32 +354,19 @@ class Ticker:
                 if expired.any():
                     h = h.drop(h.index[expired])
                     h_interval_dts = h_interval_dts[~expired]
-            #
+
             # Performance TODO: tag rows as fully contiguous to avoid searching for gaps
-            h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
-            if h_intervals is None:
-                h_intervals = pd.DataFrame(data={"interval_open": [], "interval_close": []})
-            f_na = h_intervals["interval_open"].isna().values
-            if f_na.any():
-                print(h[f_na])
-                raise Exception("Bad rows found in prices table")
-                if debug_yfc:
-                    print("- found bad rows, deleting:")
-                    print(h[f_na])
-                h = h[~f_na].copy()
-                h_intervals = h_intervals[~f_na]
-            if h_intervals.shape[0] > 0 and isinstance(h_intervals["interval_open"][0], datetime.datetime):
-                h_interval_opens = [x.to_pydatetime().astimezone(tz_exchange) for x in h_intervals["interval_open"]]
-            else:
-                h_interval_opens = h_intervals["interval_open"].values
 
             if interval == yfcd.Interval.Days1:
-                if len(h_intervals) == 0:
-                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                if h is None or h.shape[0] == 0:
+                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
                 else:
                     # Ensure that daily data always up-to-date to now
-                    h_start = h_intervals["interval_open"].iloc[0]
-                    h_end = h_intervals["interval_close"].iloc[h_intervals.shape[0]-1]
+                    dt_start = yfct.ConvertToDatetime(h.index[0], tz=tz_exchange)
+                    dt_end = yfct.ConvertToDatetime(h.index[-1], tz=tz_exchange)
+                    h_start = yfct.GetTimestampCurrentInterval(exchange, dt_start, interval, weeklyUseYahooDef=True)["interval_open"]
+                    h_end = yfct.GetTimestampCurrentInterval(exchange, dt_end, interval, weeklyUseYahooDef=True)["interval_close"]
+
                     if not isinstance(h_start, datetime.datetime):
                         h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
                         h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
@@ -418,6 +405,23 @@ class Ticker:
                     if rangePost_to_fetch is not None:
                         ranges_to_fetch.append(rangePost_to_fetch)
             else:
+                h_intervals = yfct.GetTimestampCurrentInterval_batch(exchange, h_interval_dts, interval, weeklyUseYahooDef=True)
+                if h_intervals is None:
+                    h_intervals = pd.DataFrame(data={"interval_open": [], "interval_close": []})
+                f_na = h_intervals["interval_open"].isna().values
+                if f_na.any():
+                    print(h[f_na])
+                    raise Exception("Bad rows found in prices table")
+                    if debug_yfc:
+                        print("- found bad rows, deleting:")
+                        print(h[f_na])
+                    h = h[~f_na].copy()
+                    h_intervals = h_intervals[~f_na]
+                if h_intervals.shape[0] > 0 and isinstance(h_intervals["interval_open"][0], datetime.datetime):
+                    h_interval_opens = [x.to_pydatetime().astimezone(tz_exchange) for x in h_intervals["interval_open"]]
+                else:
+                    h_interval_opens = h_intervals["interval_open"].values
+
                 try:
                     ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
                     if ranges_to_fetch is None:
