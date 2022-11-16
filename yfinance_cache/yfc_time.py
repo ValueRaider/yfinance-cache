@@ -718,8 +718,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
         if ExchangeOpenOnDay(exchange, ts_day):
             if debug:
                 print("- exchange open")
-            daySched = GetExchangeSchedule(exchange, ts_day, ts_day+timedelta(days=1))
-            i = {"interval_open": daySched["open"][0].date(), "interval_close": daySched["close"][0].date()+timedelta(days=1)}
+            i = {"interval_open": ts_day, "interval_close": ts_day+timedelta(days=1)}
         else:
             if debug:
                 print("- exchange closed")
