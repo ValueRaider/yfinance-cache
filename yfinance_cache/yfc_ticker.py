@@ -221,17 +221,19 @@ class Ticker:
 
         if start is not None:
             try:
-                sched = yfct.GetExchangeSchedule(exchange, start.date(), start.date()+7*td_1d)
+                sched_7d = yfct.GetExchangeSchedule(exchange, start.date(), start.date()+7*td_1d)
             except Exception as e:
                 if "Need to add mapping" in str(e):
                     raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(self.info["exchange"], self.ticker))
                 else:
                     raise
-            if sched is None:
-                raise Exception("sched is None for date range {}->{} and ticker {}".format(start.date(), start.date()+4*td_1d, self.ticker))
-            if sched["open"][0] > dt_now:
+            if sched_7d is None:
+                raise Exception("sched_7d is None for date range {}->{} and ticker {}".format(start.date(), start.date()+4*td_1d, self.ticker))
+            if sched_7d["open"][0] > dt_now:
                 # Requested date range is in future
                 return None
+        else:
+            sched_7d = None
 
         # All date checks passed so can begin fetching
 
@@ -258,7 +260,10 @@ class Ticker:
         if ((start_d is None) or (end_d is None)) and (start is not None) and (end is not None):
             # if start_d/end_d not set then start/end are datetimes, so need to inspect
             # schedule opens/closes to determine days
-            sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+td_1d)
+            if sched_7d is not None:
+                sched = sched_7d.iloc[0:1]
+            else:
+                sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+td_1d)
             n = sched.shape[0]
             start_d = start.date() if start < sched["open"][0] else start.date()+td_1d
             end_d = end.date()+td_1d if end >= sched["close"][n-1] else end.date()
