@@ -788,10 +788,13 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 	tz_utc = ZoneInfo("UTC")
 	ts_is_datetimes = isinstance(ts[0],datetime)
 	if ts_is_datetimes:
-		ts_day = [t.astimezone(tz).date() for t in ts]
-		# ts_day = list(map(lambda x: x.astimezone(tz).date(), ts))
+		ts = pd.to_datetime(ts)
+		if ts[0].tzinfo != tz:
+			ts = ts.tz_convert(tz)
+		ts_day = ts.date
 	else:
-		ts_day = ts
+		ts_day = np.array(ts)
+		ts = pd.to_datetime(ts).tz_localize(tz)
 
 	if interval == yfcd.Interval.Week:
 		# Treat week intervals as special case, contiguous from first weekday open to last weekday open. 
@@ -805,8 +808,11 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 
 		if weeklyUseYahooDef:
 			# Monday -> next Monday regardless of exchange schedule
-			weekSchedStart = [d-timedelta(days=d.weekday()) for d in ts_day]
-			weekSchedEnd = [ws+timedelta(days=7) for ws in weekSchedStart]
+			wd = pd.to_timedelta(ts.weekday, unit='D')
+			weekSchedStart = ts - wd
+			weekSchedEnd = weekSchedStart + timedelta(days=7)
+			weekSchedStart = weekSchedStart.date
+			weekSchedEnd = weekSchedEnd.date
 		else:
 			week_sched = GetExchangeScheduleIntervals(exchange, interval, t0, tl, weeklyUseYahooDef)
 			weekSchedStart = np.full(n, None)
