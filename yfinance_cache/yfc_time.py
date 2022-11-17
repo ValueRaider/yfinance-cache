@@ -330,7 +330,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         weeks = open_dts.groupby(open_dts.to_period("W-SAT"))
     else:
         weeks = open_dts.groupby(open_dts.to_period("W"))
-    weeks_keys = sorted(list(weeks.keys()))  # 0.14%
+    weeks_keys = sorted(list(weeks.keys()))
     weeks_keys_arr = pd.arrays.PeriodArray(pd.Series(weeks_keys))
 
     if debug:

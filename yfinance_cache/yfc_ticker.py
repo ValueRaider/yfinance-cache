@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from pprint import pprint
 
+# from time import perf_counter
 
 class Ticker:
     def __init__(self, ticker, session=None):
@@ -79,6 +80,8 @@ class Ticker:
                 proxy=None, rounding=False,
                 debug=True):
 
+        # t0 = perf_counter()
+
         if prepost:
             raise Exception("pre and post-market caching currently not implemented. If you really need it raise an issue on Github")
 
@@ -87,7 +90,7 @@ class Ticker:
 
         if debug_yfc:
             print("")
-            print("YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
+            print("YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={}, adjust_divs={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits, adjust_divs))
         elif self._trace:
             self._trace_depth += 1
             print(" "*self._trace_depth + "YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
@@ -102,6 +105,8 @@ class Ticker:
         if (max_age is not None) and (not isinstance(max_age, datetime.timedelta)):
             raise Exception("Argument 'max_age' must be timedelta")
         if period is not None:
+            if start is not None or end is not None:
+                raise Exception("Don't set both 'period' and 'start'/'end'' arguments")
             if isinstance(period, str):
                 if period not in yfcd.periodStrToEnum.keys():
                     raise Exception("'period' if str must be one of: {}".format(yfcd.periodStrToEnum.keys()))
@@ -116,33 +121,11 @@ class Ticker:
             raise Exception("'interval' must be yfcd.Interval")
         start_d = None ; end_d = None
         if start is not None:
-            if isinstance(start, str):
-                start_d = datetime.datetime.strptime(start, "%Y-%m-%d").date()
-                start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
-            elif isinstance(start, datetime.date) and not isinstance(start, datetime.datetime):
-                start_d = start
-                start = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
-            elif not isinstance(start, datetime.datetime):
-                raise Exception("Argument 'start' must be str, date or datetime")
-            start = start.replace(tzinfo=tz_exchange) if start.tzinfo is None else start.astimezone(tz_exchange)
-            if start.dst() is None:
-                raise Exception("Argument 'start' tzinfo must be DST-aware")
+            start, start_d = self._process_user_dt(start)
             if start > dt_now:
                 return None
         if end is not None:
-            if isinstance(end, str):
-                end_d = datetime.datetime.strptime(end, "%Y-%m-%d").date()
-                end = datetime.datetime.combine(end_d, datetime.time(0), tz_exchange)
-            elif isinstance(end, datetime.date) and not isinstance(end, datetime.datetime):
-                end_d = end
-                end = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
-            elif not isinstance(end, datetime.datetime):
-                raise Exception("Argument 'end' must be str, date or datetime")
-            end = end.replace(tzinfo=tz_exchange) if end.tzinfo is None else end.astimezone(tz_exchange)
-            if end.dst() is None:
-                raise Exception("Argument 'end' tzinfo must be DST-aware")
-        if (period is not None) and (start is not None):
-            raise Exception("Don't set both 'period' and 'start' arguments")
+            end, end_d = self._process_user_dt(end)
 
         if interval == yfcd.Interval.Week:
             # Note: if start is on weekend then Yahoo can return weekly data starting
@@ -152,9 +135,9 @@ class Ticker:
                 if start_d.weekday() in [5, 6]:
                     start_d += datetime.timedelta(days=7-start_d.weekday())
             else:
-                wd = start.astimezone(tz_exchange).weekday()
+                wd = start_d.weekday()
                 if wd in [5, 6]:
-                    start_d = start.astimezone(tz_exchange).date() + datetime.timedelta(days=7-wd)
+                    start_d += datetime.timedelta(days=7-wd)
                     start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
 
         # 'prepost' not doing anything in yfinance
@@ -270,9 +253,9 @@ class Ticker:
 
         if (start is not None) and (end is not None):
             listing_date = yfcm.ReadCacheDatum(self.ticker, "listing_date")
-            if (listing_date is not None) and (not isinstance(listing_date, datetime.date)):
-                raise Exception("listing_date = {} ({}) should be a date".format(listing_date, type(listing_date)))
             if listing_date is not None:
+                if not isinstance(listing_date, datetime.date):
+                    raise Exception("listing_date = {} ({}) should be a date".format(listing_date, type(listing_date)))
                 if start_d < listing_date:
                     start_d = listing_date
                     start = datetime.datetime.combine(listing_date, datetime.time(0), tz_exchange)
@@ -281,6 +264,8 @@ class Ticker:
 
         # Trigger an estimation of Yahoo data delay:
         self.yf_lag
+
+        # t1 = perf_counter()
 
         d_tomorrow = dt_now.astimezone(tz_exchange).date() + td_1d
         h_lastAdjustD = None
@@ -337,7 +322,7 @@ class Ticker:
             if interday:
                 h_interval_dts = h.index.date if isinstance(h.index[0], pd.Timestamp) else h.index
             else:
-                h_interval_dts = [yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index]
+                h_interval_dts = np.array([yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in h.index])
             h_interval_dts = np.array(h_interval_dts)
             if interval == yfcd.Interval.Days1:
                 # Daily data is always contiguous so only need to check last row
@@ -477,7 +462,6 @@ class Ticker:
                         pprint(ranges_to_fetch)
                         raise Exception("ranges_to_fetch contains {} ranges that occur after h_last_dt={}, expected 1 max".format(n, h_last_dt))
 
-                # last_adjust_d = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
                 quiet = period is not None  # YFC generated date range so don't print message
                 if debug_yfc:
                     quiet = False
@@ -488,6 +472,8 @@ class Ticker:
                 else:
                     h = self._fetchAndAddRanges_sparse(h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=quiet)
                     h_lastAdjustD = self._history[yfcd.Interval.Days1].index[-1].date()
+
+        # t2 = perf_counter()
 
         if (h is None) or h.shape[0] == 0:
             raise Exception("history() is exiting without price data")
@@ -504,15 +490,21 @@ class Ticker:
                 print("- writing LastAdjustD={} to md of {}/{}".format(h_lastAdjustD, self.ticker, h_cache_key))
             yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
 
+        # t3 = perf_counter()
+
         # Present table for user:
         h_copied = False
         if (start is not None) and (end is not None):
-            h = h.loc[start:end-datetime.timedelta(milliseconds=1)]
+            h = h.loc[start:end-datetime.timedelta(milliseconds=1)].copy()
+            h_copied = True
+
+        # t4 = perf_counter()
+
         if not keepna:
             price_data_cols = [c for c in yfcd.yf_data_cols if c in h.columns]
-            mask_nan_or_zero = (h[price_data_cols].isna() | (h[price_data_cols] == 0)).all(axis=1)
+            mask_nan_or_zero = (np.isnan(h[price_data_cols].to_numpy()) | (h[price_data_cols].to_numpy() == 0)).all(axis=1)
             if mask_nan_or_zero.any():
-                h = h.drop(mask_nan_or_zero.index[mask_nan_or_zero])
+                h = h.drop(h.index[mask_nan_or_zero])
                 h_copied = True
         if h.shape[0] == 0:
             h = None
@@ -527,28 +519,29 @@ class Ticker:
                 if not h_copied:
                     h = h.copy()
                 for c in ["Open", "Close", "Low", "High", "Dividends"]:
-                    h[c] *= h["CSF"]
-                h["Volume"] /= h["CSF"]
+                    h[c] = np.multiply(h[c].to_numpy(), h["CSF"].to_numpy())
+                h["Volume"] = np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy())
             if adjust_divs:
                 if not h_copied:
                     h = h.copy()
                 for c in ["Open", "Close", "Low", "High"]:
-                    h[c] *= h["CDF"]
+                    h[c] = np.multiply(h[c].to_numpy(), h["CDF"].to_numpy())
             else:
                 if not h_copied:
                     h = h.copy()
-                h["Adj Close"] = h["Close"] * h["CDF"]
+                h["Adj Close"] = np.multiply(h["Close"].to_numpy(), h["CDF"].to_numpy())
             h = h.drop(["CSF", "CDF"], axis=1)
 
             if rounding:
                 # Round to 4 sig-figs
                 if not h_copied:
                     h = h.copy()
-                h[["Open", "Close", "Low", "High"]] = np.round(h[["Open", "Close", "Low", "High"]], yfcu.CalculateRounding(h["Close"][h.shape[0]-1], 4))
+                rnd = yfcu.CalculateRounding(h["Close"].iloc[-1], 4)
+                for c in ["Open", "Close", "Low", "High"]:
+                    h[c] = np.round(h[c].to_numpy(), rnd)
 
             if debug_yfc:
                 print("YFC: history() returning")
-                # print(h[["Close", "Volume"]])
                 cols = [c for c in ["Close", "Dividends", "Volume", "CDF", "CSF"] if c in h.columns]
                 print(h[cols])
                 if "Dividends" in h.columns:
@@ -560,6 +553,21 @@ class Ticker:
             elif self._trace:
                 print(" "*self._trace_depth + "YFC: history() returning")
                 self._trace_depth -= 1
+
+        # t5 = perf_counter()
+        # t_setup = t1-t0
+        # t_sync = t2-t1
+        # t_cache = t3-t2
+        # t_filter = t4-t3
+        # t_adjust = t5-t4
+        # t_sum = t_setup + t_sync + t_cache + t_filter + t_adjust
+        # print("TIME: {:.4f}s: setup={:.4f} sync={:.4f} cache={:.4f} filter={:.4f} adjust={:.4f}".format(t_sum, t_setup, t_sync, t_cache, t_filter, t_adjust))
+        # t_setup *= 100/t_sum
+        # t_sync *= 100/t_sum
+        # t_cache *= 100/t_sum
+        # t_filter *= 100/t_sum
+        # t_adjust *= 100/t_sum
+        # print("TIME %:        setup={:.1f}%  sync={:.1f}%  cache={:.1f}%  filter={:.1f}%  adjust={:.1f}%".format(t_setup, t_sync, t_cache, t_filter, t_adjust))
 
         if self._record_stack_trace:
             # Pop stack trace
@@ -1031,7 +1039,7 @@ class Ticker:
         elif h is not None:
             h_modified = False
 
-            f_na = h["CDF"].isna()
+            f_na = np.isnan(h["CDF"].to_numpy())
             if f_na.any():
                 h["CDF"] = h["CDF"].fillna(method="bfill").fillna(method="ffill")
                 f_na = h["CDF"].isna()
@@ -1833,6 +1841,21 @@ class Ticker:
             self._trace_depth -= 1
 
         return df2
+
+    def _process_user_dt(self, dt):
+        d = None
+        tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
+        if isinstance(dt, str):
+            d = datetime.datetime.strptime(dt, "%Y-%m-%d").date()
+            dt = datetime.datetime.combine(d, datetime.time(0), tz_exchange)
+        elif isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
+            d = dt
+            dt = datetime.datetime.combine(dt, datetime.time(0), tz_exchange)
+        elif not isinstance(dt, datetime.datetime):
+            raise Exception("Argument 'dt' must be str, date or datetime")
+        dt = dt.replace(tzinfo=tz_exchange) if dt.tzinfo is None else dt.astimezone(tz_exchange)
+
+        return dt, d
 
     @property
     def info(self):
