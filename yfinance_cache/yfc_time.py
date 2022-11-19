@@ -136,6 +136,8 @@ def GetCalendar(exchange):
     if (exchange in yfcd.exchangesWithAuction) and ("auction" not in df.columns):
         df["auction"] = df["close"] + yfcd.exchangeAuctionDelay[exchange]
 
+    df["idx_nanos"] = df.index.values.astype("int64")
+
     calCache[cal_name] = cal
 
     return cal
@@ -185,7 +187,6 @@ def GetExchangeSchedule(exchange, start_d, end_d):
             # Cache
             if year is not None:
                 s_year = s.loc[str(year)].copy()
-                s_year["idx_nanos"] = s_year.index.values.astype("int64")
                 if exchange not in schedYearCache:
                     schedYearCache[exchange] = {}
                 schedYearCache[exchange][year] = s_year
@@ -199,9 +200,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
         else:
             cal = GetCalendar(exchange)
             s = cal.schedule
-            s_years = s.loc[str(start_d.year):str(end_d_sub1.year)]
-            s_years = s_years.copy()
-            s_years["idx_nanos"] = s_years.index.values.astype("int64")
+            s_years = s.loc[str(start_d.year):str(end_d_sub1.year)].copy()
             # Cache
             if num_years not in schedYearsCache:
                 schedYearsCache[num_years] = {}
@@ -213,7 +212,6 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     else:
         cal = GetCalendar(exchange)
         s = cal.schedule
-        s["idx_nanos"] = s.index.values.astype("int64")
 
     if s is not None:
         start_ts = pd.Timestamp(start_d)
@@ -474,26 +472,37 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
         # Transfer IntervalIndex to DataFrame so can modify
         intervals_df = pd.DataFrame(data={"interval_open": ti.left.tz_convert(tz), "interval_close": ti.right.tz_convert(tz)})
         if "auction" in cal.schedule.columns:
-            sched = cal.schedule.loc[start_d:end_d]
+            sched = GetExchangeSchedule(exchange, start_d, end_d+td_1d)
             sched.index = sched.index.date
 
-            market_opens = intervals_df.groupby(intervals_df["interval_open"].dt.date).min()["interval_open"]
-            market_opens.name = "day_open"
-            market_opens.index.name = "day"
-            if istr.endswith('h'):
-                res = istr.replace('h', 'H')
+            # Will map auction time to an interval by flooring relative to market open.
+            # Implemented by flooring then applying offset calculated from floored market open.
+            intervals_grp = intervals_df.groupby(intervals_df["interval_open"].dt.date)
+            # 1 - calculate offset
+            res = istr.replace('h', 'H') if istr.endswith('h') else istr.replace('m', 'T')
+            market_opens = intervals_grp.min()["interval_open"]
+            if len(market_opens.dt.time.unique()) == 1:
+                open0 = market_opens.iloc[0]
+                offset = open0 - open0.floor(res)
+                auctions_df = sched[["auction"]].copy()
             else:
-                res = istr.replace('m', 'T')
-            auctions_df = sched[["auction"]].copy()
-            auctions_df = auctions_df.join(market_opens)
-            offset = auctions_df["day_open"] - auctions_df["day_open"].dt.floor(res)
-            auctions_df = auctions_df.drop("day_open", axis=1)
-            auctions_df["auction_open"] = (auctions_df["auction"]-offset).dt.floor(res)+offset
+                market_opens.name = "day_open"
+                market_opens.index.name = "day"
+                auctions_df = sched[["auction"]].join(market_opens)
+                offset = auctions_df["day_open"] - auctions_df["day_open"].dt.floor(res)
+            # 2 perform relative flooring:
+            if isinstance(offset, pd.Timedelta) and len(auctions_df["auction"].dt.time.unique()) == 1:
+                auction0 = auctions_df["auction"].iloc[0]
+                auction0_floor = (auction0-offset).floor(res) + offset
+                open_offset = auction0_floor - auction0
+                auctions_df["auction_open"] = auctions_df["auction"] + open_offset
+            else:
+                auctions_df["auction_open"] = (auctions_df["auction"]-offset).dt.floor(res) + offset
             auctions_df["auction_close"] = auctions_df["auction"] + yfcd.exchangeAuctionDuration[exchange]
-            auctions_df = auctions_df.drop("auction", axis=1)
+            auctions_df = auctions_df.drop(["day_open", "auction"], axis=1, errors="ignore")
 
             # Compare auction intervals against last trading interval
-            intervals_df_last = intervals_df.groupby(intervals_df["interval_open"].dt.date).max()
+            intervals_df_last = intervals_grp.max()
             intervals_df_ex_last = intervals_df[~intervals_df["interval_open"].isin(intervals_df_last["interval_open"])]
             intervals_df_last.index = intervals_df_last["interval_open"].dt.date
             auctions_df = auctions_df.join(intervals_df_last)
@@ -501,13 +510,11 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
             f_surround = (auctions_df["auction_open"] >= auctions_df["interval_open"]) & \
                          (auctions_df["auction_close"] <= auctions_df["interval_close"])
             if f_surround.any():
-                # print("dropping surrounded auction")
                 auctions_df.loc[f_surround, ["auction_open", "auction_close"]] = pd.NaT
             # - if last trading interval surrounded by auction, then replace by auction
             f_surround = (auctions_df["interval_open"] >= auctions_df["auction_open"]) & \
                          (auctions_df["interval_close"] <= auctions_df["auction_close"])
             if f_surround.any():
-                # print("dropping surrounded trading")
                 auctions_df.loc[f_surround, ["interval_open", "interval_close"]] = pd.NaT
             # - no duplicates, no overlaps
             f_duplicate = (auctions_df["auction_open"] == auctions_df["interval_open"]) & \
@@ -526,8 +533,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
                     # Combine
                     auctions_df.loc[f, "auction_open"] = auctions_df.loc[f, "interval_open"]
                     auctions_df.loc[f, ["interval_open", "interval_close"]] = pd.NaT
-                    f_overlap = (auctions_df["auction_open"] >= auctions_df["interval_open"]) & \
-                                (auctions_df["auction_open"] < auctions_df["interval_close"])
+                    f_overlap = f_overlap & (~f)
                 if f_overlap.any():
                     print("")
                     print(auctions_df[f_overlap])
