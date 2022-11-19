@@ -15,6 +15,7 @@ from pprint import pprint
 
 # from time import perf_counter
 
+
 class Ticker:
     def __init__(self, ticker, session=None):
         self.ticker = ticker.upper()
@@ -119,26 +120,27 @@ class Ticker:
             interval = yfcd.intervalStrToEnum[interval]
         if not isinstance(interval, yfcd.Interval):
             raise Exception("'interval' must be yfcd.Interval")
+
         start_d = None ; end_d = None
         if start is not None:
             start, start_d = self._process_user_dt(start)
             if start > dt_now:
                 return None
+            if interval == yfcd.Interval.Week:
+                # Note: if start is on weekend then Yahoo can return weekly data starting
+                #       on Saturday. This breaks YFC, start must be Monday! So fix here:
+                if start is None:
+                    # Working with simple dates, easy
+                    if start_d.weekday() in [5, 6]:
+                        start_d += datetime.timedelta(days=7-start_d.weekday())
+                else:
+                    wd = start_d.weekday()
+                    if wd in [5, 6]:
+                        start_d += datetime.timedelta(days=7-wd)
+                        start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
+
         if end is not None:
             end, end_d = self._process_user_dt(end)
-
-        if interval == yfcd.Interval.Week:
-            # Note: if start is on weekend then Yahoo can return weekly data starting
-            #       on Saturday. This breaks YFC, start must be Monday! So fix here:
-            if start is None:
-                # Working with simple dates, easy
-                if start_d.weekday() in [5, 6]:
-                    start_d += datetime.timedelta(days=7-start_d.weekday())
-            else:
-                wd = start_d.weekday()
-                if wd in [5, 6]:
-                    start_d += datetime.timedelta(days=7-wd)
-                    start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
 
         # 'prepost' not doing anything in yfinance
 
@@ -606,6 +608,7 @@ class Ticker:
         exchange = self.info["exchange"]
         tz_exchange = ZoneInfo(self.info["exchangeTimezoneName"])
         istr = yfcd.intervalToString[interval]
+        itd = yfcd.intervalToTimedelta[interval]
         interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
         td_1d = datetime.timedelta(days=1)
 
@@ -636,20 +639,24 @@ class Ticker:
 
             if (fetch_start is not None) and (fetch_end <= fetch_start):
                 return None
-        # if isinstance(start, datetime.datetime) and (start.time() > datetime.time(3)) and (not interday):
-        #   # if start = start time of trading day, then Volume will be incorrect.
-        #   # Need to be 20 minutes earlier to get Yahoo to return correct volume.
-        #   # And rather than lookup trading day start, just shift any datetime
-        #   fetch_start -= datetime.timedelta(minutes=20)
-        # Update: 20 minutes not enough! Need to go back to last trading day!
-        if isinstance(start, datetime.datetime) and (not interday):
-            if yfct.IsTimestampInActiveSession(exchange, fetch_start):
-                s = yfct.GetTimestampCurrentSession(exchange, fetch_start)
-                fetch_start = s["market_open"] - datetime.timedelta(hours=6)
-            s = yfct.GetTimestampMostRecentSession(exchange, fetch_start)
-            fetch_start = s["market_close"] - datetime.timedelta(hours=1)
+        if isinstance(start, datetime.datetime) and (start.time() > datetime.time(3)) and (not interday):
+            # if start = start time of trading day, then Volume will be incorrect.
+            # Need to be 20 minutes earlier to get Yahoo to return correct volume.
+            # And rather than lookup trading day start, just shift any datetime
+            fetch_start -= datetime.timedelta(minutes=20)
             if debug_yfc:
                 print("- fetch_start shifted back to:", fetch_start)
+        # # Update: 20 minutes not enough! Need to go back to last trading day!
+        # if isinstance(start, datetime.datetime) and (not interday):
+        #     if yfct.IsTimestampInActiveSession(exchange, fetch_start):
+        #         s = yfct.GetTimestampCurrentSession(exchange, fetch_start)
+        #         fetch_start = s["market_open"] - datetime.timedelta(hours=6)
+        #     s = yfct.GetTimestampMostRecentSession(exchange, fetch_start)
+        #     fetch_start = s["market_close"] - datetime.timedelta(hours=1)
+        #     if debug_yfc:
+        #         print("- fetch_start shifted back to:", fetch_start)
+        # Update: but shifting back too far for 1-minute data increase risk of
+        # hitting Yahoo's limit (7-days worth only).
         if interval == yfcd.Interval.Week:
             # Ensure aligned to week start:
             fetch_start -= datetime.timedelta(days=fetch_start.weekday())
@@ -884,7 +891,16 @@ class Ticker:
                 # then assume no trading occurred and insert NaN rows.
                 # Normally Yahoo has already filled with NaNs but sometimes they forget/are late
                 nm = intervals_missing_df.shape[0]
-                if (interday and nm == 1) or ((not interday) and nm <= 2):
+                if interday:
+                    threshold = 1
+                else:
+                    if itd <= datetime.timedelta(2):
+                        threshold = 10
+                    elif itd <= datetime.timedelta(5):
+                        threshold = 3
+                    else:
+                        threshold = 2
+                if nm <= threshold:
                     if debug_yfc:
                         print("- found missing intervals, inserting nans:")
                         print(intervals_missing_df)
@@ -992,6 +1008,30 @@ class Ticker:
                             df = df[~f_drop]
                             n = df.shape[0]
                             f_na = intervals["interval_open"].isna().values
+                if f_na.any() and interval==yfcd.Interval.Mins1:
+                    # If 1-minute interval at market close, then merge with previous minute
+                    indices = sorted(np.where(f_na)[0], reverse=True)
+                    for idx in indices:
+                        dt = df.index[idx]
+                        sched = yfct.GetExchangeSchedule(exchange, dt.date(), dt.date()+td_1d)
+                        if dt.time() == sched["close"].iloc[0].time():
+                            if idx==0:
+                                # Discard
+                                print("discarding")
+                                pass
+                            else:
+                                print("merging")
+                                # Merge with previous
+                                dt1 = df.index[idx-1]
+                                df.loc[dt1,"Close"] = df["Close"].iloc[idx]
+                                df.loc[dt1,"High"] = df["High"].iloc[idx-1:idx+1].max()
+                                df.loc[dt1,"Low"] = df["Low"].iloc[idx-1:idx+1].min()
+                                df.loc[dt1,"Volume"] = df["Volume"].iloc[idx-1:idx+1].sum()
+                            df = df.drop(dt)
+                            intervals = intervals.drop(dt)
+                            intervalStarts = np.delete(intervalStarts, idx)
+                    f_na = intervals["interval_open"].isna().values
+
                 if f_na.any():
                     ctr = 0
                     for idx in np.where(f_na)[0]:
@@ -1316,6 +1356,10 @@ class Ticker:
                 # If only trying to fetch 1 day of 1d data, then print warning instead of exception.
                 # Could add additional condition of dividend previous day (seems to mess up table).
                 if interval == yfcd.Interval.Days1 and rend - rstart == td_1d:
+                    ignore = True
+                elif interval == yfcd.Interval.Mins1 and rend - rstart <= datetime.timedelta(minutes=10):
+                    ignore = True
+                if ignore:
                     if not quiet:
                         print("WARNING: No {}-price data fetched for ticker {} between dates {} -> {}".format(yfcd.intervalToString[interval], self.ticker, rstart, rend))
                     h2 = None
