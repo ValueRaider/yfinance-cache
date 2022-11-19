@@ -50,13 +50,10 @@ def TypeCheckInterval(var, varName):
     if not isinstance(var, yfcd.Interval):
         raise Exception("'{}' must be yfcd.Interval not {}".format(varName, type(var)))
 def TypeCheckIntervalDt(dt, interval, varName, strict=True):
-    if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-        if strict:
-            TypeCheckDateStrict(dt, varName)
-        else:
-            TypeCheckDateEasy(dt, varName)
+    if strict and interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
+        TypeCheckDateStrict(dt, varName)
     else:
-        TypeCheckDatetime(dt, varName)
+        TypeCheckDateEasy(dt, varName)
 def TypeCheckPeriod(var, varName):
     if not isinstance(var, yfcd.Period):
         raise Exception("'{}' must be yfcd.Period not {}".format(varName, type(var)))
@@ -98,10 +95,10 @@ def SetExchangeTzName(exchange, tz):
 
 
 calCache = {}
-schedYearCache = {}
-schedYearsCache = {}
+schedCache = {}
 schedDbMetadata = {}
 db_mem = sql.connect(":memory:")
+schedIntervalsCache = {}
 
 
 def GetExchangeDataDelay(exchange):
@@ -172,43 +169,16 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 
     end_d_sub1 = end_d-timedelta(days=1)
 
-    global schedYearCache
-    global schedYearsCache
-
     num_years = end_d.year - start_d.year + 1
-    if num_years == 1:
-        # Try caching each year
-        year = start_d.year
-        if year is not None and exchange in schedYearCache and year in schedYearCache[exchange]:
-            s = schedYearCache[exchange][year]
+    if num_years <= 2:
+        # Cache
+        cache_key = (exchange, start_d.year, num_years)
+        if cache_key in schedCache:
+            s = schedCache[cache_key]
         else:
             cal = GetCalendar(exchange)
-            s = cal.schedule
-            # Cache
-            if year is not None:
-                s_year = s.loc[str(year)].copy()
-                if exchange not in schedYearCache:
-                    schedYearCache[exchange] = {}
-                schedYearCache[exchange][year] = s_year
-                s = s_year
-
-    elif num_years <= 2:
-        # Try caching 1-2 years:
-        year = start_d.year
-        if num_years in schedYearsCache and exchange in schedYearsCache[num_years] and year in schedYearsCache[num_years][exchange]:
-            s = schedYearsCache[num_years][exchange][year]
-        else:
-            cal = GetCalendar(exchange)
-            s = cal.schedule
-            s_years = s.loc[str(start_d.year):str(end_d_sub1.year)].copy()
-            # Cache
-            if num_years not in schedYearsCache:
-                schedYearsCache[num_years] = {}
-            if exchange not in schedYearsCache[num_years]:
-                schedYearsCache[num_years][exchange] = {}
-            schedYearsCache[num_years][exchange][year] = s_years
-
-            s = s_years
+            s = cal.schedule.loc[str(start_d.year):str(end_d_sub1.year)].copy()
+            schedCache[cache_key] = s
     else:
         cal = GetCalendar(exchange)
         s = cal.schedule
@@ -423,22 +393,15 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
     TypeCheckStr(exchange, "exchange")
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
-    TypeCheckDateEasy(start, "start")
-    TypeCheckDateEasy(end, "end")
+    TypeCheckIntervalDt(start, interval, "start", strict=True)
+    TypeCheckIntervalDt(end, interval, "end", strict=True)
 
     debug = False
     # debug = True
 
     if debug:
-        print("GetExchangeScheduleIntervals(start={}, end={}, weeklyUseYahooDef={})".format(start, end, weeklyUseYahooDef))
-
-    week_starts_sunday = (exchange in ["TLV"]) and (not weeklyUseYahooDef)
-    if debug:
-        print("- week_starts_sunday =", week_starts_sunday)
-
-    if exchange not in yfcd.exchangeToXcalExchange:
-        raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendar(exchange)
+        print("GetExchangeScheduleIntervals(interval={}, start={} (), end={}, weeklyUseYahooDef={})".format(interval, start, end, weeklyUseYahooDef))
+        print("- types: start={} end={}".format(type(start), type(end)))
 
     tz = ZoneInfo(GetExchangeTzName(exchange))
     td_1d = timedelta(days=1)
@@ -455,9 +418,32 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
         end_dt = end
         end_d = end.astimezone(tz).date() + td_1d
 
+    # First look in cache:
+    cache_key = None
+    cache_key = (exchange, interval, start_d, end_d, weeklyUseYahooDef)
+    if cache_key in schedIntervalsCache:
+        s = schedIntervalsCache[cache_key]
+        if isinstance(s.left[0], datetime):
+            s = s[s.left>=start_dt]
+        if isinstance(s.right[0], datetime):
+            s = s[s.right<=end_dt]
+        if debug:
+            print("- returning cached intervals ({}->{} filtered by {}->{})".format(start_d, end_d, start, end))
+        return s
+
     if debug:
         print("- start_d={}, end_d={}".format(start_d, end_d))
 
+    week_starts_sunday = (exchange in ["TLV"]) and (not weeklyUseYahooDef)
+    if debug:
+        print("- week_starts_sunday =", week_starts_sunday)
+
+    if exchange not in yfcd.exchangeToXcalExchange:
+        raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
+    cal = GetCalendar(exchange)
+
+    # When calculating intervals use dates not datetimes. Cache the result, and then
+    # apply datetime limits.
     intervals = None
     istr = yfcd.intervalToString[interval]
     td = yfcd.intervalToTimedelta[interval]
@@ -466,13 +452,13 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
             align = '30m'
         else:
             align = istr
-        ti = cal.trading_index(start_d.isoformat(), end_d.isoformat(), period=istr, intervals=True, force_close=True, align=align)
+        ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
         if len(ti) == 0:
             return None
         # Transfer IntervalIndex to DataFrame so can modify
         intervals_df = pd.DataFrame(data={"interval_open": ti.left.tz_convert(tz), "interval_close": ti.right.tz_convert(tz)})
         if "auction" in cal.schedule.columns:
-            sched = GetExchangeSchedule(exchange, start_d, end_d+td_1d)
+            sched = GetExchangeSchedule(exchange, start_d, end_d)
             sched.index = sched.index.date
 
             # Will map auction time to an interval by flooring relative to market open.
@@ -546,18 +532,11 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
             auctions_df.columns = [rename_cols[col] if col in rename_cols else col for col in auctions_df.columns]
             intervals_df = pd.concat([intervals_df_ex_last, intervals_df_last, auctions_df], sort=True).sort_values(by="interval_open").reset_index(drop=True)
 
-        intervals_df = intervals_df[(intervals_df["interval_open"] >= start_dt) & (intervals_df["interval_close"] <= end_dt)]
-        if intervals_df.shape[0] == 0:
-            raise Exception("WARNING: No intervals generated for date range {} -> {}".format(start, end))
-            return None
         intervals = pd.IntervalIndex.from_arrays(intervals_df["interval_open"], intervals_df["interval_close"], closed="left")
 
     elif interval == yfcd.Interval.Days1:
         s = GetExchangeSchedule(exchange, start_d, end_d)
         if s is None or s.shape[0] == 0:
-            return None
-        s = s[(s["open"] >= start_dt) & (s["close"] <= end_dt)]
-        if s.shape[0] == 0:
             return None
         open_days = np.array([dt.to_pydatetime().astimezone(tz).date() for dt in s["open"]])
         intervals = yfcd.DateIntervalIndex.from_arrays(open_days, open_days+td_1d, closed="left")
@@ -569,6 +548,19 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
     else:
         raise Exception("Need to implement for interval={}".format(interval))
+
+    if not cache_key is None:
+        schedIntervalsCache[cache_key] = intervals
+
+    if isinstance(intervals.left[0], datetime):
+        intervals = intervals[intervals.left >= start_dt]
+    if isinstance(intervals.right[0], datetime):
+        intervals = intervals[intervals.right <= end_dt]
+    if intervals.shape[0] == 0:
+        raise Exception("WARNING: No intervals generated for date range {} -> {}".format(start, end))
+        return None
+    if debug:
+        print("- intervals: [0]={}->{} [-1]={}->{}".format(intervals.left[0], intervals.right[0], intervals.left[-1], intervals.right[-1]))
 
     if debug:
         print("GetExchangeScheduleIntervals() returning")
@@ -1263,8 +1255,8 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
 
 def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True, minDistanceThreshold=5):
     TypeCheckStr(exchange, "exchange")
-    TypeCheckDateEasy(start, "start")
-    TypeCheckDateEasy(end, "end")
+    TypeCheckIntervalDt(start, interval, "start", strict=True)
+    TypeCheckIntervalDt(end, interval, "end", strict=True)
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
     if knownIntervalStarts is not None:

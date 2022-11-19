@@ -351,7 +351,10 @@ class Ticker:
 
             if interval == yfcd.Interval.Days1:
                 if h is None or h.shape[0] == 0:
-                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
+                    if interday:
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start_d, end_d, interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
+                    else:
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
                 else:
                     # Ensure that daily data always up-to-date to now
                     dt_start = yfct.ConvertToDatetime(h.index[0], tz=tz_exchange)
@@ -359,34 +362,43 @@ class Ticker:
                     h_start = yfct.GetTimestampCurrentInterval(exchange, dt_start, interval, weeklyUseYahooDef=True)["interval_open"]
                     h_end = yfct.GetTimestampCurrentInterval(exchange, dt_end, interval, weeklyUseYahooDef=True)["interval_close"]
 
-                    if not isinstance(h_start, datetime.datetime):
-                        h_start = datetime.datetime.combine(h_start, datetime.time(0), tz_exchange)
-                        h_end = datetime.datetime.combine(h_end, datetime.time(0), tz_exchange)
-                    #
-                    if h_start <= start:
-                        rangePre_to_fetch = None
+                    rangePre_to_fetch = None
+                    if interday:
+                        if start_d < h_start:
+                            try:
+                                rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start_d, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                            except yfcd.NoIntervalsInRangeException:
+                                rangePre_to_fetch = None
                     else:
-                        try:
-                            rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-                        except yfcd.NoIntervalsInRangeException:
-                            rangePre_to_fetch = None
+                        if start < h_start:
+                            try:
+                                rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, h_start, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                            except yfcd.NoIntervalsInRangeException:
+                                rangePre_to_fetch = None
                     if rangePre_to_fetch is not None:
                         if len(rangePre_to_fetch) > 1:
                             raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
                         rangePre_to_fetch = rangePre_to_fetch[0]
                     #
-                    target_end = dt_now
-                    d = dt_now.astimezone(tz_exchange).date()
-                    sched = yfct.GetExchangeSchedule(exchange, d, d + td_1d)
-                    if (sched is not None) and (sched.shape[0] > 0) and (dt_now > sched["open"].iloc[0]):
-                        target_end = sched["close"].iloc[0]+datetime.timedelta(hours=2)
-                    if h_end < target_end:
-                        try:
-                            rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
-                        except yfcd.NoIntervalsInRangeException:
-                            rangePost_to_fetch = None
+                    target_end_d = dt_now.astimezone(tz_exchange).date() + td_1d
+                    rangePost_to_fetch = None
+                    if interday:
+                        if h_end < target_end_d:
+                            try:
+                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end_d, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                            except yfcd.NoIntervalsInRangeException:
+                                rangePost_to_fetch = None
                     else:
-                        rangePost_to_fetch = None
+                        target_end_dt = dt_now
+                        d = target_end_dt.astimezone(tz_exchange).date()
+                        sched = yfct.GetExchangeSchedule(exchange, d, d + td_1d)
+                        if (sched is not None) and (sched.shape[0] > 0) and (dt_now > sched["open"].iloc[0]):
+                            target_end_dt = sched["close"].iloc[0]+datetime.timedelta(hours=2)
+                        if h_end < target_end_dt:
+                            try:
+                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, h_end, target_end_dt, interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                            except yfcd.NoIntervalsInRangeException:
+                                rangePost_to_fetch = None
                     ranges_to_fetch = []
                     if rangePost_to_fetch is not None:
                         if len(rangePost_to_fetch) > 1:
@@ -415,7 +427,10 @@ class Ticker:
                     h_interval_opens = h_intervals["interval_open"].values
 
                 try:
-                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                    if interday:
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start_d, end_d, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                    else:
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(exchange, start, end, interval, h_interval_opens, weeklyUseYahooDef=True, minDistanceThreshold=5)
                     if ranges_to_fetch is None:
                         ranges_to_fetch = []
                 except yfcd.NoIntervalsInRangeException:
@@ -624,18 +639,19 @@ class Ticker:
             else:
                 end_d = end
                 end_dt = datetime.datetime.combine(end, datetime.time(0), tz_exchange)
-            if isinstance(start, datetime.datetime):
-                start_dt = start
-                start_d = start.astimezone(tz_exchange).date()
-            else:
-                start_d = start
-                start_dt = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
             if end_dt > dtnow:
                 exchange_midnight_dt = datetime.datetime.combine(dtnow_exchange.date()+td_1d, datetime.time(0), tz_exchange)
                 if isinstance(end, datetime.datetime):
                     fetch_end = exchange_midnight_dt
                 else:
                     fetch_end = exchange_midnight_dt.date()
+        if start is not None:
+            if isinstance(start, datetime.datetime):
+                start_dt = start
+                start_d = start.astimezone(tz_exchange).date()
+            else:
+                start_d = start
+                start_dt = datetime.datetime.combine(start, datetime.time(0), tz_exchange)
 
             if (fetch_start is not None) and (fetch_end <= fetch_start):
                 return None

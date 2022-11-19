@@ -550,6 +550,7 @@ class Test_Yfc_Interface(Test_Base):
 
         # Exclude low-volume tickers
         del tkr_candidates[tkr_candidates.index("HLTH")]
+        del tkr_candidates[tkr_candidates.index("MEL.NZ")]
 
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         start_dt = dt_now - timedelta(days=7)
@@ -680,11 +681,12 @@ class Test_Yfc_Interface(Test_Base):
                         raise
 
                     ## Finally, check it matches YF:
-                    dat_yf = yf.Ticker(tkr, session=self.session)
-                    df_yf = dat_yf.history(interval="1h", start=start, end=end)
-                    # Note: Yahoo doesn't dividend-adjust hourly
                     df1 = dat.history(start=start, end=end, interval="1h", adjust_divs=False)
-                    df_yf = dat_yf.history(start=start, interval="1h")
+                    dat_yf = yf.Ticker(tkr, session=self.session)
+                    # Note: Yahoo doesn't dividend-adjust hourly. Also have to prepend a day to
+                    #       get correct volume for start date
+                    df_yf = dat_yf.history(start=start-td_1d, interval="1h")
+                    df_yf = df_yf.loc[df_yf.index.date>=start]
                     # Discard 0-volume data at market close
                     sched = yfct.GetExchangeSchedule(dat.info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
                     sched["_date"] = sched.index.date
