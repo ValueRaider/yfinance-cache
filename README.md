@@ -38,8 +38,7 @@ msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
 
 ## Installation
 
-Now available on PIP. But requires 'development' version exchange_calendars (hopefully soon changes merged into PIP) - I advise against messing with PIP, instead used `sys.path` or `PYTHONPATH`:
-- my fork of exchange_calendars on 'dev' branch - https://github.com/ValueRaider/exchange_calendars/tree/dev
+Available on PIP: `pip install yfinance_cache`
 
 ## Known issues / pending tasks
 
