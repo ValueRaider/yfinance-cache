@@ -96,8 +96,6 @@ def GetMagnitude(n):
 def CalculateRounding(n, sigfigs):
 	if GetSigFigs(round(n)) >= sigfigs:
 		return 0
-	elif round(n,0)==n:
-		return 0
 	else:
 		return sigfigs - GetSigFigs(round(n))
 

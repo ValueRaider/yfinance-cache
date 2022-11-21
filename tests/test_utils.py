@@ -32,7 +32,7 @@ class TestUtils(unittest.TestCase):
     def test_calculateRounding(self):
         self.assertEqual(yfcu.CalculateRounding(12345, 4), 0)
         self.assertEqual(yfcu.CalculateRounding(1234, 4), 0)
-        self.assertEqual(yfcu.CalculateRounding(123, 4), 0)
+        self.assertEqual(yfcu.CalculateRounding(123, 4), 1)
 
         self.assertEqual(yfcu.CalculateRounding(123.4, 4), 1)
         self.assertEqual(yfcu.CalculateRounding(12.34, 4), 2)
@@ -43,6 +43,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(yfcu.CalculateRounding(12.34, 3), 1)
         self.assertEqual(yfcu.CalculateRounding(1.234, 3), 2)
         self.assertEqual(yfcu.CalculateRounding(.1234, 3), 3)
+
+        self.assertEqual(yfcu.CalculateRounding(1.0, 4), 3)
 
 
 if __name__ == '__main__':
