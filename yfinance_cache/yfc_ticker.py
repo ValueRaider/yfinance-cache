@@ -89,12 +89,13 @@ class Ticker:
         debug_yfc = self._debug
         # debug_yfc = True
 
+        log_msg = "YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={}, adjust_divs={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits, adjust_divs)
         if debug_yfc:
             print("")
-            print("YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={}, adjust_divs={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits, adjust_divs))
+            print(log_msg)
         elif self._trace:
             self._trace_depth += 1
-            print(" "*self._trace_depth + "YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits))
+            print(" "*self._trace_depth + log_msg)
 
         td_1d = datetime.timedelta(days=1)
         exchange = self.info['exchange']
@@ -299,7 +300,7 @@ class Ticker:
                     h_lastAdjustD = h_lastDt.date()
                 else:
                     try:
-                        df_daily = self.history(start=next_day, interval=yfcd.Interval.Days1, max_age=td_1d)
+                        df_daily = self.history(start=next_day, interval=yfcd.Interval.Days1, max_age=td_1d, keepna=True)
                     except yfcd.NoPriceDataInRangeException:
                         df_daily = None
                     except Exception as e:
@@ -503,9 +504,11 @@ class Ticker:
         self._history[interval] = h
         yfcm.StoreCacheDatum(self.ticker, h_cache_key, self._history[interval])
         if h_lastAdjustD is not None:
-            if debug_yfc:
-                print("- writing LastAdjustD={} to md of {}/{}".format(h_lastAdjustD, self.ticker, h_cache_key))
-            yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
+            h_lastAdjustD_cached = yfcm.ReadCacheMetadata(self.ticker, h_cache_key, "LastAdjustD")
+            if h_lastAdjustD_cached is None or h_lastAdjustD > h_lastAdjustD_cached:
+                if debug_yfc:
+                    print("- writing LastAdjustD={} to md of {}/{}".format(h_lastAdjustD, self.ticker, h_cache_key))
+                yfcm.WriteCacheMetadata(self.ticker, h_cache_key, "LastAdjustD", h_lastAdjustD)
 
         # t3 = perf_counter()
 
@@ -1445,11 +1448,16 @@ class Ticker:
         if not interday:
             # Get daily price data during and after 'df'
             df_daily = self.history(start=df.index[0].date(), interval=yfcd.Interval.Days1, adjust_divs=False)
+            if df_daily is None or df_daily.shape[0] == 0:
+                df = df.drop("Adj Close", axis=1)
+                df["CSF"] = 1.0
+                df["CDF"] = 1.0
+                return df
+
             f_post = df_daily.index.date > df.index[-1].date()
             df_daily_during = df_daily[~f_post].copy()
             df_daily_post = df_daily[f_post].copy()
-            df_daily_during_d = df_daily_during.copy()
-            df_daily_during_d.index = df_daily_during_d.index.date ; df_daily_during_d.index.name = "_date"
+            df_daily_during.index = df_daily_during.index.date ; df_daily_during.index.name = "_date"
 
             # Also get raw daily data from cache
             df_daily_raw = self._history[yfcd.Interval.Days1] ; df_daily_raw = df_daily_raw[df_daily_raw.index.date >= df.index[0].date()]
@@ -1473,7 +1481,7 @@ class Ticker:
                 Open=("Open", "first"),
                 Close=("Close", "last"))
             data_cols = ["Open", "Close", "Low", "High"]
-            df2 = pd.merge(df_aggByDay, df_daily_during_d, how="left", on="_date", validate="one_to_one", suffixes=("", "_day"))
+            df2 = pd.merge(df_aggByDay, df_daily_during, how="left", on="_date", validate="one_to_one", suffixes=("", "_day"))
             # If 'df' has not been split-adjusted by Yahoo, but it should have been,
             # then the inferred split-adjust ratio should be close to 1.0/post_csf.
             # Apply a few sanity tests against inferred ratio - not NaN, low variance
@@ -1536,7 +1544,7 @@ class Ticker:
             df = df.drop("_time", axis=1)
             # - merge
             df["_indexBackup"] = df.index
-            df = pd.merge(df, df_daily_during_d[["Dividends"]], how="left", on="_date", validate="many_to_one")
+            df = pd.merge(df, df_daily_during[["Dividends"]], how="left", on="_date", validate="many_to_one")
             df = pd.merge(df, df_openTimes, how="left", on="_date")
             df.index = df["_indexBackup"] ; df.index.name = None
             # - correct dividends
