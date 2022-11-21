@@ -125,21 +125,19 @@ def GetCSF0(df):
 	return csf0
 
 
-def GetCDF0(df):
+def GetCDF0(df, close_day_before=None):
 	if not "CDF" in df:
 		raise Exception("DataFrame does not contain column 'CDF")
 	if df.shape[0] == 0:
 		raise Exception("DataFrame is empty")
 
+	df = df.sort_index(ascending=True)
+
 	cdf = df["CDF"][0]
 	if cdf != 1.0:
 		# Yahoo's dividend adjustment has tiny variation (~1e-6), 
 		# so use mean to minimise accuracy loss of adjusted->deadjust->adjust
-		i = np.argmax(df["Dividends"]!=0.0) -1
-		if i < 0:
-			print("df:")
-			print(df)
-			raise Exception("i shouldn't < 0")
+		i = np.argmax(df["Dividends"]!=0.0)
 		cdf_mean = df["CDF"].iloc[0:i].mean()
 		if abs(cdf_mean-cdf)/cdf > 0.0001:
 			raise Exception("Mean CDF={} is sig. different to CDF[0]={}".format(cdf_mean, cdf))
@@ -147,8 +145,29 @@ def GetCDF0(df):
 
 	div0 = df["Dividends"][0]
 	if div0 != 0.0:
-		close = df["Close"][1]
-		cdf *= (close-div0)/close
+		if close_day_before is None:
+			raise Exception("Dividend in most recent row so need to know yesterday's close")
+		cdf *= (close_day_before-div0)/close_day_before
 
 	return cdf
+
+
+def np_isin_optimised(a, b, invert=False):
+	if not isinstance(a, np.ndarray):
+		a = np.array(a)
+	if not isinstance(b, np.ndarray):
+		b = np.array(b)
+	if a.dtype.hasobject or b.dtype.hasobject:
+		## Apparently not optimised in numpy, faster to DIY
+		## https://github.com/numpy/numpy/issues/14997#issuecomment-560516888
+		b_set = set(b)
+		x = np.array([elem in b_set for elem in a])
+		if invert:
+			x = ~x
+	else:
+		if invert:
+			x = np.isin(a, b, invert=True)
+		else:
+			x = np.isin(a, b)
+	return x
 

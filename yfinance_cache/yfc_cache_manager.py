@@ -342,6 +342,8 @@ def ReadCacheMetadata(ticker, objectName, key):
 			md     = objData["metadata"] if "metadata" in objData else None
 	else:
 		d = _ReadData(ticker, objectName)
+		if not "metadata" in d:
+			return None
 		md = d["metadata"]
 		if verbose:
 			print("ReadCacheMetadata() read md as:")

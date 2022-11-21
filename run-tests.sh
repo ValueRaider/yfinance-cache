@@ -40,8 +40,6 @@ _main() (
 	done
 
 	Y=(yf_assumptions yfc_backend yfc_adjust yfc_interface)
-	# Y=(yf_assumptions yfc_backend yfc_adjust)
-	# Y=(yf_assumptions)
 	for T in "${Y[@]}" ; do
 		echo "Running tests in tests/$T ..."
 		python -m tests.test_$T
