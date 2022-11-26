@@ -1112,6 +1112,111 @@ class Ticker:
 
         return h
 
+    def _verifyCachedPrices(self, interval):
+        if isinstance(interval, str):
+            if interval not in yfcd.intervalStrToEnum.keys():
+                raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
+            interval = yfcd.intervalStrToEnum[interval]
+        istr = yfcd.intervalToString[interval]
+
+        h = self._getCachedPrices(interval)
+        h_modified = False
+
+        start_dt = h.index[0]
+        last_dt = h.index[-1]
+
+        end_dt = last_dt + yfcd.intervalToTimedelta[interval]
+        df_yf = self.dat.history(interval=istr, start=start_dt, end=end_dt)
+
+        # Test 1: index should match
+        f_missing = ~df_yf.index.isin(h.index)
+        if f_missing.any():
+            print("ERROR: These intervals missing from cached data:")
+            print(df_yf.index[f_missing])
+        f_orphan = ~h.index.isin(df_yf.index)
+        if f_orphan.any():
+            print("ERROR: These cached intervals not returned by Yahoo:")
+            print(h.index[f_orphan])
+
+        n = h.shape[0]
+
+        # Verify dividends
+        c = "Dividends"
+        f_diff = h[c].to_numpy() != df_yf[c].to_numpy()
+        if f_diff.any():
+            f_diff_n = sum(f_diff)
+            print(f"{f_diff_n}/{n} differences in column {c}")
+            df_diffs = h.loc[f_diff,["FetchDate", c]].join(df_yf.loc[f_diff,[c]], lsuffix="_cache", rsuffix="_Yahoo")
+            df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
+            df_diffs["error %"] = 100 * df_diffs["error"] / df_diffs[c+"_Yahoo"]
+            print(df_diffs)
+
+            # idx = df_diffs.index[-1]
+            # print("Dropping bad row:", idx)
+            # h = h.drop(idx)
+            # h_modified = True
+
+        # # Apply split-adjustment
+        # price_data_cols = ["Open", "Close", "Low", "High"]
+        # for c in price_data_cols:
+        #     h[c] *= h["CSF"]
+        #     # Apply dividend-adjustment
+        #     h[c] *= h["CDF"]
+
+        def _delete_sig_diffs(df, column, interval, tol_pct=0.01):
+            c = column
+            #
+            df_adj = df[[c, "CSF", "CDF", "FetchDate"]].copy()
+            if c in ["Open", "Close", "Low", "High"]:
+                df_adj[c] *= df_adj["CDF"] * df_adj["CSF"]
+            elif c == "Dividends":
+                df_adj[c] *= df_adj["CSF"]
+            elif c == "Volume":
+                df_adj[c] /= df_adj["CSF"]
+            #
+            f_diff = df_adj[c].values != df_yf[c].values
+            if f_diff.any():
+                df_diffs = df_adj.loc[f_diff,["FetchDate", c]].join(df_yf.loc[f_diff,[c]], lsuffix="_cache", rsuffix="_Yahoo")
+                df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
+                df_diffs["error %"] = df_diffs["error"] / df_diffs[c+"_Yahoo"]
+
+                f_diff_n = sum(f_diff)
+                # print(f"{f_diff_n}/{n} differences in column {c}")
+                # print(df_diffs)
+
+                df_diffs_sig = df_diffs[df_diffs["error %"].abs() > tol_pct]
+                if df_diffs_sig.shape[0] > 0:
+                    print(f"{df_diffs_sig.shape[0]}/{n} sig. diffs in column {c}")
+                    print(df_diffs_sig)
+                    
+                    ## Uncomment below to actually modify table
+                    # if interval == yfcd.Interval.Days1:
+                    #     # Daily must always be contiguous, so drop everything from first diff
+                    #     print(f"- dropping from {df_diffs_sig.index[0].date()}")
+                    #     df = df[df.index < df_diffs_sig.index[0]]
+                    # else:
+                    #     print(f"- dropping: {df_diffs_sig.index}")
+                    #     df = df.drop(df_diffs_sig.index)
+            return df
+
+        # Verify volumes match
+        c = "Volume"
+        h2 = _delete_sig_diffs(h, "Volume", interval)
+        h_modified = h_modified or h2.shape[0] != h.shape[0]
+        h = h2
+
+        # for c in ["Open","Close","High","Low"]:
+        # # for c in ["Open"]:
+        #     h2 = _delete_sig_diffs(h, c, interval)
+        #     h_modified = h_modified or h2.shape[0] != h.shape[0]
+        #     h = h2
+
+        if h_modified:
+            print("MODIFIED")
+            h_cache_key = "history-"+yfcd.intervalToString[interval]
+            yfcm.StoreCacheDatum(self.ticker, h_cache_key, h)
+            return
+
     def _fetchAndAddRanges_contiguous(self, h, pstr, interval, ranges_to_fetch, prepost, proxy, debug, quiet=False):
         # Fetch each range, appending/prepending to cached data
         if (ranges_to_fetch is None) or len(ranges_to_fetch) == 0:
@@ -1233,24 +1338,28 @@ class Ticker:
                 print("- h2_post:")
                 print(h2_post)
 
-            # 2) backport h2_post splits across entire h table
-            h2_csf = yfcu.GetCSF0(h2_post)
-            if h2_csf != 1.0:
-                if debug_yfc:
-                    print("- backporting new data CSF={} across cached".format(h2_csf))
-                h["CSF"] *= h2_csf
-                if h2_pre is not None:
-                    h2_pre["CSF"] *= h2_csf
+            h_cache_key = "history-"+yfcd.intervalToString[interval]
+            h_lastAdjustD = yfcm.ReadCacheMetadata(self.ticker, h_cache_key, "LastAdjustD")
+            h2_post_new = h2_post[h2_post.index.date > h_lastAdjustD]
+            if h2_post_new.shape[0] > 0:
+                # 2) backport new splits across entire h table
+                h2_csf = yfcu.GetCSF0(h2_post_new)
+                if h2_csf != 1.0:
+                    if debug_yfc:
+                        print("- backporting new data CSF={} across cached".format(h2_csf))
+                    h["CSF"] *= h2_csf
+                    if h2_pre is not None:
+                        h2_pre["CSF"] *= h2_csf
 
-            # 2) backport h2_post divs across entire h table
-            close_day_before = h["Close"].iloc[-1]
-            h2_cdf = yfcu.GetCDF0(h2_post, close_day_before)
-            if h2_cdf != 1.0:
-                if debug_yfc:
-                    print("- backporting new data CDF={} across cached".format(h2_cdf))
-                h["CDF"] *= h2_cdf
-                # Note: don't need to backport across h2_pre because already
-                #       contains dividend adjustment (via 'Adj Close')
+                # 2) backport new divs across entire h table
+                close_day_before = h["Close"].iloc[-1]
+                h2_cdf = yfcu.GetCDF0(h2_post_new, close_day_before)
+                if h2_cdf != 1.0:
+                    if debug_yfc:
+                        print("- backporting new data CDF={} across cached".format(h2_cdf))
+                    h["CDF"] *= h2_cdf
+                    # Note: don't need to backport across h2_pre because already
+                    #       contains dividend adjustment (via 'Adj Close')
 
             try:
                 h = pd.concat([h, h2_post])

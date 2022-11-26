@@ -1,5 +1,6 @@
 from enum import Enum
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import numpy as np
 
@@ -157,8 +158,8 @@ intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
 intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
 intervalToTimedelta[Interval.Days1] = timedelta(days=1)
 intervalToTimedelta[Interval.Week] = timedelta(days=7)
-# intervalToTimedelta[Interval.Months1] = None ## irregular time interval
-# intervalToTimedelta[Interval.Months3] = None ## irregular time interval
+intervalToTimedelta[Interval.Months1] = relativedelta(months=1)
+intervalToTimedelta[Interval.Months3] = relativedelta(months=3)
 
 
 exchangeToXcalExchange = {}
