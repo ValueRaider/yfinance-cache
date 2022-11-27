@@ -72,45 +72,45 @@ class Test_PriceDataAging_1D(unittest.TestCase):
 
 
 
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday, time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=16, minute=0),  self.market_tz))
+        dt_nows.append(  datetime.combine(self.tuesday, time(hour=0, minute=0),  self.market_tz))
         expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday, time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=16, minute=0),  self.market_tz))
+        dt_nows.append(  datetime.combine(self.tuesday, time(hour=0, minute=0),  self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(minutes=0))
         answers.append(True)
 
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday, time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=16, minute=0),  self.market_tz))
+        dt_nows.append(  datetime.combine(self.tuesday, time(hour=0, minute=0),  self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(minutes=1))
         answers.append(False)
 
-        fetch_dts.append(datetime.combine(self.monday, time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday, time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=16, minute=1),  self.market_tz))
+        dt_nows.append(  datetime.combine(self.tuesday, time(hour=0, minute=1),  self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(minutes=1))
         answers.append(True)
 
 
 
-        fetch_dts.append(datetime.combine(self.monday,  time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday,  time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.tuesday, time(hour=9,  minute=0),  self.market_tz))
         expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
-        fetch_dts.append(datetime.combine(self.monday,  time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday,  time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.tuesday, time(hour=9, minute=30),  self.market_tz))
         expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
-        fetch_dts.append(datetime.combine(self.monday,  time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.monday,  time(hour=23, minute=55), self.market_tz))
         max_ages.append(timedelta(minutes=30))
         dt_nows.append(  datetime.combine(self.tuesday, time(hour=9, minute=30),  self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(0))
@@ -138,75 +138,6 @@ class Test_PriceDataAging_1D(unittest.TestCase):
                 pprint(response)
                 raise
 
-    ## Test day interval fetched same day - specifically JNB which has issues around session close
-    def test_sameDay_JNB(self):
-        exchange = "JNB"
-        tz = ZoneInfo(yfct.GetExchangeTzName(exchange))
-
-        # Official market close is 5pm local time, but Yahoo receives trades dated up to 5:15pm
-        interval = yfcd.Interval.Days1
-
-        intervalStartD = self.monday
-
-        max_ages = []
-        fetch_dts = []
-        dt_nows = []
-        expire_on_candle_closes = []
-        yf_lags = []
-        answers = []
-
-        fetch_dts.append(datetime.combine(self.monday, time(hour=16, minute=55),  tz))
-        max_ages.append(timedelta(minutes=15))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=17, minute=5), tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
-        answers.append(False)
-
-        fetch_dts.append(datetime.combine(self.monday, time(hour=16, minute=55),  tz))
-        max_ages.append(timedelta(minutes=15))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=17, minute=5), tz))
-        expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(0))
-        answers.append(False)
-
-        fetch_dts.append(datetime.combine(self.monday, time(hour=16, minute=55),  tz))
-        max_ages.append(timedelta(minutes=15))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=17, minute=15), tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
-        answers.append(True)
-
-        fetch_dts.append(datetime.combine(self.monday, time(hour=17, minute=5),  tz))
-        max_ages.append(timedelta(minutes=15))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=17, minute=16), tz))
-        expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
-        answers.append(False)
-
-        fetch_dts.append(datetime.combine(self.monday, time(hour=17, minute=5),  tz))
-        max_ages.append(timedelta(minutes=15))
-        dt_nows.append(  datetime.combine(self.monday, time(hour=17, minute=16), tz))
-        expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(0))
-        answers.append(True)
-
-        for i in range(len(fetch_dts)):
-            fetch_dt = fetch_dts[i]
-            max_age = max_ages[i]
-            dt_now = dt_nows[i]
-            expire_on_candle_close = expire_on_candle_closes[i]
-            yf_lag = yf_lags[i]
-            answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(intervalStartD, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
-            try:
-                self.assertEqual(response, answer)
-            except:
-                print("fetch_dt = {0}".format(fetch_dt))
-                print("expire_on_candle_close = {}".format(expire_on_candle_close))
-                print("yf_lag = {}".format(yf_lag))
-                print("max_age = {0}".format(max_age))
-                print("dt_now = {0}".format(dt_now))
-                print("answer:")
-                pprint(answer)
-                print("response:")
-                pprint(response)
-                raise
-
     ## Test day interval fetched same day, on exchange with data delay
     def test_sameDay_delay(self):
         exchange = "LSE" # 20min delay
@@ -216,11 +147,12 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         market_open = time(8)
         market_close = time(16, 30)
 
-        ## Just before market close, but with data delay was fetched after close:
-        fetch_dt = datetime.combine(self.monday, market_close, market_tz)+timedelta(minutes=1)
+        ## Just before interval close, but with data delay was fetched after close:
+        interval_close_dt = datetime.combine(self.tuesday, time(0), market_tz)
+        fetch_dt = interval_close_dt + timedelta(minutes=1)
         intervalStart = self.monday
         max_age = timedelta(minutes=10)
-        dt_now = datetime.combine(self.monday, market_close, market_tz)+timedelta(minutes=14)
+        dt_now = interval_close_dt + timedelta(minutes=14)
         expire_on_candle_close = False
         answer = True
         result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
@@ -233,7 +165,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             pprint(answer)
             raise
         #
-        dt_now = datetime.combine(self.monday, market_close, market_tz)+timedelta(minutes=2)
+        dt_now = interval_close_dt + timedelta(minutes=2)
         answer = False
         result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
         try:
@@ -246,7 +178,8 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             raise
 
         ## Check that 'expire-on-candle-close' still works:
-        dt_now = datetime.combine(self.monday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        fetch_dt = datetime.combine(self.monday, time(23,59), market_tz)
+        dt_now = datetime.combine(self.tuesday, time(0), market_tz) + yf_lag + timedelta(minutes=1)
         max_age = timedelta(hours=1)
         expire_on_candle_close = True
         answer = True
@@ -261,10 +194,27 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             raise
 
         ## Just after market close + data delay:
-        fetch_dt = datetime.combine(self.monday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        fetch_dt = interval_close_dt + yf_lag + timedelta(minutes=1)
         intervalStart = self.monday
         max_age = timedelta(minutes=10)
-        dt_now = datetime.combine(self.monday, market_close, market_tz)+yf_lag+timedelta(minutes=14)
+        dt_now = interval_close_dt + yf_lag + timedelta(minutes=14)
+        expire_on_candle_close = False
+        answer = False
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        try:
+            self.assertEqual(result, answer)
+        except:
+            print("result:")
+            pprint(result)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        ## Just after interval close + data delay:
+        fetch_dt = datetime.combine(self.tuesday, time(0), market_tz) + yf_lag + timedelta(minutes=1)
+        intervalStart = self.monday
+        max_age = timedelta(minutes=10)
+        dt_now = datetime.combine(self.monday, market_close, market_tz) + yf_lag + timedelta(minutes=14)
         expire_on_candle_close = False
         answer = False
         result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
@@ -296,13 +246,13 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         answers.append(True)
 
         max_ages.append(timedelta(minutes=30))
-        fetch_dts.append(datetime.combine(self.friday,   time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.friday,   time(hour=23, minute=55), self.market_tz))
         dt_nows.append(  datetime.combine(self.saturday, time(hour=9, minute=10), self.market_tz))
         expire_on_candle_closes.append(False) ; yf_lags.append(timedelta(0))
         answers.append(False)
 
         max_ages.append(timedelta(minutes=30))
-        fetch_dts.append(datetime.combine(self.friday,   time(hour=15, minute=55), self.market_tz))
+        fetch_dts.append(datetime.combine(self.friday,   time(hour=23, minute=55), self.market_tz))
         dt_nows.append(  datetime.combine(self.saturday, time(hour=9, minute=10), self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(0))
         answers.append(True)

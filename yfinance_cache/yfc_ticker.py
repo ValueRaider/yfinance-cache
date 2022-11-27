@@ -1106,15 +1106,6 @@ class Ticker:
                     raise Exception("CDF NaN repair failed")
                 h_modified = True
 
-            # f_na = h["Close"].isna()
-            # dtnow = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-            # f_old = (dtnow-h["FetchDate"])>datetime.timedelta(minutes=15)
-            # f_na = f_na & f_old
-            # if f_na.any():
-            #   print("Dropping NaNs in cached {}-{}".format(self.ticker, interval))
-            #   h = h.drop(h.index[f_na])
-            #   h_modified = True
-
             if h_modified:
                 h_cache_key = "history-"+yfcd.intervalToString[interval]
                 yfcm.StoreCacheDatum(self.ticker, h_cache_key, h)

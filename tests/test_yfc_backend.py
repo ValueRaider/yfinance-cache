@@ -160,6 +160,7 @@ class Test_Yfc_Backend(unittest.TestCase):
         exchange = self.usa_exchange
         tz = self.usa_market_tz
         yfct.SetExchangeTzName(exchange, self.usa_market_tz_name)
+        td_1d = timedelta(days=1)
 
         lag = timedelta(0)
         dts = []
@@ -168,7 +169,7 @@ class Test_Yfc_Backend(unittest.TestCase):
             day = date(2022,2,d)
             dt = datetime.combine(day, time(14,30), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day, self.usa_market_close_time, tz)
+            dt_last = datetime.combine(day+td_1d, time(0), tz)
             answers.append(dt_last+lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -187,7 +188,7 @@ class Test_Yfc_Backend(unittest.TestCase):
             day = date(2022,2,d)
             dt = datetime.combine(day, time(14,30), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day, self.usa_market_close_time, tz)
+            dt_last = datetime.combine(day+td_1d, time(0), tz)
             answers.append(dt_last+lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -211,14 +212,14 @@ class Test_Yfc_Backend(unittest.TestCase):
         dts = []
         answers = []
         week_start_day = date(2022,2,7)
-        answer = datetime.combine(week_start_day, self.usa_market_close_time, tz)+timedelta(days=4)
+        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
         for d in range(7,12):
             day = date(2022,2,d)
             dt = datetime.combine(day, time(14,30), tz)
             dts.append(dt)
             answers.append(answer+lag)
         week_start_day = date(2022,2,14)
-        answer = datetime.combine(week_start_day, self.usa_market_close_time, tz)+timedelta(days=4)
+        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
         for d in range(14,19):
             day = date(2022,2,d)
             dt = datetime.combine(day, time(14,30), tz)
@@ -288,6 +289,7 @@ class Test_Yfc_Backend(unittest.TestCase):
         exchange = self.nze_exchange
         tz = self.nze_market_tz
         yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
+        td_1d = timedelta(days=1)
 
         lag = timedelta(0)
         dts = []
@@ -296,7 +298,7 @@ class Test_Yfc_Backend(unittest.TestCase):
             day = date(2022,4,d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day, self.nze_market_close_time, tz)
+            dt_last = datetime.combine(day+td_1d, time(0), tz)
             answers.append(dt_last+lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -315,7 +317,7 @@ class Test_Yfc_Backend(unittest.TestCase):
             day = date(2022,4,d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day, self.nze_market_close_time, tz)
+            dt_last = datetime.combine(day+td_1d, time(0), tz)
             answers.append(dt_last+lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -339,14 +341,14 @@ class Test_Yfc_Backend(unittest.TestCase):
         dts = []
         answers = []
         week_start_day = date(2022,4,4)
-        answer = datetime.combine(date(2022,4,8), self.nze_market_close_time, tz)
+        answer = datetime.combine(date(2022,4,9), time(0), tz)
         for d in range(4,9):
             day = date(2022,4,d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
             answers.append(answer+lag)
         week_start_day = date(2022,4,11)
-        answer = datetime.combine(date(2022,4,14), self.nze_market_close_time, tz)
+        answer = datetime.combine(date(2022,4,15), time(0), tz)
         for d in range(11,16):
             day = date(2022,4,d)
             dt = datetime.combine(day, time(14), tz)

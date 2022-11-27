@@ -955,19 +955,14 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
     if debug:
         print("CalcIntervalLastDataDt(intervalStart={}, interval={})".format(intervalStart, interval))
 
-    if yf_lag is not None:
-        TypeCheckTimedelta(yf_lag, "yf_lag")
-    else:
-        yf_lag = GetExchangeDataDelay(exchange)
-
-    tz = ZoneInfo(GetExchangeTzName(exchange))
-
     irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
     if irange is None:
         raise Exception("Failed to map {} to interval".format(intervalStart))
     if debug:
         print("- irange:")
         pprint(irange)
+
+    tz = ZoneInfo(GetExchangeTzName(exchange))
 
     if isinstance(irange["interval_open"], datetime):
         intervalSched = GetExchangeSchedule(exchange, irange["interval_open"].astimezone(tz).date(), irange["interval_close"].astimezone(tz).date()+timedelta(days=1))
@@ -978,10 +973,23 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
         pprint(intervalSched)
 
     intervalEnd = irange["interval_close"]
+
+    # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
+    i_td = yfcd.intervalToTimedelta[interval]
+    if i_td >= timedelta(days=1):
+        close_d = intervalSched["close"].iloc[-1].date()
+        lastDataDt = datetime.combine(close_d+timedelta(days=1), time(0), tz) + yf_lag
+        return lastDataDt
+
     if isinstance(intervalEnd, datetime):
         intervalEnd_dt = intervalEnd
     else:
-        intervalEnd_dt = datetime.combine(intervalEnd, time(0), ZoneInfo(GetExchangeTzName(exchange)))
+        intervalEnd_dt = datetime.combine(intervalEnd, time(0), tz)
+
+    if yf_lag is not None:
+        TypeCheckTimedelta(yf_lag, "yf_lag")
+    else:
+        yf_lag = GetExchangeDataDelay(exchange)
 
     lastDataDt = min(intervalEnd_dt, intervalSched["close"][-1]) + yf_lag
 
@@ -990,9 +998,8 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
         late_data_allowance = timedelta(minutes=15)
     else:
         late_data_allowance = timedelta(0)
-
-    if (interval in [yfcd.Interval.Days1, yfcd.Interval.Week]) or (intervalEnd_dt == intervalSched["close"][-1]):
-        # Is daily/weekly interval or last interval of day:
+    if (intervalEnd_dt == intervalSched["close"][-1]):
+        #  last interval of day:
         lastDataDt += late_data_allowance
 
     if debug:
@@ -1050,10 +1057,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
     is_dt = isinstance(iopens[0], datetime)
     if is_dt:
         iopen0 = iopens[0]
-        if isinstance(iopen0, pd.Timestamp):
-            iclose_days = [i.astimezone(tz).date() for i in icloses]
-        else:
-            iclose_days = [i.astimezone(tz).date() for i in icloses]
+        iclose_days = [i.astimezone(tz).date() for i in icloses]
     else:
         iclose_days = [i-timedelta(days=1) for i in icloses]
     icloses_df = pd.DataFrame(data={"iopen": iopens, "iclose": icloses, "day": iclose_days})
@@ -1072,21 +1076,26 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
         if f_na.any():
             raise Exception("Lost data in merge")
     icloses_df = icloses_df2
-    marketCloses = icloses_df["close"].dt.to_pydatetime()
     if debug:
         print("- icloses_df:")
         print(icloses_df)
 
-    if (marketCloses == None).any():
+    if icloses_df["close"].isna().any():
         raise Exception("Failed to map some intervals to schedule")
 
     dc0 = icloses[0]
+    # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
+    i_td = yfcd.intervalToTimedelta[interval]
+    if i_td >= timedelta(days=1):
+        td_1d = timedelta(days=1)
+        return pd.DatetimeIndex(icloses_df["close"].dt.date + td_1d).tz_localize(tz)
+
     if isinstance(dc0, datetime):
         intervalEnd_dt = [x.to_pydatetime().astimezone(tz) for x in icloses]
     else:
         intervalEnd_dt = [datetime.combine(dc, time(0), tz) for dc in icloses]
 
-    lastDataDt = np.minimum(intervalEnd_dt, marketCloses) + yf_lag
+    lastDataDt = np.minimum(intervalEnd_dt, icloses_df["close"].dt.to_pydatetime()) + yf_lag
 
     # For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
     if exchange in ["JNB"]:

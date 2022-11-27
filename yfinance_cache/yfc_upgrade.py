@@ -23,6 +23,82 @@ def _move_cache_dirpath():
 			print("Moved!")
 
 
+def _prune_incomplete_daily_intervals():
+	d = yfcm.GetCacheDirpath()
+
+	yfc_dp = os.path.join(d, "_YFC_")
+	state_fp = os.path.join(yfc_dp, "have-pruned-bad-daily-data")
+	if os.path.isfile(state_fp):
+		return
+
+	print("Scanning cache for incomplete daily+ price data ...")
+	tkrs_repaired = set()
+
+	for tkr in os.listdir(d):
+		tkrd = os.path.join(d, tkr)
+		for f in os.listdir(tkrd):
+			fp = os.path.join(tkrd, f)
+			f_pieces = f.split('.')
+			ext = f_pieces[-1]
+			f_base = '.'.join(f_pieces[:-1])
+			if ("history" in f_base) and (ext == "pkl"):
+				interval = None
+				for i,istr in yfcd.intervalToString.items():
+					if f_base.endswith(istr):
+						interval = i
+						break
+				if interval is None:
+					raise Exception("Failed to map '{}' to Interval".format(fp_base))
+				# print(interval)
+				itd = yfcd.intervalToTimedelta[interval]
+				# print(itd)
+
+				pkData = None
+				with open(fp, 'rb') as f:
+					pkData = pickle.load(f)
+					h = pkData["data"]
+				h_modified = False
+
+				with open(tkrd+"/info.pkl", 'rb') as f:
+					info = pickle.load(f)["data"]
+
+				# Scan for any daily/weekly intervals marked final but not 
+				# updated after midnight
+				if itd >= datetime.timedelta(days=1):
+					tz_exchange = ZoneInfo(info["exchangeTimezoneName"])
+					f_final = h["Final?"].values
+					f_sameDay = h["FetchDate"].dt.tz_convert(tz_exchange).dt.date == h.index.date
+					f_bad = f_final & f_sameDay
+					if f_bad.any():
+						idx = np.where(f_bad)[0][0]
+						if idx == 0:
+							h = None
+						else:
+							h = h.loc[:h.index[idx-1]]
+						h_modified = True
+				
+					if h_modified:
+						# print("Fixing problems in", fp)
+						tkrs_repaired.add(tkr)
+						if h is None:
+							os.remove(fp)
+						else:
+							with open(fp, 'wb') as f:
+								pkData["data"] = h
+								pickle.dump(pkData, f, 4)
+
+	if len(tkrs_repaired) == 0:
+		print("No problems founds")
+	else:
+		print("Pruned bad daily+ intervals from these tickers:")
+		print(sorted(list(tkrs_repaired)))
+
+	if not os.path.isdir(yfc_dp):
+		os.makedirs(yfc_dp)
+	with open(state_fp, 'w') as f:
+		pass
+
+
 def merge_files():
 	## To reduce filesystem load, merge files and unpack in memory
 
