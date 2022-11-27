@@ -156,12 +156,14 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         market_open = time(8)
         market_close = time(16, 30)
 
+        friday_midnight_dt = datetime.combine(self.saturday, time(0), market_tz)
+
         ## Just before market close, but with data delay appears as after close:
-        fetch_dt = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=1)
+        fetch_dt = friday_midnight_dt+timedelta(minutes=1)
         ## ... as interval is live then Yahoo returns current time as interval start:
         interval_start = self.monday
         max_age = timedelta(minutes=10)
-        dt_now = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=14)
+        dt_now = friday_midnight_dt+timedelta(minutes=14)
         expire_on_candle_close = False
         answer = True
         result = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
@@ -175,7 +177,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             print("answer: {}".format(answer))
             raise
         #
-        dt_now = datetime.combine(self.friday, market_close, market_tz)+timedelta(minutes=2)
+        dt_now = friday_midnight_dt+timedelta(minutes=2)
         answer = False
         result = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
         try:
@@ -188,7 +190,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             raise
 
         ## Check that 'expire-on-candle-close' still works:
-        dt_now = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        dt_now = friday_midnight_dt+yf_lag+timedelta(minutes=1)
         max_age = timedelta(hours=1)
         expire_on_candle_close = True
         answer = True
@@ -203,10 +205,10 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             raise
 
         ## Just after market close + data delay:
-        fetch_dt = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=1)
+        fetch_dt = friday_midnight_dt+yf_lag+timedelta(minutes=1)
         interval_start = self.monday
         max_age = timedelta(minutes=10)
-        dt_now = datetime.combine(self.friday, market_close, market_tz)+yf_lag+timedelta(minutes=14)
+        dt_now = friday_midnight_dt+yf_lag+timedelta(minutes=14)
         expire_on_candle_close = False
         answer = False
         result = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
