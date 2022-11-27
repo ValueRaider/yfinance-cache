@@ -2,6 +2,7 @@ import json, pickle
 import os
 from pprint import pprint
 from zoneinfo import ZoneInfo
+import appdirs
 
 import pandas as pd
 import numpy as np
@@ -15,8 +16,8 @@ from . import yfc_ticker as yfc
 
 
 def _move_cache_dirpath():
-	oldCacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
-	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "py-yfinance-cache")
+	oldCacheDirpath = os.path.join(appdirs.user_cache_dir(), "yfinance-cache")
+	cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
 	if not os.path.isdir(cacheDirpath):
 		if os.path.isdir(oldCacheDirpath):
 			os.rename(oldCacheDirpath, cacheDirpath)

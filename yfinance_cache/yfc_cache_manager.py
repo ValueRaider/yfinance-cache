@@ -2,6 +2,7 @@ import os
 import pickle, json
 from pprint import pprint
 from enum import Enum
+import appdirs
 
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
@@ -32,7 +33,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
 	global cacheDirpath
-	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "py-yfinance-cache")
+	cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
 
 
 def SetCacheDirpath(dp):

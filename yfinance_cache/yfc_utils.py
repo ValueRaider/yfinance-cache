@@ -5,32 +5,6 @@ from zoneinfo import ZoneInfo
 import re
 import numpy as np
 
-class OperatingSystem(Enum):
-	Windows = 1
-	Linux = 2
-	OSX = 3
-
-
-def GetOperatingSystem():
-	if os.name == "nt":
-		return OperatingSystem.Windows
-	elif os.name == "posix":
-		return OperatingSystem.Linux
-	else:
-		raise Exception("Unknwon os.name = '{0}'".format(os.name))
-
-
-def GetUserCacheDirpath():
-	_os = GetOperatingSystem()
-	if _os == OperatingSystem.Windows:
-		dp = os.getenv("APPDATA")
-		raise Exception("Not tested. Does this make sense as cache dir in Windows? - {0}".format(dp))
-	elif _os == OperatingSystem.Linux:
-		dp = os.path.join(os.getenv("HOME"), ".cache")
-	else:
-		raise Exception("Not implemented: cache dirpath under OS '{0}'".format(_os))
-	return dp
-
 
 def JsonEncodeValue(value):
 	if isinstance(value, date):
