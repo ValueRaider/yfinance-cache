@@ -32,7 +32,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
 	global cacheDirpath
-	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
+	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "py-yfinance-cache")
 
 
 def SetCacheDirpath(dp):

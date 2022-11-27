@@ -13,6 +13,16 @@ from . import yfc_time as yfct
 from . import yfc_dat as yfcd
 from . import yfc_ticker as yfc
 
+
+def _move_cache_dirpath():
+	oldCacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "yfinance-cache")
+	cacheDirpath = os.path.join(yfcu.GetUserCacheDirpath(), "py-yfinance-cache")
+	if not os.path.isdir(cacheDirpath):
+		if os.path.isdir(oldCacheDirpath):
+			os.rename(oldCacheDirpath, cacheDirpath)
+			print("Moved!")
+
+
 def merge_files():
 	## To reduce filesystem load, merge files and unpack in memory
 
