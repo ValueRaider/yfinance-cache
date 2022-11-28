@@ -32,6 +32,13 @@ def _prune_incomplete_daily_intervals():
 	if os.path.isfile(state_fp):
 		return
 
+	if not os.path.isdir(d):
+		if not os.path.isdir(yfc_dp):
+			os.makedirs(yfc_dp)
+		with open(state_fp, 'w') as f:
+			pass
+		return
+
 	print("Scanning cache for incomplete daily+ price data ...")
 	tkrs_repaired = set()
 
