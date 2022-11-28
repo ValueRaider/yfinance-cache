@@ -1112,7 +1112,7 @@ class Ticker:
 
         return h
 
-    def _verifyCachedPrices(self, interval):
+    def _verifyCachedPrices(self, interval, dropBad=False):
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
                 raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
@@ -1163,7 +1163,7 @@ class Ticker:
         #     # Apply dividend-adjustment
         #     h[c] *= h["CDF"]
 
-        def _delete_sig_diffs(df, column, interval, tol_pct=0.01):
+        def _delete_sig_diffs(df, column, interval, tol_pct=0.01, dropBad=dropBad):
             c = column
             #
             df_adj = df[[c, "CSF", "CDF", "FetchDate"]].copy()
@@ -1189,14 +1189,14 @@ class Ticker:
                     print(f"{df_diffs_sig.shape[0]}/{n} sig. diffs in column {c}")
                     print(df_diffs_sig)
                     
-                    ## Uncomment below to actually modify table
-                    # if interval == yfcd.Interval.Days1:
-                    #     # Daily must always be contiguous, so drop everything from first diff
-                    #     print(f"- dropping from {df_diffs_sig.index[0].date()}")
-                    #     df = df[df.index < df_diffs_sig.index[0]]
-                    # else:
-                    #     print(f"- dropping: {df_diffs_sig.index}")
-                    #     df = df.drop(df_diffs_sig.index)
+                    if dropBad:
+                        if interval == yfcd.Interval.Days1:
+                            # Daily must always be contiguous, so drop everything from first diff
+                            print(f"- dropping from {df_diffs_sig.index[0]}")
+                            df = df[df.index < df_diffs_sig.index[0]]
+                        else:
+                            print(f"- dropping: {df_diffs_sig.index}")
+                            df = df.drop(df_diffs_sig.index)
             return df
 
         # Verify volumes match
@@ -1211,7 +1211,7 @@ class Ticker:
         #     h_modified = h_modified or h2.shape[0] != h.shape[0]
         #     h = h2
 
-        if h_modified:
+        if h_modified and dropBad:
             print("MODIFIED")
             h_cache_key = "history-"+yfcd.intervalToString[interval]
             yfcm.StoreCacheDatum(self.ticker, h_cache_key, h)
