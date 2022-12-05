@@ -1365,6 +1365,7 @@ class Ticker:
             except yfcd.NoPriceDataInRangeException:
                 # If only trying to fetch 1 day of 1d data, then print warning instead of exception.
                 # Could add additional condition of dividend previous day (seems to mess up table).
+                ignore = False
                 if interval == yfcd.Interval.Days1 and rend - rstart == td_1d:
                     ignore = True
                 elif interval == yfcd.Interval.Mins1 and rend - rstart <= datetime.timedelta(minutes=10):

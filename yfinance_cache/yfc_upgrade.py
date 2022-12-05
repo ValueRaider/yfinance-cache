@@ -437,9 +437,6 @@ def price_history_cleanup_tz_mess():
 			f_pieces = f.split('.')
 			ext = f_pieces[-1]
 
-			# if fp != "/home/gonzo/.cache/yfinance-cache/MEL.NZ/history-1d.pkl":
-			# 	continue
-
 			f_base = '.'.join(f_pieces[:-1])
 
 			if ("history" in f_base) and (ext == "pkl"):

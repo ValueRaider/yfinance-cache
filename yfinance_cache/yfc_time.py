@@ -4,7 +4,6 @@ from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
-import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/exchange_calendars.dev")
 import exchange_calendars as xcal
 
 import pandas as pd
@@ -99,6 +98,7 @@ schedCache = {}
 schedDbMetadata = {}
 db_mem = sql.connect(":memory:")
 schedIntervalsCache = {}
+xcal_accept_cache_arg = None
 
 
 def GetExchangeDataDelay(exchange):
@@ -112,6 +112,7 @@ def GetExchangeDataDelay(exchange):
 
 def GetCalendar(exchange):
     global calCache
+    global xcal_accept_cache_arg
 
     cal_name = yfcd.exchangeToXcalExchange[exchange]
 
@@ -123,7 +124,17 @@ def GetCalendar(exchange):
         start = "1997"
     else:
         start = str(yfcd.yf_min_year)
-    cal = xcal.get_calendar(cal_name, start=start, cache=True)
+    if xcal_accept_cache_arg is None:
+        try:
+            xcal_accept_cache_arg = True
+            cal = xcal.get_calendar(cal_name, start=start, cache=True)
+        except TypeError:
+            xcal_accept_cache_arg = False
+            cal = xcal.get_calendar(cal_name, start=start)
+    elif xcal_accept_cache_arg:
+        cal = xcal.get_calendar(cal_name, start=start, cache=True)
+    else:
+        cal = xcal.get_calendar(cal_name, start=start)
 
     df = cal.schedule
     tz = ZoneInfo(GetExchangeTzName(exchange))

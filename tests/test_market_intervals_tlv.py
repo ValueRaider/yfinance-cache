@@ -1,7 +1,5 @@
 import unittest
 
-# import sys ; sys.path.insert(0, "/home/gonzo/ReposForks/exchange_calendars.dev")
-
 from .context import yfc_dat as yfcd
 from .context import yfc_time as yfct
 
