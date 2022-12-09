@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcal
+from copy import deepcopy
 
 import pandas as pd
 import numpy as np
@@ -42,6 +43,11 @@ def TypeCheckDatetime(var, varName):
         raise Exception("'{}' if datetime must be timezone-aware".format(varName))
     elif not isinstance(var.tzinfo, ZoneInfo):
         raise Exception("'{}' tzinfo must be ZoneInfo".format(varName))
+def TypeCheckYear(var, varName):
+    if not isinstance(var, int):
+        raise Exception("'{}' must be int not {}".format(varName, type(var)))
+    if var < 1900 or var > 2200:
+        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, type(var)))
 def TypeCheckTimedelta(var, varName):
     if not isinstance(var, timedelta):
         raise Exception("'{}' must be timedelta not {}".format(varName, type(var)))
@@ -98,7 +104,6 @@ schedCache = {}
 schedDbMetadata = {}
 db_mem = sql.connect(":memory:")
 schedIntervalsCache = {}
-xcal_accept_cache_arg = None
 
 
 def GetExchangeDataDelay(exchange):
@@ -110,43 +115,112 @@ def GetExchangeDataDelay(exchange):
     return d
 
 
-def GetCalendar(exchange):
-    global calCache
-    global xcal_accept_cache_arg
+def JoinTwoXcals(cal1, cal2):
+    # TODO: Check no overlap, 
+    #       and also they are close together implying no business days between
 
+    if cal1.schedule.index[0] > cal2.schedule.index[0]:
+        # Flip
+        tmp = cal1
+        cal1 = cal2
+        cal2 = tmp
+
+    cal12 = deepcopy(cal1)
+
+    def _safeAppend(a1, a2):
+        if a1 is not None and a2 is not None:
+            return np.append(a1, a2)
+        elif a1 is not None:
+            return a1
+        else:
+            return a2
+    #
+    cal12._opens = _safeAppend(cal1._opens, cal2._opens)
+    cal12._break_starts = _safeAppend(cal1._break_starts, cal2._break_starts)
+    cal12._break_ends = _safeAppend(cal1._break_ends, cal2._break_ends)
+    cal12._closes = _safeAppend(cal1._closes, cal2._closes)
+    #
+    cal12.opens_nanos = _safeAppend(cal1.opens_nanos, cal2.opens_nanos)
+    cal12.break_starts_nanos = _safeAppend(cal1.break_starts_nanos, cal2.break_starts_nanos)
+    cal12.break_ends_nanos = _safeAppend(cal1.break_ends_nanos, cal2.break_ends_nanos)
+    cal12.closes_nanos = _safeAppend(cal1.closes_nanos, cal2.closes_nanos)
+    #
+    cal12._late_opens = _safeAppend(cal1._late_opens, cal2._late_opens)
+    cal12._early_closes = _safeAppend(cal1._early_closes, cal2._early_closes)
+    #
+    cal12.schedule = pd.concat([cal1.schedule, cal2.schedule])
+
+    return cal12
+
+
+def GetCalendarViaCache(exchange, start, end=None):
+    global calCache
+
+    TypeCheckStr(exchange, "exchange")
+    TypeCheckYear(start, "start")
+    if end is not None:
+        TypeCheckYear(end, "end")
+    if end is None:
+        end = date.today().year
+
+    cache_key = "exchange-"+exchange
     cal_name = yfcd.exchangeToXcalExchange[exchange]
 
+    cal = None
+
+    def _customModSchedule(df):
+        tz = ZoneInfo(GetExchangeTzName(exchange))
+        df["open"] = df["open"].dt.tz_convert(tz)
+        df["close"] = df["close"].dt.tz_convert(tz)
+        if (exchange in yfcd.exchangesWithAuction) and ("auction" not in df.columns):
+            df["auction"] = df["close"] + yfcd.exchangeAuctionDelay[exchange]
+        df["idx_nanos"] = df.index.values.astype("int64")
+        return df
+
+    # Load from cache
     if cal_name in calCache:
-        return calCache[cal_name]
+        cal = calCache[cal_name]
+    elif yfcm.IsDatumCached(cache_key, "cal"):
+        cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
+        if xcal.__version__ > md["version"]:
+            cal = None
 
-    if cal_name in {"JPX", "XTKS"}:
-        # These won't go before 1997
-        start = "1997"
+    # Calculate missing data
+    pre_range = None ; post_range = None
+    if cal is not None:
+        cached_range = (cal.schedule.index[0].year, cal.schedule.index[-1].year)
+        if start < cached_range[0]:
+            pre_range = (start, cached_range[0]-1)
+        if end > cached_range[1]:
+            post_range = (cached_range[1]+1, end)
     else:
-        start = str(yfcd.yf_min_year)
-    if xcal_accept_cache_arg is None:
-        try:
-            xcal_accept_cache_arg = True
-            cal = xcal.get_calendar(cal_name, start=start, cache=True)
-        except TypeError:
-            xcal_accept_cache_arg = False
-            cal = xcal.get_calendar(cal_name, start=start)
-    elif xcal_accept_cache_arg:
-        cal = xcal.get_calendar(cal_name, start=start, cache=True)
-    else:
-        cal = xcal.get_calendar(cal_name, start=start)
+        pre_range = (start, end)
 
-    df = cal.schedule
-    tz = ZoneInfo(GetExchangeTzName(exchange))
-    df["open"] = df["open"].dt.tz_convert(tz)
-    df["close"] = df["close"].dt.tz_convert(tz)
+    # Fetch missing data
+    if pre_range is not None:
+        start = date(pre_range[0], 1, 1)
+        end = date(pre_range[1], 12, 31)
+        pre_cal = xcal.get_calendar(cal_name, start=start, end=end)
+        pre_cal.schedule = _customModSchedule(pre_cal.schedule)
+        if cal is None:
+            cal = pre_cal
+        else:
+            cal = JoinTwoXcals(pre_cal, cal)
+    if post_range is not None:
+        start = date(post_range[0], 1, 1)
+        end = date(post_range[1], 12, 31)
+        post_cal = xcal.get_calendar(cal_name, start=start, end=end)
+        post_cal.schedule = _customModSchedule(post_cal.schedule)
+        # print(post_cal.schedule.columns)
+        if cal is None:
+            cal = post_cal
+        else:
+            cal = JoinTwoXcals(cal, post_cal)
 
-    if (exchange in yfcd.exchangesWithAuction) and ("auction" not in df.columns):
-        df["auction"] = df["close"] + yfcd.exchangeAuctionDelay[exchange]
-
-    df["idx_nanos"] = df.index.values.astype("int64")
-
+    # Write to cache
     calCache[cal_name] = cal
+    if pre_range is not None or post_range is not None:
+        yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version":xcal.__version__})
 
     return cal
 
@@ -157,7 +231,7 @@ def ExchangeOpenOnDay(exchange, d):
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendar(exchange)
+    cal = GetCalendarViaCache(exchange, d.year)
 
     return d.isoformat() in cal.schedule.index
 
@@ -187,11 +261,11 @@ def GetExchangeSchedule(exchange, start_d, end_d):
         if cache_key in schedCache:
             s = schedCache[cache_key]
         else:
-            cal = GetCalendar(exchange)
+            cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
             s = cal.schedule.loc[str(start_d.year):str(end_d_sub1.year)].copy()
             schedCache[cache_key] = s
     else:
-        cal = GetCalendar(exchange)
+        cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
         s = cal.schedule
 
     if s is not None:
@@ -221,7 +295,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     global schedDbMetadata
     global db_mem
     if exchange not in schedDbMetadata:
-        cal = GetCalendar(exchange)
+        cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
         cal.schedule["open"] = cal.schedule["open"].dt.tz_convert("UTC")
         cal.schedule["close"] = cal.schedule["close"].dt.tz_convert("UTC")
         cal.schedule.to_sql(exchange, db_mem, index_label="indexpd")
@@ -293,7 +367,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendar(exchange)
+    cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
 
     open_dts = GetExchangeSchedule(exchange, start_d, end_d)["open"]
 
@@ -430,7 +504,6 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
         end_d = end.astimezone(tz).date() + td_1d
 
     # First look in cache:
-    cache_key = None
     cache_key = (exchange, interval, start_d, end_d, weeklyUseYahooDef)
     if cache_key in schedIntervalsCache:
         s = schedIntervalsCache[cache_key]
@@ -451,7 +524,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendar(exchange)
+    cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
 
     # When calculating intervals use dates not datetimes. Cache the result, and then
     # apply datetime limits.
@@ -583,7 +656,7 @@ def IsTimestampInActiveSession(exchange, ts):
     TypeCheckStr(exchange, "exchange")
     TypeCheckDatetime(ts, "ts")
 
-    cal = GetCalendar(exchange)
+    cal = GetCalendarViaCache(exchange, ts.year)
     try:
         s = cal.schedule.loc[ts.date().isoformat()]
     except Exception:
@@ -602,7 +675,7 @@ def GetTimestampCurrentSession(exchange, ts):
     TypeCheckStr(exchange, "exchange")
     TypeCheckDatetime(ts, "ts")
 
-    cal = GetCalendar(exchange)
+    cal = GetCalendarViaCache(exchange, ts.year)
     try:
         s = cal.schedule.loc[ts.date().isoformat()]
     except Exception:
