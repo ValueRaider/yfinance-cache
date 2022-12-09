@@ -182,7 +182,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         cal = calCache[cal_name]
     elif yfcm.IsDatumCached(cache_key, "cal"):
         cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
-        if xcal.__version__ > md["version"]:
+        if xcal.__version__ != md["version"]:
             cal = None
 
     # Calculate missing data
@@ -211,7 +211,6 @@ def GetCalendarViaCache(exchange, start, end=None):
         end = date(post_range[1], 12, 31)
         post_cal = xcal.get_calendar(cal_name, start=start, end=end)
         post_cal.schedule = _customModSchedule(post_cal.schedule)
-        # print(post_cal.schedule.columns)
         if cal is None:
             cal = post_cal
         else:
