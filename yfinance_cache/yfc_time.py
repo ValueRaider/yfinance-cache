@@ -182,7 +182,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         cal = calCache[cal_name]
     elif yfcm.IsDatumCached(cache_key, "cal"):
         cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
-        if xcal.__version__ > md["version"]:
+        if xcal.__version__ != md["version"]:
             cal = None
 
     # Calculate missing data
