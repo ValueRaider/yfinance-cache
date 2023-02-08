@@ -700,23 +700,25 @@ class Test_Market_Intervals_ASX(unittest.TestCase):
                     raise
 
         # If during the final interval of trading, next interval is the auction
+        # - update: I shifted close to 16:01 so test needed adjustment
         intervals = []
         intervals.append(yfcd.Interval.Mins1)
         intervals.append(yfcd.Interval.Mins2)
         intervals.append(yfcd.Interval.Mins5)
-        intervals.append(yfcd.Interval.Mins15)
-        intervals.append(yfcd.Interval.Mins30)
-        intervals.append(yfcd.Interval.Mins60)
-        intervals.append(yfcd.Interval.Hours1)
-        intervals.append(yfcd.Interval.Mins90)
+        # intervals.append(yfcd.Interval.Mins15)
+        # intervals.append(yfcd.Interval.Mins30)
+        # intervals.append(yfcd.Interval.Mins60)
+        # intervals.append(yfcd.Interval.Hours1)
+        # intervals.append(yfcd.Interval.Mins90)
         for i in range(len(intervals)):
             interval = intervals[i]
             interval_td = yfcd.intervalToTimedelta[interval]
 
             times = []
-            times.append(time(15, 59))
-            m = min(15, interval_td.seconds//60//2)
-            times.append(time(15, 59-m))
+            # times.append(time(15, 59))
+            # m = min(15, interval_td.seconds//60//2)
+            # times.append(time(15, 59-m))
+            times.append(time(16, 0))
             for d in [4,5,6,7,8]:
                 for t in times:
                     dt = datetime.combine(date(2022,4,d), t, self.market_tz)

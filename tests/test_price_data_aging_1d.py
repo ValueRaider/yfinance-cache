@@ -123,7 +123,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(intervalStartD, fetch_dt, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            response = yfct.IsPriceDatapointExpired(intervalStartD, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -155,7 +155,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         dt_now = interval_close_dt + timedelta(minutes=14)
         expire_on_candle_close = False
         answer = True
-        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -167,7 +167,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         #
         dt_now = interval_close_dt + timedelta(minutes=2)
         answer = False
-        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -183,7 +183,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         max_age = timedelta(hours=1)
         expire_on_candle_close = True
         answer = True
-        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -200,7 +200,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         dt_now = interval_close_dt + yf_lag + timedelta(minutes=14)
         expire_on_candle_close = False
         answer = False
-        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -217,7 +217,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         dt_now = datetime.combine(self.monday, market_close, market_tz) + yf_lag + timedelta(minutes=14)
         expire_on_candle_close = False
         answer = False
-        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -264,7 +264,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            response = yfct.IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:

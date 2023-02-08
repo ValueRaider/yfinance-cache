@@ -10,6 +10,7 @@ from .context import yfc_utils as yfcu
 from datetime import datetime, date, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import appdirs
 import requests_cache
 
 import sys, os
@@ -19,7 +20,7 @@ class TestYfAssumptions(unittest.TestCase):
 		self.tkr = "INTC"
 
 		self.session = None
-		self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
+		self.session = requests_cache.CachedSession(os.path.join(appdirs.user_cache_dir(),'yfinance.cache.testing'))
 		self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
 		self.dat = yf.Ticker(self.tkr, session=self.session)

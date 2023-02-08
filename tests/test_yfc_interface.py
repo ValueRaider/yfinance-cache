@@ -19,6 +19,7 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import pytz
 import os
+import appdirs
 
 ## 2022 calendar:
 ## X* = day X is public holiday that closed exchange
@@ -50,7 +51,7 @@ class Test_Yfc_Interface(Test_Base):
 
         self.session = None
         import requests_cache
-        self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'), expire_after=60*60)
+        self.session = requests_cache.CachedSession(os.path.join(appdirs.user_cache_dir(),'yfinance.cache.testing'), expire_after=60*60)
         self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
         self.tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
