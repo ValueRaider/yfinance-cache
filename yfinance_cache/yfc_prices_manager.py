@@ -1817,45 +1817,55 @@ class PriceHistory:
                 print(df[[c for c in ["Open", "Low", "High", "Close", "Dividends", "Volume"] if c in df.columns]])
 
         # Detect listing day
-        if self.interval == yfcd.Interval.Days1:
-            found_listing_day = False
-            listing_day = None
-            if df is not None and not df.empty:
-                if pstr == "max":
-                    found_listing_day = True
-                else:
-                    if pstr is not None:
-                        fetch_start, fetch_end_d = yfct.MapPeriodToDates(self.exchange, yfcd.periodStrToEnum[pstr])
-                    tol = yfcd.listing_date_check_tols[self.interval]
-                    if fetch_start is not None:
-                        fetch_start_d = fetch_start.date() if isinstance(fetch_start, datetime) else fetch_start
-                        if (df.index[0].date() - fetch_start_d) > tol:
-                            # Yahoo returned data starting significantly after requested start date, indicates
-                            # request is before stock listed on exchange
-                            found_listing_day = True
+        listing_day = yfcm.ReadCacheDatum(self.ticker, "listing_date")
+        if listing_day is None:
+            if self.interval == yfcd.Interval.Days1:
+                found_listing_day = False
+                listing_day = None
+                if df is not None and not df.empty:
+                    if pstr == "max":
+                        found_listing_day = True
                     else:
-                        start_expected = yfct.DtSubtractPeriod(fetch_dt_utc.date()+td_1d, yfcd.periodStrToEnum[pstr])
-                        # if self.interval == yfcd.Interval.Week:
-                        #     start_expected -= timedelta(days=start_expected.weekday())
-                        if (df.index[0].date() - start_expected) > tol:
-                            found_listing_day = True
-                if _debug:
-                    msg = "- found_listing_day = {}".format(found_listing_day)
-                    tc.Print(msg) if tc is not None else print(msg)
-                if found_listing_day:
-                    listing_day = df.index[0].date()
+                        if pstr is not None:
+                            fetch_start, fetch_end_d = yfct.MapPeriodToDates(self.exchange, yfcd.periodStrToEnum[pstr])
+                        tol = yfcd.listing_date_check_tols[self.interval]
+                        if fetch_start is not None:
+                            fetch_start_d = fetch_start.date() if isinstance(fetch_start, datetime) else fetch_start
+                            if (df.index[0].date() - fetch_start_d) > tol:
+                                # Yahoo returned data starting significantly after requested start date, indicates
+                                # request is before stock listed on exchange
+                                found_listing_day = True
+                        else:
+                            start_expected = yfct.DtSubtractPeriod(fetch_dt_utc.date()+td_1d, yfcd.periodStrToEnum[pstr])
+                            # if self.interval == yfcd.Interval.Week:
+                            #     start_expected -= timedelta(days=start_expected.weekday())
+                            if (df.index[0].date() - start_expected) > tol:
+                                found_listing_day = True
                     if _debug:
-                        msg = "YFC: inferred listing_date = {}".format(listing_day)
+                        msg = "- found_listing_day = {}".format(found_listing_day)
                         tc.Print(msg) if tc is not None else print(msg)
-                    yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
-
-                if (listing_day is not None) and first_fetch_failed:
-                    if end <= listing_day:
-                        # Aha! Requested date range was entirely before listing
+                    if found_listing_day:
+                        listing_day = df.index[0].date()
                         if _debug:
-                            msg = "- requested date range was before listing date"
+                            msg = "YFC: inferred listing_date = {}".format(listing_day)
                             tc.Print(msg) if tc is not None else print(msg)
-                        return None
+                        yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
+
+                    if (listing_day is not None) and first_fetch_failed:
+                        if end <= listing_day:
+                            # Aha! Requested date range was entirely before listing
+                            if _debug:
+                                msg = "- requested date range was before listing date"
+                                tc.Print(msg) if tc is not None else print(msg)
+                            return None
+                if found_listing_day:
+                    # Apply to fetch start
+                    if isinstance(start, datetime):
+                        listing_date = datetime.combine(listing_day, time(0), self.tz)
+                        start = max(start, listing_date)
+                    else:
+                        start = max(start, listing_day)
+                        start_d = start
 
         if pstr is None:
             if df is None:
@@ -1974,8 +1984,9 @@ class PriceHistory:
         else:
             # Verify that all datetimes match up with actual intervals:
             if self.interday:
-                if not (df.index.time == time(0)).all():
-                    print(df)
+                f = df.index.time != time(0)
+                if f.any():
+                    print(df[f])
                     raise Exception("Interday data contains times in index")
                 yfIntervalStarts = df.index.date
             else:

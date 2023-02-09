@@ -136,7 +136,10 @@ def GetCalendarViaCache(exchange, start, end=None):
             # Have to assume this is real data.
             f = df["close"].dt.time == time(16)
             if f.any():
-                df.loc[f, "close"] += timedelta(minutes=1)
+                # df.loc[f, "close"] += timedelta(minutes=1)
+                closes = df["close"].to_numpy()
+                closes[f] += timedelta(minutes=1)
+                df["close"] = closes
                 cal.closes_nanos = df["close"].values.astype("int64")
         return cal
 
