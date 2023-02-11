@@ -1,567 +1,456 @@
-import json, pickle
+import pickle
 import os
-from pprint import pprint
 from zoneinfo import ZoneInfo
 import appdirs
 
 import pandas as pd
 import numpy as np
 import datetime
+import click
 
 from . import yfc_cache_manager as yfcm
-from . import yfc_utils as yfcu
-from . import yfc_time as yfct
+# from . import yfc_utils as yfcu
+# from . import yfc_time as yfct
 from . import yfc_dat as yfcd
-from . import yfc_ticker as yfc
+# from . import yfc_ticker as yfc
+
+
+dbg_tkr = None
+# dbg_tkr = "QDEL"
 
 
 def _move_cache_dirpath():
-	oldCacheDirpath = os.path.join(appdirs.user_cache_dir(), "yfinance-cache")
-	cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
-	if not os.path.isdir(cacheDirpath):
-		if os.path.isdir(oldCacheDirpath):
-			os.rename(oldCacheDirpath, cacheDirpath)
-			print("Moved!")
+    oldCacheDirpath = os.path.join(appdirs.user_cache_dir(), "yfinance-cache")
+    cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
+    if not os.path.isdir(cacheDirpath):
+        if os.path.isdir(oldCacheDirpath):
+            os.rename(oldCacheDirpath, cacheDirpath)
+            print("Moved!")
+
+
+def _sanitise_prices():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-sanitised-prices")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    # print("Sanitising prices ...")
+    # Update: run silently
+
+    if dbg_tkr is not None:
+        tkrs = [dbg_tkr]
+    else:
+        tkrs = os.listdir(d)
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+
+        for interval in yfcd.intervalToString.values():
+            prices_fp = os.path.join(tkrd, f"history-{interval}.pkl")
+            if os.path.isfile(prices_fp):
+                with open(prices_fp, 'rb') as f:
+                    prices_pkl = pickle.load(f)
+                df = prices_pkl["data"]
+                df_modified = False
+
+                if "Adj Close" in df.columns:
+                    df = df.drop("Adj Close", axis=1)
+                    df_modified = True
+
+                if df_modified:
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+
+
+def _reset_calendar_cache():
+    # Calendar cache was broken because wasn't updating 'sessions_nanos', 
+    # so have to wipe it.
+
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-reset-calendar-cache")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    # print("Resetting calendar cache ...")
+    # Update: silently
+
+    tkrs = os.listdir(d)
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+        cal_fp = os.path.join(tkrd, "cal.pkl")
+        if os.path.isfile(cal_fp):
+            os.remove(cal_fp)
+    
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
 
 
 def _prune_incomplete_daily_intervals():
-	d = yfcm.GetCacheDirpath()
-
-	yfc_dp = os.path.join(d, "_YFC_")
-	state_fp = os.path.join(yfc_dp, "have-pruned-bad-daily-data")
-	if os.path.isfile(state_fp):
-		return
-
-	if not os.path.isdir(d):
-		if not os.path.isdir(yfc_dp):
-			os.makedirs(yfc_dp)
-		with open(state_fp, 'w') as f:
-			pass
-		return
-
-	print("Scanning cache for incomplete daily+ price data ...")
-	tkrs_repaired = set()
-
-	for tkr in os.listdir(d):
-		tkrd = os.path.join(d, tkr)
-		for f in os.listdir(tkrd):
-			fp = os.path.join(tkrd, f)
-			f_pieces = f.split('.')
-			ext = f_pieces[-1]
-			f_base = '.'.join(f_pieces[:-1])
-			if ("history" in f_base) and (ext == "pkl"):
-				interval = None
-				for i,istr in yfcd.intervalToString.items():
-					if f_base.endswith(istr):
-						interval = i
-						break
-				if interval is None:
-					raise Exception("Failed to map '{}' to Interval".format(fp_base))
-				# print(interval)
-				itd = yfcd.intervalToTimedelta[interval]
-				# print(itd)
-
-				pkData = None
-				with open(fp, 'rb') as f:
-					pkData = pickle.load(f)
-					h = pkData["data"]
-				h_modified = False
-
-				with open(tkrd+"/info.pkl", 'rb') as f:
-					info = pickle.load(f)["data"]
-
-				# Scan for any daily/weekly intervals marked final but not 
-				# updated after midnight
-				if itd >= datetime.timedelta(days=1):
-					tz_exchange = ZoneInfo(info["exchangeTimezoneName"])
-					f_final = h["Final?"].values
-					f_sameDay = h["FetchDate"].dt.tz_convert(tz_exchange).dt.date == h.index.date
-					f_bad = f_final & f_sameDay
-					if f_bad.any():
-						idx = np.where(f_bad)[0][0]
-						if idx == 0:
-							h = None
-						else:
-							h = h.loc[:h.index[idx-1]]
-						h_modified = True
-				
-					if h_modified:
-						# print("Fixing problems in", fp)
-						tkrs_repaired.add(tkr)
-						if h is None:
-							os.remove(fp)
-						else:
-							with open(fp, 'wb') as f:
-								pkData["data"] = h
-								pickle.dump(pkData, f, 4)
-
-	if len(tkrs_repaired) == 0:
-		print("No problems founds")
-	else:
-		print("Pruned bad daily+ intervals from these tickers:")
-		print(sorted(list(tkrs_repaired)))
-
-	if not os.path.isdir(yfc_dp):
-		os.makedirs(yfc_dp)
-	with open(state_fp, 'w') as f:
-		pass
-
-
-def merge_files():
-	## To reduce filesystem load, merge files and unpack in memory
-
-	d = yfcm.GetCacheDirpath()
-
-	for tkr in os.listdir(d):
-		quarterly_objects = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
-		qf = "quarterlys.pkl"
-		qfp = os.path.join(d, tkr, qf)
-		if not os.path.isfile(qfp):
-			# print(qfp)
-			## Need to merge old separated quarterly data
-			qData = {}
-			for c in quarterly_objects:
-				cf = c+".pkl"
-				cfp = os.path.join(d, tkr, cf)
-				if os.path.isfile(cfp):
-					with open(cfp, 'rb') as inData:
-						cData = pickle.load(inData)
-					mdfp = os.path.join(d, tkr, c+".metadata")
-					with open(mdfp, 'rb') as inData:
-						metaData = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-
-					qData[c] = {"data":cData, "metadata":metaData}
-
-			if len(qData) > 0:
-				with open(qfp, 'wb') as outData:
-					pickle.dump(qData, outData, 4)
-				## Cleanup
-				for c in quarterly_objects:
-					cf = c+".pkl"
-					cfp = os.path.join(d, tkr, cf)
-					if os.path.isfile(cfp):
-						os.remove(cfp)
-						os.remove(os.path.join(d, tkr, c+".metadata"))
-
-		annual_objects = ["balance_sheet", "cashflow", "earnings", "financials"]
-		af = "annual.pkl"
-		afp = os.path.join(d, tkr, af)
-		if not os.path.isfile(afp):
-			aData = {}
-			for c in annual_objects:
-				cf = c+".pkl"
-				cfp = os.path.join(d, tkr, cf)
-				if os.path.isfile(cfp):
-					with open(cfp, 'rb') as inData:
-						cData = pickle.load(inData)
-					mdfp = os.path.join(d, tkr, c+".metadata")
-					with open(mdfp, 'rb') as inData:
-						metaData = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-
-					aData[c] = {"data":cData, "metadata":metaData}
-
-			if len(aData) > 0:
-				with open(afp, 'wb') as outData:
-					pickle.dump(aData, outData, 4)
-				## Cleanup
-				for c in annual_objects:
-					cf = c+".pkl"
-					cfp = os.path.join(d, tkr, cf)
-					if os.path.isfile(cfp):
-						os.remove(cfp)
-						os.remove(os.path.join(d, tkr, c+".metadata"))
-
-		ipf = "info.pkl"
-		ipfp = os.path.join(d, tkr, ipf)
-		# if not os.path.isfile(ipfp):
-		# 	ijfp = os.path.join(d, tkr, "info.json")
-		# 	imfp = os.path.join(d, tkr, "info.metadata")
-		# 	if os.path.isfile(ijfp):
-		# 		with open(ijfp, 'r')as inData:
-		# 			info = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-		# 		with open(imfp, 'r') as inData:
-		# 			md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-		# 		data = {"info":{"data":info, "metadata":md}}
-		# 		with open(ipfp, 'wb') as outData:
-		# 			pickle.dump(data, outData, 4)
-		# 		os.remove(ijfp)
-		# 		os.remove(imfp)
-		## Update: keeping 'info' as json, but merging in metadata
-		ijfp = os.path.join(d, tkr, "info.json")
-		imfp = os.path.join(d, tkr, "info.metadata")
-		if os.path.isfile(ipfp):
-			# Revert pkl to json
-			with open(ipfp, 'rb') as inData:
-				pkl = pickle.load(inData)
-				pkl = pkl["info"]
-			data = pkl["data"]
-			md   = pkl["metadata"]
-			with open(ijfp, 'w') as outData:
-				json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
-			os.remove(ipfp)
-		elif os.path.isfile(ijfp) and os.path.isfile(imfp):
-			# Merge
-			with open(ijfp, 'r') as inData:
-				data = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-			with open(imfp, 'r') as inData:
-				md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-			with open(ijfp, 'w') as outData:
-				json.dump({"data":data,"metadata":md}, outData, default=yfcu.JsonEncodeValue)
-			os.remove(imfp)
-
-		for i in yfc_time.intervalToString.values():
-			hstr = "history-"+i
-			hpkp = os.path.join(d, tkr, hstr+".pkl")
-			hmfp = os.path.join(d, tkr, hstr+".metadata")
-			if os.path.isfile(hmfp):
-				# Merge into pkl
-				with open(hmfp, 'r') as inData:
-					md = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-				with open(hpkp, 'rb') as inData:
-					pkl = pickle.load(inData)
-				with open(hpkp, 'wb') as outData:
-					pickle.dump({"data":pkl,"metadata":md}, outData, 4)
-				os.remove(hmfp)
-
-
-def clean_metadata():
-	# Remove fields: FileType, LastAccess, LastWrite
-	d = yfcm.GetCacheDirpath()
-
-	fields = ["FileType", "LastAccess", "LastWrite"]
-
-	for tkr in os.listdir(d):
-		tkrd = os.path.join(d, tkr)
-		for f in os.listdir(tkrd):
-			fp = os.path.join(tkrd, f)
-			f_pieces = f.split('.')
-			ext = f_pieces[-1]
-			if ext == "metadata":
-				raise Exception("Found metadata file, should have been merged: "+fp)
-
-			f_base = '.'.join(f_pieces[:-1])
-
-			if ext == "json":
-				with open(fp, 'r') as inData:
-					js = json.load(inData, object_hook=yfcu.JsonDecodeDict)
-				md_changed = False
-				for k in fields:
-					if k in js["metadata"].keys():
-						del js["metadata"][k]
-						md_changed = True
-				if md_changed:
-					with open(fp, 'w') as outData:
-						json.dump(js, outData, default=yfcu.JsonEncodeValue)
-			else:
-				with open(fp, 'rb') as inData:
-					pkl = pickle.load(inData)
-				md_changed = False
-				if not isinstance(pkl, dict):
-					pkl = {"data":pkl, "metadata":{}}
-					md_changed = True
-				if "metadata" in pkl.keys():
-					for k in fields:
-						if k in pkl["metadata"].keys():
-							del pkl["metadata"][k]
-							md_changed = True
-				else:
-					for c in pkl.keys():
-						if not "metadata" in pkl[c].keys():
-							print(pkl)
-							print(pkl.keys())
-							raise Exception("Missing metadata from pickle data: {0}".format(fp))
-						for k in fields:
-							if k in pkl[c]["metadata"].keys():
-								del pkl[c]["metadata"][k]
-								md_changed = True
-				if md_changed:
-					with open(fp, 'wb') as outData:
-						pickle.dump(pkl, outData, 4)
-
-
-def price_history():
-	## 1) unpack pickle to a simple {"data":..., "metadata":...} structure
-	## 2) add 'Final?' column
-	## 3) daily and weekly tables should be indexed by Date, not Datetime - UPDATE: STORE/LOAD as Pandas.Timestamp for DatetimeIndex
-	## 3b) ensure 'FetchDate' is DatetimeIndex
-	## 4) rename "Splits" -> "Stock Splits" if present
-
-	d = yfcm.GetCacheDirpath()
-
-	for tkr in os.listdir(d):
-		tkrd = os.path.join(d, tkr)
-		for f in os.listdir(tkrd):
-			fp = os.path.join(tkrd, f)
-			f_pieces = f.split('.')
-			ext = f_pieces[-1]
-
-			f_base = '.'.join(f_pieces[:-1])
-
-			if ("history" in f_base) and (ext == "pkl"):
-				with open(fp, 'rb') as inData:
-					pkl = pickle.load(inData)
-
-				pkl_changed = False
-				if not "data" in pkl:
-					if f_base in pkl and "data" in pkl[f_base]:
-						pkl = pkl[f_base]
-						pkl_changed = True
-
-				if not "data" in pkl:
-					print("Expected '{}' to contain {'data':...}, instead it is:".format(fp))
-					print(pkl)
-					raise Exception("look above")
-
-				df = pkl["data"]
-				if not isinstance(df, pd.DataFrame):
-					raise Exception("Expected '{}' to contain a pd.DataFrame".format(fp))
-
-				if not "Final?" in df.columns:
-					interval = None
-					for i,istr in yfcd.intervalToString.items():
-						if f_base.endswith(istr):
-							interval = i
-							break
-					if interval is None:
-						raise Exception("Failed to map '{}' to Interval".format(fp_base))
-					n = df.shape[0]
-
-					exchange = yfc.Ticker(tkr).info["exchange"]
-					intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, i, interval, allowLateDailyData=True,weeklyUseYahooDef=True) for i in df.index])
-					f_na = intervals==None
-					if sum(f_na) > 0:
-						for idx in np.where(f_na)[0]:
-							dt = df.index[idx]
-							print("Failed to map: {} (exchange{}, xcal={})".format(dt, exchange, yfcd.exchangeToXcalExchange[exchange]))
-						raise Exception("Problem with dates returned by Yahoo, see above")
-					if interval in [yfcd.Interval.Days1, yfcd.Interval.Days5, yfcd.Interval.Week]:
-						# The time between intervalEnd and midnight is ambiguous. Yahoo shouldn't have new data, 
-						# but with daily candles it can. So treat midnight as threshold for final data.
-						data_final = df["FetchDate"].dt.date.values >= np.array([intervals[i]["interval_close"].date() for i in range(n)])
-					else:
-						data_final = df["FetchDate"].values >= (interval_closes+self.yf_lag)
-
-					df["Final?"] = data_final
-					pkl["data"] = df
-					pkl_changed = True
-
-				if "1d" in fp or "1w" in fp:
-					df_changed = False
-					# if df.index.name == "Datetime":
-					# 	print("Converting DT index to D in: {}".format(fp))
-					# 	df.index = df.index.date
-					# 	df.index.name = "Date"
-					# 	df_changed = True
-					# # elif not isinstance(df.index,pd.DatetimeIndex):
-					# # 	# Contains mix of Python date/datetimes and Pandas timestamps.
-					# # 	# -> Convert to date.
-					# # 	print("Fixing non-pd.DatetimeIndex in: {}".format(fp))
-					# # 	days = []
-					# # 	for i in range(len(df.index)):
-					# # 		dt = df.index[i]
-					# # 		if isinstance(dt,pd.Timestamp):
-					# # 			days.append(dt.astimezone(ZoneInfo("UTC")).to_pydatetime().date())
-					# # 		elif isinstance(dt,datetime.datetime):
-					# # 			days.append(dt.date())
-					# # 		else:
-					# # 			days.append(dt)
-					# # 	df.index = pd.DatetimeIndex(days)
-					# # 	pkl["data"] = df
-					# # 	pkl_changed = True
-					# dt0 = df.index[0]
-					# if isinstance(dt0, pd.Timestamp):
-					# 	print("Converting PD.TS index to D in: {}".format(fp))
-					# 	df.index = df.index.date
-					# 	df.index.name = "Date"
-					# 	df_changed = True
-					# if df.index.name in [None, ""]:
-					# 	print("Fixing bad index name")
-					# 	df.index.name = "Date"
-					# 	df_changed = True
-
-					if df_changed:
-						pkl["data"] = df
-						pkl_changed = True
-
-				try:
-					df["FetchDate"].dt
-				except AttributeError:
-					## .dt attribute available. Implies column contains mix of different date/datetime types. Fix
-					df["FetchDate"] = [pd.Timestamp(x) for x in df["FetchDate"]]
-					pkl["data"] = df
-					pkl_changed = True
-
-				if "Splits" in df.columns:
-					df = df.rename(columns={"Splits":"Stock Splits"})
-					pkl["data"] = df
-					pkl_changed = True
-				if (df.columns.values=="Stock Splits").sum() > 1:
-					# Whoops, have duplicated column. Need to drop one with most nans
-					# 1) count nans
-					col_idxs = np.where(df.columns=="Stock Splits")[0]
-					nan_counts = {}
-					for col_idx in col_idxs:
-						nan_counts[col_idx] = df.iloc[:,col_idx].isna().sum()
-					# 2) find col with least nans
-					least_na_idx = col_idxs[0]
-					for col_idx in col_idxs:
-						if nan_counts[col_idx] < nan_counts[least_na_idx]:
-							least_na_idx = col_idx
-					# 3) drop the others
-					cols_to_keep = list(range(0,len(df.columns)))
-					for col_idx in col_idxs:
-						if col_idx != least_na_idx:
-							cols_to_keep.remove(col_idx)
-					df = df.iloc[:,cols_to_keep]
-					pkl["data"] = df
-					pkl_changed = True
-
-
-				if pkl_changed:
-					with open(fp, 'wb') as outData:
-						pickle.dump(pkl, outData, 4)
-
-
-def price_history_cleanup_tz_mess():
-	## 1) delete rows with NANs <- UPDATE: leave NAN rows, because is placeholder for days without trades
-	## 2) Ensure 'FetchDate' columns entries all have timezone
-	## 3) Remove duplicate-date rows
-	## 4) Remove duplicate-interval rows
-
-	d = yfcm.GetCacheDirpath()
-
-	for tkr in os.listdir(d):
-		tkrd = os.path.join(d, tkr)
-		for f in os.listdir(tkrd):
-			fp = os.path.join(tkrd, f)
-			f_pieces = f.split('.')
-			ext = f_pieces[-1]
-
-			f_base = '.'.join(f_pieces[:-1])
-
-			if ("history" in f_base) and (ext == "pkl"):
-				with open(fp, 'rb') as inData:
-					pkl = pickle.load(inData)
-
-				# print("Checking "+fp)
-
-				pkl_changed = False
-				if not "data" in pkl:
-					if f_base in pkl and "data" in pkl[f_base]:
-						pkl = pkl[f_base]
-						pkl_changed = True
-
-				if not "data" in pkl:
-					print("Expected '{}' to contain {'data':...}, instead it is:".format(fp))
-					print(pkl)
-					raise Exception("look above")
-
-				df = pkl["data"]
-				if not isinstance(df, pd.DataFrame):
-					raise Exception("Expected '{}' to contain a pd.DataFrame".format(fp))
-
-				# # Remove empty rows
-				f_na = df["Close"].isna()
-				if sum(f_na) > 0:
-					df = df[~f_na]
-					pkl["data"] = df
-					pkl_changed = True
-
-				# FetchDate has timezone?
-				try:
-					df["FetchDate"].dt
-				except AttributeError:
-					# Happens if some FetchDate entries added without timezones. 
-					# Fix = add a timezone. Not important what it is
-					df["FetchDate"] = pd.to_datetime(df["FetchDate"], utc=True)
-					pkl["data"] = df
-					pkl_changed = True
-
-				if "1d" in fp or "1w" in fp:
-					# Check for duplicate dates
-					n = df.shape[0]
-					df_changed = False
-					for i in range(n-2, -1, -1):
-						idxUp = i
-						idxDown = i+1
-						# if df.index[idxUp].date() == df.index[idxDown].date():
-						if df.index[idxUp] == df.index[idxDown]:
-							df = df.drop(df.index[idxUp])
-							df_changed = True
-						break
-					if df_changed:
-						pkl["data"] = df
-						pkl_changed = True
-				else:
-					# Check for duplicate datetimes
-					n = df.shape[0]
-					df_changed = False
-					for i in range(n-2, -1, -1):
-						idxUp = i
-						idxDown = i+1
-						if df.index[idxUp] == df.index[idxDown]:
-							df = df.drop(df.index[idxUp])
-							df_changed = True
-						break
-					if df_changed:
-						pkl["data"] = df
-						pkl_changed = True
-
-				# Check for duplicate intervals:
-				if "1w" in fp:
-					interval = yfcd.Interval.Week
-				elif "1d" in fp:
-					interval = yfcd.Interval.Days1
-				elif "1h" in fp:
-					interval = yfcd.Interval.Hours1
-				else:
-					raise Exception("Failed to infer interval of: "+fp)
-				dat = yfc.Ticker(tkr)
-				exchange = dat.info["exchange"]
-				tz_exchange = ZoneInfo(yfct.GetExchangeTzName(exchange))
-				if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-					h_intervalStarts = df.index
-				else:
-					h_intervalStarts = np.array([yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in df.index])
-				intervals = np.array([yfct.GetTimestampCurrentInterval(exchange, x, interval, weeklyUseYahooDef=True) for x in h_intervalStarts])
-				f_na = intervals == None
-				if sum(f_na) > 0:
-					print("Removing rows that don't map to intervals")
-					df = df[~f_na]
-					h_intervalStarts = h_intervalStarts[~f_na]
-					intervals = intervals[~f_na]
-					#
-					pkl["data"] = df
-					pkl_changed = True
-				interval_opens = np.array([x["interval_open"] for x in intervals])
-				uniq_idxs = np.unique(interval_opens, return_index=True)[1]
-				dup_idxs = list(set(range(0,df.shape[0])) - set(uniq_idxs))
-				# print("- dup_idxs: {}".format(type(dup_idxs)))
-				# pprint(dup_idxs)
-				dup_interval_opens = interval_opens[dup_idxs]
-				f_dup = np.isin(interval_opens, dup_interval_opens)
-				if sum(f_dup) > 0:
-					print("Removing duplicate rows in same interval:")
-					print(df[f_dup])
-					df = df[~f_dup]
-					#
-					pkl["data"] = df
-					pkl_changed = True
-
-				if pkl_changed:
-					print("Have fixed tz issues in: "+fp)
-					with open(fp, 'wb') as outData:
-						pickle.dump(pkl, outData, 4)
-
-
-# merge_files()
-
-# clean_metadata()
-
-# price_history()
-
-# price_history_cleanup_tz_mess()
-
-## TODO: for each prices table in cache, compare against yfinance directly
-##       Best implemented in yfc_ticker
-
+    d = yfcm.GetCacheDirpath()
+
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-pruned-bad-daily-data")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    print("Scanning cache for incomplete daily+ price data ...")
+    tkrs_repaired = set()
+
+    if dbg_tkr is not None:
+        tkrs = [dbg_tkr]
+    else:
+        tkrs = os.listdir(d)
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+        for f in os.listdir(tkrd):
+            fp = os.path.join(tkrd, f)
+            f_pieces = f.split('.')
+            ext = f_pieces[-1]
+            f_base = '.'.join(f_pieces[:-1])
+            if ("history" in f_base) and (ext == "pkl"):
+                interval = None
+                for i, istr in yfcd.intervalToString.items():
+                    if f_base.endswith(istr):
+                        interval = i
+                        break
+                if interval is None:
+                    raise Exception("Failed to map '{}' to Interval".format(f_base))
+                itd = yfcd.intervalToTimedelta[interval]
+
+                pkData = None
+                with open(fp, 'rb') as f:
+                    pkData = pickle.load(f)
+                    h = pkData["data"]
+                h_modified = False
+
+                with open(tkrd+"/info.pkl", 'rb') as f:
+                    info = pickle.load(f)["data"]
+
+                # Scan for any daily/weekly intervals marked final but not 
+                # updated after midnight
+                if itd >= datetime.timedelta(days=1):
+                    tz_exchange = ZoneInfo(info["exchangeTimezoneName"])
+                    f_final = h["Final?"].values
+                    f_sameDay = h["FetchDate"].dt.tz_convert(tz_exchange).dt.date == h.index.date
+                    f_bad = f_final & f_sameDay
+                    if f_bad.any():
+                        idx = np.where(f_bad)[0][0]
+                        if idx == 0:
+                            h = None
+                        else:
+                            h = h.loc[:h.index[idx-1]]
+                        h_modified = True
+                
+                    if h_modified:
+                        tkrs_repaired.add(tkr)
+                        if h is None:
+                            os.remove(fp)
+                        else:
+                            with open(fp, 'wb') as f:
+                                pkData["data"] = h
+                                pickle.dump(pkData, f, 4)
+
+    if len(tkrs_repaired) == 0:
+        print("No problems founds")
+    else:
+        print("Pruned bad daily+ intervals from these tickers:")
+        print(sorted(list(tkrs_repaired)))
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+
+
+def _separate_events_from_prices():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-separated-events-from-prices")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    msg = "IMPORTANT: Old version of yfinance_cache had bug in handling dividends & stock splits."\
+         f" Fix requires restructuring YFC cache. If you want to backup cache folder first, it's at: {d}"\
+          "\nProceed? Can't go back."
+    r = click.confirm(msg, default=False)
+    if not r:
+        quit()
+
+    print("Upgrading dividends/splits management, just a few seconds ...")
+    print("")
+    print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker.verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
+
+    if dbg_tkr is not None:
+        tkrs = [dbg_tkr]
+    else:
+        tkrs = os.listdir(d)
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+
+        divs_fp = os.path.join(tkrd, "dividends.pkl")
+        splits_fp = os.path.join(tkrd, "splits.pkl")
+        prices_fp = os.path.join(tkrd, "history-1d.pkl")
+        if not os.path.isfile(divs_fp) and os.path.isfile(prices_fp):
+            # Need to separate
+            with open(prices_fp, 'rb') as f:
+                dailyPklData = pickle.load(f)
+            h = dailyPklData["data"]
+            divs_df = h[h["Dividends"] != 0][["Dividends"]].copy()
+            splits_df = h[h["Stock Splits"] != 0][["Stock Splits"]].copy()
+
+            fp = os.path.join(tkrd, "fast_info.pkl")
+            if os.path.isfile(fp):
+                with open(fp, 'rb') as f:
+                    tz = ZoneInfo(pickle.load(f)["data"]["timezone"])
+            else:
+                fp = os.path.join(tkrd, "info.pkl")
+                with open(fp, 'rb') as f:
+                    tz = ZoneInfo(pickle.load(f)["data"]["exchangeTimezoneName"])
+
+            # Add 'FetchDate'
+            if divs_df.empty:
+                divs_fetch_dt = pd.NaT
+            else:
+                divs_fetch_dt = datetime.datetime.combine(divs_df.index[-1], datetime.time(10), tz)
+            divs_df["FetchDate"] = divs_fetch_dt
+            if divs_df.shape[0] > 0:
+                divs_df.index = divs_df.index.tz_convert(tz)
+            divs_df["Supersede?"] = False
+            if splits_df.empty:
+                splits_fetch_dt = pd.NaT
+            else:
+                splits_fetch_dt = datetime.datetime.combine(splits_df.index[-1], datetime.time(10), tz)
+            splits_df["FetchDate"] = splits_fetch_dt
+            splits_df["Supersede?"] = False
+            if splits_df.shape[0] > 0:
+                splits_df.index = splits_df.index.tz_convert(tz)
+
+            divs_pkl = {"data": divs_df, "metadata": None}
+            splits_pkl = {"data": splits_df, "metadata": None}
+
+            # Write separated events to file:
+            with open(divs_fp, 'wb') as f:
+                pickle.dump(divs_pkl, f, 4)
+            with open(splits_fp, 'wb') as f:
+                pickle.dump(splits_pkl, f, 4)
+
+            # Replace 'LastAdjustD' with 'LastDivAdjustDt' & 'LastSplitAdjustDt'
+            # Also add field for tracking whether 'repair' check run
+            for interval in yfcd.intervalToString.values():
+                prices_fp = os.path.join(tkrd, f"history-{interval}.pkl")
+                if os.path.isfile(prices_fp):
+                    with open(prices_fp, 'rb') as f:
+                        prices_pkl = pickle.load(f)
+
+                    lastAdjustD = prices_pkl["metadata"]["LastAdjustD"]
+                    lastDivAdjustD = lastAdjustD  # default
+                    if divs_df.shape[0] > 0:
+                        df = divs_df[divs_df.index.tz_convert(tz).date <= lastAdjustD]
+                        if df.shape[0] > 0:
+                            lastDivAdjustD = df.index[-1].date()
+                    lastSplitAdjustD = lastAdjustD  # default
+                    if splits_df.shape[0] > 0:
+                        splits_df.index = splits_df.index.tz_convert(tz)
+                        df = splits_df[splits_df.index.tz_convert(tz).date <= lastAdjustD]
+                        if df.shape[0] > 0:
+                            lastDivAdjustD = df.index[-1].date()
+
+                    df = prices_pkl["data"]
+
+                    df["FetchDate"] = df["FetchDate"].dt.tz_convert(tz)  # Ensure ZoneInfo
+                    df["C-Check?"] = False
+
+                    lastDivAdjustDt = datetime.datetime.combine(lastDivAdjustD, datetime.time(10), tz)
+                    lastSplitAdjustDt = datetime.datetime.combine(lastSplitAdjustD, datetime.time(10), tz)
+
+                    df["LastDivAdjustDt"] = np.maximum(lastDivAdjustDt, df["FetchDate"])
+                    df["LastSplitAdjustDt"] = np.maximum(lastSplitAdjustDt, df["FetchDate"])
+
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+
+
+def _fix_dividend_adjust():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-fixed-dividend-adjustment")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    # Precondition:
+    _separate_events_from_prices()
+
+    # print("Fixing dividend adjustment, just a few seconds ...")
+    # Update: run silently
+
+    for tkr in os.listdir(d):
+        tkrd = os.path.join(d, tkr)
+
+        # First, recalculate dividend adjustment
+        divs_fp = os.path.join(tkrd, "dividends.pkl")
+        if not os.path.isfile(divs_fp):
+            continue
+
+        with open(divs_fp, 'rb') as f:
+            divsPklData = pickle.load(f)
+        divs_df = divsPklData["data"]
+
+        if divs_df.empty:
+            # Just add 'Back Adj.' column and continue
+            divs_df["Back Adj."] = 1.0
+            divsPklData["data"] = divs_df
+            with open(divs_fp, 'wb') as f:
+                pickle.dump(divsPklData, f, 4)
+
+            # Also ensure no evidence of dividends in prices:
+            for interval in yfcd.Interval:
+                istr = yfcd.intervalToString[interval]
+                prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+                if not os.path.isfile(prices_fp):
+                    continue
+                with open(prices_fp, 'rb') as f:
+                    pricesPklData = pickle.load(f)
+                df = pricesPklData["data"]
+                df_modified = False
+                if (df["CDF"].to_numpy() != 1).any():
+                    df["CDF"] = 1
+                    df_modified = True
+                if (df["Dividends"].to_numpy() != 0).any():
+                    df["Dividends"] = 0
+                    df_modified = True
+                if df_modified:
+                    pricesPklData["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(pricesPklData, f, 4)
+
+            continue
+
+
+        # First, recalculate dividend-adjustment factor:
+        prices_fp = os.path.join(tkrd, "history-1d.pkl")
+        with open(prices_fp, 'rb') as f:
+            pricesPklData = pickle.load(f)
+        prices_1d_df = pricesPklData["data"]
+        divs_df["Close day before"] = 0.0
+        for dt in divs_df.index:
+            if dt == prices_1d_df.index[0]:
+                idx = 0
+            else:
+                idx = prices_1d_df.index.get_loc(dt) - 1
+            close_day_before = prices_1d_df["Close"].iloc[idx]
+            divs_df.loc[dt, "Close day before"] = close_day_before
+        divs_df["Back Adj."] = 1.0 - divs_df["Dividends"].to_numpy() / divs_df["Close day before"].to_numpy()
+        divs_df = divs_df.drop("Close day before", axis=1)
+        divsPklData["data"] = divs_df
+        with open(divs_fp, 'wb') as f:
+            pickle.dump(divsPklData, f, 4)
+
+
+        # Next, copy it into 1D price table to recalc CDF:
+        divs_df["_date"] = divs_df.index.date
+        prices_1d_df["_date"] = prices_1d_df.index.date
+        prices_1d_df["_indexBackup"] = prices_1d_df.index
+        prices_1d_df = prices_1d_df.merge(divs_df[["Back Adj.", "_date"]], how="left").drop("_date", axis=1)
+        prices_1d_df.index = prices_1d_df["_indexBackup"] ; prices_1d_df.index.name = "Date" ; prices_1d_df = prices_1d_df.drop("_indexBackup", axis=1)
+        prices_1d_df.loc[prices_1d_df["Back Adj."].isna().to_numpy(), "Back Adj."] = 1.0
+        cdf = prices_1d_df["Back Adj."].shift(-1, fill_value=1.0).sort_index(ascending=False).cumprod().sort_index(ascending=True)
+        prices_1d_df["CDF"] = cdf
+        prices_1d_df = prices_1d_df.drop("Back Adj.", axis=1)
+        pricesPklData["data"] = prices_1d_df
+        with open(prices_fp, 'wb') as f:
+            pickle.dump(pricesPklData, f, 4)
+
+
+        # Next, copy into all other prices tables:
+        prices_1d_df["_date"] = prices_1d_df.index.date
+        for interval in yfcd.Interval:
+            if interval == yfcd.Interval.Days1:
+                continue
+            istr = yfcd.intervalToString[interval]
+            itd = yfcd.intervalToTimedelta[interval]
+            prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+            if not os.path.isfile(prices_fp):
+                continue
+
+            with open(prices_fp, 'rb') as f:
+                pricesPklData = pickle.load(f)
+            prices_df = pricesPklData["data"]
+
+            # Process intraday separate to interday:
+            if itd < datetime.timedelta(days=1):
+                # intraday - copy CDF from daily
+                prices_df["_date"] = prices_df.index.date
+                prices_df = prices_df.drop("CDF", axis=1)
+                prices_df["_indexBackup"] = prices_df.index
+                prices_df = prices_df.merge(prices_1d_df[["_date", "CDF"]], how="left", on="_date")
+                prices_df.index = prices_df["_indexBackup"] ; prices_df.index.name = "Date" ; prices_df = prices_df.drop("_indexBackup", axis=1)
+            else:
+                # interday - recalc CDF using these prices
+                f_div = prices_df["Dividends"] != 0
+                if not f_div.any():
+                    continue
+                c = "Back Adj."
+                prices_df[c] = 1.0
+                prices_df.loc[f_div, c] = 1.0 - prices_df.loc[f_div, "Dividends"] / prices_df.loc[f_div, "Close"]
+                cdf = prices_df["Back Adj."].shift(-1, fill_value=1.0).sort_index(ascending=False).cumprod().sort_index(ascending=True)
+                prices_df["CDF"] = cdf
+                prices_df = prices_df.drop(c, axis=1)
+
+            pricesPklData["data"] = prices_df
+            with open(prices_fp, 'wb') as f:
+                pickle.dump(pricesPklData, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass

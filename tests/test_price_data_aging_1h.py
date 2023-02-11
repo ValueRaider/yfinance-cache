@@ -16,6 +16,8 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         self.market_tz = ZoneInfo('US/Eastern')
         self.market_close_time = time(hour=16, minute=0)
 
+        yfct.SetExchangeTzName("LSE", "Europe/London")
+
         self.monday  = date(year=2022, month=2, day=7)
         self.tuesday = date(year=2022, month=2, day=8)
         self.friday  = date(year=2022, month=2, day=11)
@@ -87,7 +89,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -116,7 +118,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         dt_now = datetime.combine(self.monday, time(15), market_tz)+timedelta(minutes=14)
         expire_on_candle_close = False
         answer = True
-        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -128,7 +130,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         #
         dt_now = datetime.combine(self.monday, time(15), market_tz)+timedelta(minutes=2)
         answer = False
-        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -143,7 +145,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         max_age = timedelta(hours=1)
         expire_on_candle_close = True
         answer = True
-        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -160,7 +162,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         dt_now = datetime.combine(self.monday, time(16), market_tz)+yf_lag+timedelta(minutes=14)
         expire_on_candle_close = False
         answer = False
-        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+        result = yfct.IsPriceDatapointExpired(interval_dt, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
         try:
             self.assertEqual(result, answer)
         except:
@@ -228,7 +230,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -288,7 +290,7 @@ class Test_PriceDataAging_1H(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, expire_on_candle_close, yf_lag, dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start_dt, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:

@@ -10,66 +10,16 @@ from copy import deepcopy
 import pandas as pd
 import numpy as np
 import sqlite3 as sql
+from copy import deepcopy
 
 from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
 
 
-def TypeCheckStr(var, varName):
-    if not isinstance(var, str):
-        raise Exception("'{}' must be str not {}".format(varName, type(var)))
-def TypeCheckBool(var, varName):
-    if not isinstance(var, bool):
-        raise Exception("'{}' must be bool not {}".format(varName, type(var)))
-def TypeCheckDateEasy(var, varName):
-    if not (isinstance(var, date) or isinstance(var, datetime)):
-        raise Exception("'{}' must be date not {}".format(varName, type(var)))
-    if isinstance(var, datetime):
-        if var.tzinfo is None:
-            raise Exception("'{}' if datetime must be timezone-aware".format(varName))
-        elif not isinstance(var.tzinfo, ZoneInfo):
-            raise Exception("'{}' tzinfo must be ZoneInfo".format(varName))
-def TypeCheckDateStrict(var, varName):
-    if isinstance(var, pd.Timestamp):
-        # While Pandas missing support for 'zoneinfo' must deny
-        raise Exception("'{}' must be date not {}".format(varName, type(var)))
-    if not (isinstance(var, date) and not isinstance(var, datetime)):
-        raise Exception("'{}' must be date not {}".format(varName, type(var)))
-def TypeCheckDatetime(var, varName):
-    if not isinstance(var, datetime):
-        raise Exception("'{}' must be datetime not {}".format(varName, type(var)))
-    if var.tzinfo is None:
-        raise Exception("'{}' if datetime must be timezone-aware".format(varName))
-    elif not isinstance(var.tzinfo, ZoneInfo):
-        raise Exception("'{}' tzinfo must be ZoneInfo".format(varName))
-def TypeCheckYear(var, varName):
-    if not isinstance(var, int):
-        raise Exception("'{}' must be int not {}".format(varName, type(var)))
-    if var < 1900 or var > 2200:
-        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, type(var)))
-def TypeCheckTimedelta(var, varName):
-    if not isinstance(var, timedelta):
-        raise Exception("'{}' must be timedelta not {}".format(varName, type(var)))
-def TypeCheckInterval(var, varName):
-    if not isinstance(var, yfcd.Interval):
-        raise Exception("'{}' must be yfcd.Interval not {}".format(varName, type(var)))
-def TypeCheckIntervalDt(dt, interval, varName, strict=True):
-    if strict and interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-        TypeCheckDateStrict(dt, varName)
-    else:
-        TypeCheckDateEasy(dt, varName)
-def TypeCheckPeriod(var, varName):
-    if not isinstance(var, yfcd.Period):
-        raise Exception("'{}' must be yfcd.Period not {}".format(varName, type(var)))
-def TypeCheckNpArray(var, varName):
-    if not isinstance(var, np.ndarray):
-        raise Exception("'{}' must be numpy array not {}".format(varName, type(var)))
-
-
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
-    TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckStr(exchange, "exchange")
 
     if exchange not in exchangeTzCache:
         tz = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
@@ -80,8 +30,8 @@ def GetExchangeTzName(exchange):
         tz = exchangeTzCache[exchange]
     return tz
 def SetExchangeTzName(exchange, tz):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckStr(tz, "tz")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckStr(tz, "tz")
 
     tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
     if tzc is not None:
@@ -106,8 +56,11 @@ db_mem = sql.connect(":memory:")
 schedIntervalsCache = {}
 
 
+# TODO: Ensure all methods support Monthly intervals, e.g. GetTimestampCurrentInterval
+
+
 def GetExchangeDataDelay(exchange):
-    TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckStr(exchange, "exchange")
 
     d = yfcm.ReadCacheDatum("exchange-"+exchange, "yf_lag")
     if d is None:
@@ -145,6 +98,8 @@ def JoinTwoXcals(cal1, cal2):
     cal12.break_ends_nanos = _safeAppend(cal1.break_ends_nanos, cal2.break_ends_nanos)
     cal12.closes_nanos = _safeAppend(cal1.closes_nanos, cal2.closes_nanos)
     #
+    cal12.sessions_nanos = _safeAppend(cal1.sessions_nanos, cal2.sessions_nanos)
+    #
     cal12._late_opens = _safeAppend(cal1._late_opens, cal2._late_opens)
     cal12._early_closes = _safeAppend(cal1._early_closes, cal2._early_closes)
     #
@@ -156,10 +111,10 @@ def JoinTwoXcals(cal1, cal2):
 def GetCalendarViaCache(exchange, start, end=None):
     global calCache
 
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckYear(start, "start")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckYear(start, "start")
     if end is not None:
-        TypeCheckYear(end, "end")
+        yfcu.TypeCheckYear(end, "end")
     if end is None:
         end = date.today().year
 
@@ -168,14 +123,26 @@ def GetCalendarViaCache(exchange, start, end=None):
 
     cal = None
 
-    def _customModSchedule(df):
+    def _customModSchedule(cal):
         tz = ZoneInfo(GetExchangeTzName(exchange))
+        df = cal.schedule
         df["open"] = df["open"].dt.tz_convert(tz)
         df["close"] = df["close"].dt.tz_convert(tz)
         if (exchange in yfcd.exchangesWithAuction) and ("auction" not in df.columns):
             df["auction"] = df["close"] + yfcd.exchangeAuctionDelay[exchange]
         df["idx_nanos"] = df.index.values.astype("int64")
-        return df
+        if exchange == "ASX":
+            # Yahoo sometimes returns trading data occurring 
+            # between 4pm and 4:01pm. TradingView agress.
+            # Have to assume this is real data.
+            f = df["close"].dt.time == time(16)
+            if f.any():
+                # df.loc[f, "close"] += timedelta(minutes=1)
+                closes = df["close"].to_numpy()
+                closes[f] += timedelta(minutes=1)
+                df["close"] = closes
+                cal.closes_nanos = df["close"].values.astype("int64")
+        return cal
 
     # Load from cache
     if cal_name in calCache:
@@ -201,7 +168,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         start = date(pre_range[0], 1, 1)
         end = date(pre_range[1], 12, 31)
         pre_cal = xcal.get_calendar(cal_name, start=start, end=end)
-        pre_cal.schedule = _customModSchedule(pre_cal.schedule)
+        pre_cal = _customModSchedule(pre_cal)
         if cal is None:
             cal = pre_cal
         else:
@@ -210,7 +177,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         start = date(post_range[0], 1, 1)
         end = date(post_range[1], 12, 31)
         post_cal = xcal.get_calendar(cal_name, start=start, end=end)
-        post_cal.schedule = _customModSchedule(post_cal.schedule)
+        post_cal = _customModSchedule(post_cal)
         if cal is None:
             cal = post_cal
         else:
@@ -219,14 +186,14 @@ def GetCalendarViaCache(exchange, start, end=None):
     # Write to cache
     calCache[cal_name] = cal
     if pre_range is not None or post_range is not None:
-        yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version":xcal.__version__})
+        yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__})
 
     return cal
 
 
 def ExchangeOpenOnDay(exchange, d):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDateStrict(d, "d")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDateStrict(d, "d")
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
@@ -236,9 +203,9 @@ def ExchangeOpenOnDay(exchange, d):
 
 
 def GetExchangeSchedule(exchange, start_d, end_d):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDateStrict(start_d, "start_d")
-    TypeCheckDateStrict(end_d, "end_d")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDateStrict(start_d, "start_d")
+    yfcu.TypeCheckDateStrict(end_d, "end_d")
     if start_d >= end_d:
         raise Exception("start_d={} must < end_d={}".format(start_d, end_d))
 
@@ -251,9 +218,10 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
 
-    end_d_sub1 = end_d-timedelta(days=1)
+    end_d_sub1 = end_d - timedelta(days=1)
 
-    num_years = end_d.year - start_d.year + 1
+    # num_years = end_d.year - start_d.year + 1
+    num_years = end_d_sub1.year - start_d.year + 1
     if num_years <= 2:
         # Cache
         cache_key = (exchange, start_d.year, num_years)
@@ -333,32 +301,35 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     rename_cols = {"open": "market_open", "close": "market_close"}
     df.columns = [rename_cols[col] if col in rename_cols else col for col in df.columns]
     return df
-    ##
 
 
 def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckStr(exchange, "exchange")
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
-    TypeCheckDateEasy(start, "start")
-    TypeCheckDateEasy(end, "end")
+    yfcu.TypeCheckDateEasy(start, "start")
+    yfcu.TypeCheckDateEasy(end, "end")
 
     debug = False
     # debug = True
 
     if debug:
-        print("GetExchangeWeekSchedule(exchange={}, start={}, end={})".format(exchange, start, end))
+        print(f"GetExchangeWeekSchedule(exchange={exchange}, start={start}, end={end}, weeklyUseYahooDef={weeklyUseYahooDef})")
 
     tz = ZoneInfo(GetExchangeTzName(exchange))
     td_1d = timedelta(days=1)
     if not isinstance(start, datetime):
         start_d = start
+        # start_dt = datetime.combine(start_d, time(0), tzinfo=tz)
     else:
         start_d = start.astimezone(tz).date()
+        # start_dt = start
     if not isinstance(end, datetime):
         end_d = end
+        # end_dt = datetime.combine(end_d, time(0), tzinfo=tz)
     else:
         end_d = end.astimezone(tz).date() + td_1d
+        # end_dt = end
 
     week_starts_sunday = (exchange in ["TLV"]) and (not weeklyUseYahooDef)
     if debug:
@@ -366,7 +337,13 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
+    start_year = start_d.year
+    if start_d.month == 1:
+        start_year -= 1
+    end_year = end_d.year
+    if end_d.month == 12:
+        end_year += 1
+    cal = GetCalendarViaCache(exchange, start_year, end_year)
 
     open_dts = GetExchangeSchedule(exchange, start_d, end_d)["open"]
 
@@ -382,15 +359,18 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         weeks = open_dts.groupby(open_dts.to_period("W-SAT"))
     else:
         weeks = open_dts.groupby(open_dts.to_period("W"))
-    weeks_keys = sorted(list(weeks.keys()))
-    weeks_keys_arr = pd.arrays.PeriodArray(pd.Series(weeks_keys))
-
     if debug:
         print("- weeks:")
         for k in weeks:
             print("- {}->{}".format(k.start_time, k.end_time))
             print(weeks[k].date)
         print("")
+
+    weeks_keys = sorted(list(weeks.keys()))
+    weeks_keys_arr = pd.arrays.PeriodArray(pd.Series(weeks_keys))
+    if debug:
+        print("- weeks_keys:")
+        print(weeks_keys)
 
     if weeklyUseYahooDef:
         td_7d = timedelta(days=7)
@@ -399,8 +379,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         week_ranges = np.stack([week_starts, week_ends], axis=1)
     else:
         week_ranges = np.array([(w[0].date(), w[-1].date()) for w in weeks.values()])
-        week_ranges[:,1] += td_1d
-
+        week_ranges[:, 1] += td_1d
     if debug:
         print("- week_ranges:")
         pprint(week_ranges)
@@ -411,13 +390,13 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         k = weeks_keys[0]
         prev_sesh = cal.previous_session(weeks[k][0].date())
         if debug:
-            print("- prev_sesh:", prev_sesh)
+            print(f"- prev_sesh of {weeks[k][0].date()} = {prev_sesh}")
         first_week_cutoff = prev_sesh >= k.start_time
 
         k = weeks_keys[-1]
         next_sesh = cal.next_session(weeks[k][-1].date())
         if debug:
-            print("- next_sesh:", next_sesh)
+            print(f"- next_sesh of {weeks[k][-1].date()} = {next_sesh}")
         last_week_cutoff = next_sesh <= k.end_time
 
     else:
@@ -436,7 +415,6 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
 
         if debug:
             print("- weeks2:")
-            # pprint(weeks2)
             for k in weeks2:
                 print("- ", k)
                 print(weeks2[k].date)
@@ -473,12 +451,44 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
     return week_ranges
 
 
-def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
+def MapPeriodToDates(exchange, period):
+    tz_name = GetExchangeTzName(exchange)
+    tz_exchange = ZoneInfo(tz_name)
+
+    # Map period to start->end range so logic can intelligently fetch missing data
+    td_1d = timedelta(days=1)
+    dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+    d_now = dt_now.astimezone(tz_exchange).date()
+    sched = GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
+    yf_lag = yfcd.exchangeToYfLag[exchange]
+    dt_now_sub_lag = dt_now - yf_lag
+    if sched["open"].iloc[-1] > dt_now_sub_lag:
+        # Discard days that haven't opened yet
+        opens = pd.DatetimeIndex(sched["open"])
+        x = opens.get_indexer([dt_now_sub_lag], method="bfill")[0]  # If not exact match, search forward
+        sched = sched.iloc[:x]
+    last_open_day = sched["open"][-1].date()
+    end = datetime.combine(last_open_day+td_1d, time(0), tz_exchange)
+    end_d = end.date()
+    if period == yfcd.Period.Max:
+        start = datetime.combine(date(yfcd.yf_min_year, 1, 1), time(0), tz_exchange)
+    else:
+        start = DtSubtractPeriod(end, period)
+    while not ExchangeOpenOnDay(exchange, start.date()):
+        start += td_1d
+    start_d = start.date()
+
+    return start_d, end_d
+
+
+def GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=False, weeklyUseYahooDef=True):
+    yfcu.TypeCheckStr(exchange, "exchange")
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
-    TypeCheckIntervalDt(start, interval, "start", strict=True)
-    TypeCheckIntervalDt(end, interval, "end", strict=True)
+    # yfcu.TypeCheckIntervalDt(start, interval, "start", strict=True)
+    # yfcu.TypeCheckIntervalDt(end, interval, "end", strict=True)
+    yfcu.TypeCheckIntervalDt(start, interval, "start", strict=False)
+    yfcu.TypeCheckIntervalDt(end, interval, "end", strict=False)
 
     debug = False
     # debug = True
@@ -507,9 +517,9 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
     if cache_key in schedIntervalsCache:
         s = schedIntervalsCache[cache_key]
         if isinstance(s.left[0], datetime):
-            s = s[s.left>=start_dt]
+            s = s[s.left >= start_dt]
         if isinstance(s.right[0], datetime):
-            s = s[s.right<=end_dt]
+            s = s[s.right <= end_dt]
         if debug:
             print("- returning cached intervals ({}->{} filtered by {}->{})".format(start_d, end_d, start, end))
         return s
@@ -532,10 +542,10 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
     td = yfcd.intervalToTimedelta[interval]
     if istr.endswith('h') or istr.endswith('m'):
         if td > timedelta(minutes=30):
-            align = '30m'
+            align = "-30m"
         else:
-            align = istr
-        ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
+            align = "-" + istr
+        ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, ignore_breaks=ignore_breaks, align=align)
         if len(ti) == 0:
             return None
         # Transfer IntervalIndex to DataFrame so can modify
@@ -626,13 +636,16 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
     elif interval == yfcd.Interval.Week:
         week_ranges = GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef)
+        if debug:
+            print("- week_ranges:")
+            print(week_ranges)
         if week_ranges is not None:
             intervals = yfcd.DateIntervalIndex.from_arrays([w[0] for w in week_ranges], [w[1] for w in week_ranges], closed="left")
 
     else:
         raise Exception("Need to implement for interval={}".format(interval))
 
-    if not cache_key is None:
+    if cache_key is not None:
         schedIntervalsCache[cache_key] = intervals
 
     if isinstance(intervals.left[0], datetime):
@@ -652,8 +665,8 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooD
 
 
 def IsTimestampInActiveSession(exchange, ts):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDatetime(ts, "ts")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDatetime(ts, "ts")
 
     cal = GetCalendarViaCache(exchange, ts.year)
     try:
@@ -671,8 +684,8 @@ def IsTimestampInActiveSession(exchange, ts):
 
 
 def GetTimestampCurrentSession(exchange, ts):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDatetime(ts, "ts")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDatetime(ts, "ts")
 
     cal = GetCalendarViaCache(exchange, ts.year)
     try:
@@ -692,8 +705,8 @@ def GetTimestampCurrentSession(exchange, ts):
 
 
 def GetTimestampMostRecentSession(exchange, ts):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDatetime(ts, "ts")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDatetime(ts, "ts")
 
     # If 'ts' is currently in an active session then that is most recent
 
@@ -717,8 +730,8 @@ def GetTimestampMostRecentSession(exchange, ts):
 
 
 def GetTimestampNextSession(exchange, ts):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDatetime(ts, "ts")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDatetime(ts, "ts")
 
     sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=7))
     if "auction" in sched.columns:
@@ -736,11 +749,11 @@ def GetTimestampNextSession(exchange, ts):
     raise Exception("Failed to find next '{0}' session for ts = {1}".format(exchange, ts))
 
 
-def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckIntervalDt(ts, interval, "ts", strict=False)
-    TypeCheckInterval(interval, "interval")
-    TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+def GetTimestampCurrentInterval(exchange, ts, interval, ignore_breaks=False, weeklyUseYahooDef=True):
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckIntervalDt(ts, interval, "ts", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
 
     # For day and week intervals, the time component is ignored (set to 0).
 
@@ -815,7 +828,7 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
             td = yfcd.intervalToTimedelta[interval]
             if exchange in yfcd.exchangesWithAuction:
                 td = max(td, timedelta(minutes=15))
-            intervals = GetExchangeScheduleIntervals(exchange, interval, ts-td, ts+timedelta(minutes=30)+td)
+            intervals = GetExchangeScheduleIntervals(exchange, interval, ts-td, ts+timedelta(minutes=30)+td, ignore_breaks=ignore_breaks)
             idx = intervals.get_indexer([ts])
             f = idx != -1
             if f.any():
@@ -828,15 +841,23 @@ def GetTimestampCurrentInterval(exchange, ts, interval, weeklyUseYahooDef=True):
     return i
 
 
-def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
+def GetTimestampCurrentInterval_batch(exchange, ts, interval, ignore_breaks=False, weeklyUseYahooDef=True):
+    yfcu.TypeCheckStr(exchange, "exchange")
     if isinstance(ts, list):
         ts = np.array(ts)
-    TypeCheckNpArray(ts, "ts")
+    yfcu.TypeCheckNpArray(ts, "ts")
     if len(ts) > 0:
-        TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
-    TypeCheckInterval(interval, "interval")
-    TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+        yfcu.TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+
+    if len(ts) != len(set(ts)):
+        u, c = np.unique(ts, return_counts=True)
+        dups = u[c > 1]
+        print("duplicates:")
+        print(dups)
+        istr = yfcd.intervalToString[interval]
+        raise Exception(f"GetTimestampCurrentInterval_batch({istr}): ts array contains duplicates")
 
     # For day and week intervals, the time component is ignored (set to 0).
 
@@ -847,7 +868,7 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
         if len(ts) == 0:
             print("GetTimestampCurrentInterval_batch(ts=[], interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
         else:
-            print("GetTimestampCurrentInterval_batch(ts[0]={}, interval={}, weeklyUseYahooDef={})".format(ts[0], interval, weeklyUseYahooDef))
+            print("GetTimestampCurrentInterval_batch(ts={}->{}, interval={}, weeklyUseYahooDef={})".format(ts[0], ts[-1], interval, weeklyUseYahooDef))
 
     if len(ts) == 0:
         if debug:
@@ -889,7 +910,10 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
             weekSchedStart = weekSchedStart.date
             weekSchedEnd = weekSchedEnd.date
         else:
-            week_sched = GetExchangeScheduleIntervals(exchange, interval, t0, tl, weeklyUseYahooDef)
+            week_sched = GetExchangeScheduleIntervals(exchange, interval, t0, tl, weeklyUseYahooDef=weeklyUseYahooDef)
+            if debug:
+                print("- week_sched:")
+                print(week_sched)
             weekSchedStart = np.full(n, None)
             weekSchedEnd = np.full(n, None)
             left = pd.to_datetime(week_sched.left).tz_localize(tz)
@@ -919,39 +943,38 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, weeklyUseYahooDef=
 
     else:
         td = yfcd.intervalToTimedelta[interval]
-        if exchange == "ASX":
+        if exchange in yfcd.exchangesWithAuction:
             td = max(td, timedelta(minutes=15))
         t0 = ts[0]
         tl = ts[len(ts)-1]
-        tis = GetExchangeScheduleIntervals(exchange, interval, t0-td, tl+td)
-        if debug:
-            print("- trading index:", type(tis))
-            for ti in tis:
-                print(ti)
+        tis = GetExchangeScheduleIntervals(exchange, interval, t0-td, tl+td, ignore_breaks=ignore_breaks)
         tz_tis = tis[0].left.tzinfo
         if ts[0].tzinfo != tz_tis:
             ts = [t.astimezone(tz_tis) for t in ts]
         idx = tis.get_indexer(ts)
         f = idx != -1
-        #
+
         intervals = pd.DataFrame(index=ts)
         intervals["interval_open"] = pd.NaT
         intervals["interval_close"] = pd.NaT
         if f.any():
             intervals.loc[intervals.index[f], "interval_open"] = tis.left[idx[f]].tz_convert(tz)
             intervals.loc[intervals.index[f], "interval_close"] = tis.right[idx[f]].tz_convert(tz)
+        intervals["interval_open"] = pd.to_datetime(intervals["interval_open"])
+        intervals["interval_close"] = pd.to_datetime(intervals["interval_close"])
 
     if debug:
+        print("intervals:") ; print(intervals)
         print("GetTimestampCurrentInterval_batch() returning")
 
     return intervals
 
 
-def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckIntervalDt(ts, interval, "ts", strict=False)
-    TypeCheckInterval(interval, "interval")
-    TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
+def GetTimestampNextInterval(exchange, ts, interval, ignore_breaks=False, weeklyUseYahooDef=True):
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckIntervalDt(ts, interval, "ts", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckBool(weeklyUseYahooDef, "weeklyUseYahooDef")
 
     debug = False
     # debug = True
@@ -978,7 +1001,7 @@ def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
         return {"interval_open": interval_open, "interval_close": interval_close}
 
     interval_td = yfcd.intervalToTimedelta[interval]
-    c = GetTimestampCurrentInterval(exchange, ts, interval)
+    c = GetTimestampCurrentInterval(exchange, ts, interval, ignore_breaks=ignore_breaks)
     if debug:
         if c is None:
             print("- currentInterval = None")
@@ -994,11 +1017,12 @@ def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
         if exchange == "TLV":
             istr = yfcd.intervalToString[interval]
             if td > timedelta(minutes=30):
-                align = '30m'
+                align = "-30m"
             else:
-                align = istr
+                align = "-"+istr
             d = next_sesh["market_open"].date()
-            ti = GetCalendar(exchange).trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
+            cal = GetCalendarViaCache(exchange, ts.year)
+            ti = cal.trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
             next_interval_start = ti.left[0]
         else:
             next_interval_start = next_sesh["market_open"]
@@ -1026,11 +1050,39 @@ def GetTimestampNextInterval(exchange, ts, interval, weeklyUseYahooDef=True):
     return {"interval_open": next_interval_start, "interval_close": next_interval_close}
 
 
-def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
+def TimestampInBreak_batch(exchange, ts, interval):
+    yfcu.TypeCheckStr(exchange, "exchange")
+    if isinstance(ts, list):
+        ts = np.array(ts)
+    yfcu.TypeCheckNpArray(ts, "ts")
+    if len(ts) > 0:
+        yfcu.TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
+
+    n = len(ts)
+
+    interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+    if interday:
+        return np.full(n, False)
+
+    itd = yfcd.intervalToTimedelta[interval]
+    tss = pd.to_datetime(ts)
+    df = pd.DataFrame(data={"_date": tss.date}, index=tss)
+    cal = GetCalendarViaCache(exchange, df["_date"][0].year, df["_date"][-1].year)
+    s = cal.schedule.copy()
+    s["_date"] = s.index.date
+    df["_indexBackup"] = df.index
+    df = df.merge(s[["break_start", "break_end", "_date"]], how="left", on="_date")
+    df.index = df["_indexBackup"]
+
+    return (df.index >= df["break_start"].to_numpy()) & (df.index+itd <= df["break_end"].to_numpy())
+
+
+def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=False, yf_lag=None):
     # When does Yahoo stop receiving data for this interval?
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckIntervalDt(intervalStart, interval, "intervalStart", strict=False)
-    TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckIntervalDt(intervalStart, interval, "intervalStart", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
 
     debug = False
     # debug = True
@@ -1038,9 +1090,9 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
     if debug:
         print("CalcIntervalLastDataDt(intervalStart={}, interval={})".format(intervalStart, interval))
 
-    irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
+    irange = GetTimestampCurrentInterval(exchange, intervalStart, interval, ignore_breaks=ignore_breaks)
     if irange is None:
-        raise Exception("Failed to map {} to interval".format(intervalStart))
+        return None
     if debug:
         print("- irange:")
         pprint(irange)
@@ -1062,6 +1114,8 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
     if i_td >= timedelta(days=1):
         close_d = intervalSched["close"].iloc[-1].date()
         lastDataDt = datetime.combine(close_d+timedelta(days=1), time(0), tz) + yf_lag
+        if debug:
+            print("CalcIntervalLastDataDt() returning {}".format(lastDataDt))
         return lastDataDt
 
     if isinstance(intervalEnd, datetime):
@@ -1070,7 +1124,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
         intervalEnd_dt = datetime.combine(intervalEnd, time(0), tz)
 
     if yf_lag is not None:
-        TypeCheckTimedelta(yf_lag, "yf_lag")
+        yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
     else:
         yf_lag = GetExchangeDataDelay(exchange)
 
@@ -1082,7 +1136,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
     else:
         late_data_allowance = timedelta(0)
     if (intervalEnd_dt == intervalSched["close"][-1]):
-        #  last interval of day:
+        # last interval of day:
         lastDataDt += late_data_allowance
 
     if debug:
@@ -1091,14 +1145,14 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag=None):
     return lastDataDt
 
 
-def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None):
+def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_breaks=False, yf_lag=None):
     # When does Yahoo stop receiving data for this interval?
-    TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckStr(exchange, "exchange")
     if isinstance(intervalStart, list):
         intervalStart = np.array(intervalStart)
-    TypeCheckNpArray(intervalStart, "intervalStart")
-    TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
-    TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckNpArray(intervalStart, "intervalStart")
+    yfcu.TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
+    yfcu.TypeCheckInterval(interval, "interval")
 
     debug = False
     # debug = True
@@ -1107,28 +1161,35 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
         print("CalcIntervalLastDataDt_batch(interval={}, yf_lag={})".format(interval, yf_lag))
 
     if yf_lag is not None:
-        TypeCheckTimedelta(yf_lag, "yf_lag")
+        yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
     else:
         yf_lag = GetExchangeDataDelay(exchange)
 
     n = len(intervalStart)
     tz = ZoneInfo(GetExchangeTzName(exchange))
 
-    intervals = GetTimestampCurrentInterval_batch(exchange, intervalStart, interval)
+    intervals = GetTimestampCurrentInterval_batch(exchange, intervalStart, interval, ignore_breaks=ignore_breaks, weeklyUseYahooDef=True)
+    iopens = intervals["interval_open"]
+    icloses = intervals["interval_close"]
+    
     if isinstance(intervals["interval_open"].iloc[0], datetime):
-        iopens = intervals["interval_open"]
-        icloses = intervals["interval_close"]
+        intervals["interval_open_day"] = intervals["interval_open"].dt.date
     else:
-        iopens = intervals["interval_open"].values
-        icloses = intervals["interval_close"].values
+        intervals["interval_open_day"] = intervals["interval_open"]
     if debug:
         print("- intervals:")
+        print(type(intervals["interval_open"].iloc[0]))
         print(intervals)
 
-    marketCloses = np.array([None]*n)
-    iopen0 = iopens[0]
-    iclosel = icloses[len(icloses)-1]
-    if isinstance(iopen0, datetime):
+    f_na = intervals["interval_open"].isna().values
+    f_nna = ~f_na
+
+    iopen0 = iopens[f_nna].iloc[0]
+    iclosel = icloses[f_nna].iloc[-1]
+    if debug:
+        print(f"- intervals date range: {iopen0} -> {iclosel}")
+    is_dt = isinstance(iopen0, datetime)
+    if is_dt:
         if isinstance(iopen0, pd.Timestamp):
             iopen0 = iopen0.to_pydatetime()
             iclosel = iclosel.to_pydatetime()
@@ -1137,56 +1198,70 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
         sched = GetExchangeSchedule(exchange, iopen0, iclosel+timedelta(days=1))
     sched = sched.copy()
     sched["day"] = sched["open"].dt.date
-    is_dt = isinstance(iopens[0], datetime)
-    if is_dt:
-        iopen0 = iopens[0]
-        iclose_days = [i.astimezone(tz).date() for i in icloses]
-    else:
-        iclose_days = [i-timedelta(days=1) for i in icloses]
-    icloses_df = pd.DataFrame(data={"iopen": iopens, "iclose": icloses, "day": iclose_days})
-    icloses_df2 = icloses_df.merge(sched[["day", "close"]], on="day", how="left")
-    f_na = icloses_df2["close"].isna()
-    if f_na.any():
-        if interval in [yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]:
-            # Search back a little
-            attempts = 4  # Worst-case = 9/11, have to search back from Friday to Monday to find actual open day
-            while f_na.any() and attempts > 0:
-                icloses_df2 = icloses_df2.drop("close", axis=1)
-                icloses_df2.loc[f_na, "day"] -= timedelta(days=1)
-                icloses_df2 = icloses_df2.merge(sched[["day", "close"]], on="day", how="left")
-                attempts -= 1
-                f_na = icloses_df2["close"].isna()
-        if f_na.any():
-            raise Exception("Lost data in merge")
-    icloses_df = icloses_df2
     if debug:
-        print("- icloses_df:")
-        print(icloses_df)
+        print("- sched:")
+        print(sched)
 
-    if icloses_df["close"].isna().any():
-        raise Exception("Failed to map some intervals to schedule")
+    if interval == yfcd.Interval.Week:
+        interval_starts = sched["day"].to_period("W").keys().start_time
+        sched["interval_open_day"] = interval_starts
+        sched = sched[["interval_open_day", "close"]].groupby(interval_starts).max()
+        sched["interval_open_day"] = sched["interval_open_day"].dt.date
+    else:
+        sched["interval_open_day"] = sched["day"]
+        sched = sched[["interval_open_day", "close"]]
+    if debug:
+        print("- sched:")
+        print(type(sched["interval_open_day"].iloc[0]))
+        print(type(intervals["interval_open_day"].iloc[0]))
+        print(sched)
 
-    dc0 = icloses[0]
+    intervals = intervals.merge(sched, on="interval_open_day", how="left")
+    intervals = intervals.rename(columns={"close": "market_close"})
+    if debug:
+        print("- intervals:")
+        print(intervals)
+    mcloses = intervals["market_close"]
+
+    if debug:
+        print("- mcloses:", type(mcloses[0]))
+        print(mcloses)
+        print("- icloses:")
+        print(icloses)
+
     # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
     i_td = yfcd.intervalToTimedelta[interval]
     if i_td >= timedelta(days=1):
         td_1d = timedelta(days=1)
-        return pd.DatetimeIndex(icloses_df["close"].dt.date + td_1d).tz_localize(tz)
+        lastDataDt = pd.DatetimeIndex(mcloses.dt.date + td_1d).tz_localize(tz)
+        if debug:
+            print("- lastDataDt:", type(lastDataDt))
+            print(lastDataDt)
 
+        if debug:
+            print("CalcIntervalLastDataDt_batch() returning")
+        return lastDataDt
+
+    intervalEnd_dt = np.full(n, pd.NaT)
+    dc0 = icloses[f_nna][0]
     if isinstance(dc0, datetime):
-        intervalEnd_dt = [x.to_pydatetime().astimezone(tz) for x in icloses]
+        intervalEnd_dt[f_nna] = [x.to_pydatetime().astimezone(tz) for x in icloses[f_nna]]
     else:
-        intervalEnd_dt = [datetime.combine(dc, time(0), tz) for dc in icloses]
+        intervalEnd_dt[f_nna] = [datetime.combine(dc, time(0), tz) for dc in icloses[f_nna]]
+    if debug:
+        print("- intervalEnd_dt:")
+        print(intervalEnd_dt)
 
-    lastDataDt = np.minimum(intervalEnd_dt, icloses_df["close"].dt.to_pydatetime()) + yf_lag
+    lastDataDt = np.minimum(intervalEnd_dt, mcloses.to_numpy()) + yf_lag
+    lastDataDt[pd.isna(lastDataDt)] = None
+    if debug:
+        print("- lastDataDt:", type(lastDataDt))
+        print(lastDataDt)
 
     # For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
     if exchange in ["JNB"]:
         late_data_allowance = timedelta(minutes=15)
-        if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
-            lastDataDt += late_data_allowance
-        else:
-            lastDataDt[intervalEnd_dt == marketCloses] += late_data_allowance
+        lastDataDt[intervalEnd_dt == mcloses] += late_data_allowance
 
     if debug:
         print("CalcIntervalLastDataDt_batch() returning")
@@ -1194,13 +1269,13 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, yf_lag=None)
     return lastDataDt
 
 
-def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, triggerExpiryOnClose=True, yf_lag=None, dt_now=None):
-    TypeCheckIntervalDt(intervalStart, interval, "intervalStart", strict=False)
-    TypeCheckDatetime(fetch_dt, "fetch_dt")
-    TypeCheckTimedelta(max_age, "max_age")
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckInterval(interval, "interval")
-    TypeCheckBool(triggerExpiryOnClose, "triggerExpiryOnClose")
+def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval, ignore_breaks=False, triggerExpiryOnClose=True, yf_lag=None, dt_now=None):
+    yfcu.TypeCheckIntervalDt(intervalStart, interval, "intervalStart", strict=False)
+    yfcu.TypeCheckDatetime(fetch_dt, "fetch_dt")
+    yfcu.TypeCheckTimedelta(max_age, "max_age")
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckInterval(interval, "interval")
+    yfcu.TypeCheckBool(triggerExpiryOnClose, "triggerExpiryOnClose")
 
     debug = False
     # debug = True
@@ -1210,18 +1285,18 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
         print("IsPriceDatapointExpired(intervalStart={}, fetch_dt={}, max_age={}, triggerExpiryOnClose={}, dt_now={})".format(intervalStart, fetch_dt, max_age, triggerExpiryOnClose, dt_now))
 
     if dt_now is not None:
-        TypeCheckDatetime(dt_now, "dt_now")
+        yfcu.TypeCheckDatetime(dt_now, "dt_now")
     else:
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
     if yf_lag is not None:
-        TypeCheckTimedelta(yf_lag, "yf_lag")
+        yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
     else:
         yf_lag = GetExchangeDataDelay(exchange)
     if debug:
         print("yf_lag = {}".format(yf_lag))
 
-    irange = GetTimestampCurrentInterval(exchange, intervalStart, interval)
+    irange = GetTimestampCurrentInterval(exchange, intervalStart, interval, ignore_breaks=ignore_breaks)
     if debug:
         print("- irange = {}".format(irange))
 
@@ -1237,7 +1312,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
     if debug:
         print("- intervalEnd_d = {0}".format(intervalEnd_d))
 
-    lastDataDt = CalcIntervalLastDataDt(exchange, intervalStart, interval, yf_lag)
+    lastDataDt = CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=ignore_breaks, yf_lag=yf_lag)
     if debug:
         print("- lastDataDt = {}".format(lastDataDt))
 
@@ -1288,10 +1363,10 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
     return False
 
 
-def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckDateEasy(start, "start")
-    TypeCheckDateEasy(end, "end")
+def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts, ignore_breaks=False, weeklyUseYahooDef=True):
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckDateEasy(start, "start")
+    yfcu.TypeCheckDateEasy(end, "end")
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
     if knownIntervalStarts is not None:
@@ -1300,10 +1375,10 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
         if len(knownIntervalStarts) > 0:
             if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
                 # Must be date
-                TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
+                yfcu.TypeCheckDateStrict(knownIntervalStarts[0], "knownIntervalStarts")
             else:
                 # Must be datetime
-                TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
+                yfcu.TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
                 if knownIntervalStarts[0].tzinfo is None:
                     raise Exception("'knownIntervalStarts' dates must be timezone-aware")
 
@@ -1316,7 +1391,7 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
         print("- knownIntervalStarts:")
         pprint(knownIntervalStarts)
 
-    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef)
+    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=ignore_breaks, weeklyUseYahooDef=weeklyUseYahooDef)
     if (intervals is None) or (intervals.shape[0] == 0):
         raise yfcd.NoIntervalsInRangeException(interval, start, end)
     if debug:
@@ -1345,10 +1420,10 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
     return intervals_missing_df
 
 
-def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, weeklyUseYahooDef=True, minDistanceThreshold=5):
-    TypeCheckStr(exchange, "exchange")
-    TypeCheckIntervalDt(start, interval, "start", strict=True)
-    TypeCheckIntervalDt(end, interval, "end", strict=True)
+def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalStarts, ignore_breaks=False, weeklyUseYahooDef=True, minDistanceThreshold=5):
+    yfcu.TypeCheckStr(exchange, "exchange")
+    yfcu.TypeCheckIntervalDt(start, interval, "start", strict=True)
+    yfcu.TypeCheckIntervalDt(end, interval, "end", strict=True)
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
     if knownIntervalStarts is not None:
@@ -1357,12 +1432,12 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
         if len(knownIntervalStarts) > 0:
             if interval in [yfcd.Interval.Days1, yfcd.Interval.Week]:
                 # Must be date or datetime
-                TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
+                yfcu.TypeCheckDateEasy(knownIntervalStarts[0], "knownIntervalStarts")
                 if isinstance(knownIntervalStarts[0], datetime) and knownIntervalStarts[0].tzinfo is None:
                     raise Exception("'knownIntervalStarts' datetimes must be timezone-aware")
             else:
                 # Must be datetime
-                TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
+                yfcu.TypeCheckDatetime(knownIntervalStarts[0], "knownIntervalStarts")
                 if knownIntervalStarts[0].tzinfo is None:
                     raise Exception("'knownIntervalStarts' dates must be timezone-aware")
 
@@ -1371,11 +1446,11 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
 
     if debug:
         print("IdentifyMissingIntervalRanges()")
-        print("- start={}, end={}".format(start, end))
+        print(f"- start={start}, end={end}, interval={interval}")
         print("- knownIntervalStarts:")
         pprint(knownIntervalStarts)
 
-    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, weeklyUseYahooDef)
+    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=ignore_breaks, weeklyUseYahooDef=weeklyUseYahooDef)
     if intervals is None or intervals.shape[0] == 0:
         raise yfcd.NoIntervalsInRangeException(interval, start, end)
     if debug:
@@ -1453,8 +1528,8 @@ def ConvertToDatetime(dt, tz=None):
 
 
 def DtSubtractPeriod(dt, period):
-    TypeCheckDateEasy(dt, "dt")
-    TypeCheckPeriod(period, "period")
+    yfcu.TypeCheckDateEasy(dt, "dt")
+    yfcu.TypeCheckPeriod(period, "period")
 
     if period == yfcd.Period.Ytd:
         if isinstance(dt, datetime):
@@ -1491,7 +1566,6 @@ def DtSubtractPeriod(dt, period):
 def GetSystemTz():
     dt = datetime.utcnow().astimezone()
 
-    # tz = dt.tzinfo
     tzn = dt.tzname()
     if tzn == "BST":
         # Confirmed that ZoneInfo figures out DST

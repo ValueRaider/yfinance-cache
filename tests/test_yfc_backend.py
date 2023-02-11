@@ -18,6 +18,7 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import pytz
 import os
+import appdirs
 
 ## 2022 calendar:
 ## X* = day X is public holiday that closed exchange
@@ -46,7 +47,7 @@ class Test_Yfc_Backend(unittest.TestCase):
 
         self.session = None
         import requests_cache
-        self.session = requests_cache.CachedSession(os.path.join(yfcu.GetUserCacheDirpath(),'yfinance.cache'))
+        self.session = requests_cache.CachedSession(os.path.join(appdirs.user_cache_dir(),'yfinance.cache.testing'))
         self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
 
         self.usa_tkr = "INTC"
@@ -81,9 +82,9 @@ class Test_Yfc_Backend(unittest.TestCase):
 
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
-            if not yfct.IsTimestampInActiveSession(dat.info["exchange"], dt_now):
+            if not yfct.IsTimestampInActiveSession(dat.fast_info["exchange"], dt_now):
                 continue
-            expected_lag = yfcd.exchangeToYfLag[dat.info["exchange"]]
+            expected_lag = yfcd.exchangeToYfLag[dat.fast_info["exchange"]]
 
             dat = yfc.Ticker(tkr, session=None) # Use live data
 
@@ -402,6 +403,45 @@ class Test_Yfc_Backend(unittest.TestCase):
                     raise
 
 
+    def test_CalcIntervalLastDataDt_UK_weekly(self):
+        interval = yfcd.Interval.Week
+
+        exchange = "LSE"
+        tz = ZoneInfo("Europe/London")
+        yfct.SetExchangeTzName(exchange, "Europe/London")
+
+        lag = timedelta(0)
+        dts = []
+        answers = []
+        week_start_day = date(2022,5,2)
+        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
+        for d in range(2,7):
+            day = date(2022,5,d)
+            dt = datetime.combine(day, time(14,30), tz)
+            dts.append(dt)
+            answers.append(answer+lag)
+
+        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
+        for i in range(len(dts)):
+            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
+            try:
+                self.assertEqual(response, answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response))
+                print("answer = {}".format(answers[i]))
+                raise
+
+            try:
+                self.assertEqual(response, response_batch[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response_batch[i]))
+                print("answer = {}".format(response))
+                raise
+
+
+
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
 
@@ -475,7 +515,7 @@ class Test_Yfc_Backend(unittest.TestCase):
         dt1 = datetime(2022,7,18, 9,0,tzinfo=tz)
 
         start = datetime(2022,7,18,8,0,tzinfo=tz)
-        end = datetime(2022,7,18,10,0,tzinfo=tz)
+        end   = datetime(2022,7,18,10,0,tzinfo=tz)
         df = dat.history(start=start, end=end, interval="1h", keepna=True)
         self.assertTrue(df.index[0]==dt0)
         self.assertTrue(df.index[1]==dt1)
@@ -593,12 +633,12 @@ class Test_Yfc_Backend(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
 
-    # # Run tests sequentially:
-    # import inspect
-    # test_src = inspect.getsource(Test_Yfc_Backend)
-    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
-    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
-    # )
-    # unittest.main(verbosity=2)
+    # Run tests sequentially:
+    import inspect
+    test_src = inspect.getsource(Test_Yfc_Backend)
+    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+        test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    )
+    unittest.main(verbosity=2)

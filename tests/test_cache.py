@@ -27,6 +27,12 @@ class Test_Yfc_Cache(unittest.TestCase):
         self.tempCacheDir.cleanup()
 
 
+    def testGetFilepath(self):
+        expected = os.path.join(self.tempCacheDir.name, self.ticker, "info.pkl")
+        fp = yfcm.GetFilepath(self.ticker, "info", {})
+        self.assertEqual(fp, expected)
+
+
     def test_cache_read_nothing(self):
         obj = yfcm.ReadCacheDatum(self.ticker, self.objName)
         self.assertIsNone(obj)

@@ -68,6 +68,22 @@ class Test_Market_Schedules_USA(unittest.TestCase):
         self.assertEqual(tz2, "America/New_York")
 
 
+    def test_GetExchangeWeekSchedule(self):
+        start_d = date(2022, 2, 7)
+        end_d = date(2022, 2, 28)
+
+        answer = [ [date(2022,2,7), date(2022,2,14)], 
+                   [date(2022,2,14), date(2022,2,21)], 
+                   [date(2022,2,21), date(2022,2,28)]]
+        response = yfct.GetExchangeWeekSchedule(self.exchange, start_d, end_d, weeklyUseYahooDef=True)
+        self.assertEqual(response, answer)
+
+        answer = [ [date(2022,2,7), date(2022,2,12)],
+                   [date(2022,2,14), date(2022,2,19)], 
+                   [date(2022,2,22), date(2022,2,26)]]
+        response = yfct.GetExchangeWeekSchedule(self.exchange, start_d, end_d, weeklyUseYahooDef=False)
+        self.assertEqual(response, answer)
+
     def test_IsTimestampInActiveSession_marketTz(self):
         hours = [] ; answers = []
         hours.append( 9) ; answers.append(False)

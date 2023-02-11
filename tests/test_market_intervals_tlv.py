@@ -55,7 +55,11 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
         for interval in aligned_start_times.keys():
             t = aligned_start_times[interval]
             response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d)
-            self.assertEqual(response[0].left.time(), t)
+            try:
+                self.assertEqual(response[0].left.time(), t)
+            except:
+                print("- interval =", interval)
+                raise
 
 
     def test_GetScheduleIntervals_hourly(self):
