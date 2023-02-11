@@ -1,5 +1,3 @@
-# IMPORTANT: Current version has bugs in applying new dividends and splits to cached data, just be aware. I have a big update almost ready that will fix this, and introduce 'data verification'. 
-
 # yfinance-cache
 Caching wrapper for yfinance module. Intelligent caching, not dumb caching of web requests:
 - If requested data not in cache, `yfinance` is called
@@ -12,9 +10,9 @@ Additional logic decides if cached data needs refresh.
 Interaction is almost identical to yfinance. Differences are highlighted underneath code:
 
 ```python
-import yfinance_cache as yf
+import yfinance_cache as yfc
 
-msft = yf.Ticker("MSFT")
+msft = yfc.Ticker("MSFT")
 
 # get stock info
 msft.info
@@ -27,7 +25,7 @@ hist = msft.history(period="max")
 
 #### Refreshing cache
 ```python
-msft = yf.Ticker(interval="1d", max_age=datetime.timedelta(hours=1), ...)
+msft.history(interval="1d", max_age=datetime.timedelta(hours=1), ...)
 ```
 `max_age` controls when to refresh cached data to avoid spam. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. 
 Defaults to half of interval. Refresh also triggered if market closed since last fetch.
@@ -35,7 +33,26 @@ Defaults to half of interval. Refresh also triggered if market closed since last
 #### Adjusting price
 Price can be adjusted for stock splits, dividends, or both. `yfinance` only allows control of dividends adjustment via `auto_adjust`. How Yahoo adjusts for dividends is slightly mysterious so djusted prices are slightly different to Yahoo (tiny relative error ~1e-7)
 ```python
-msft = yf.Ticker(..., adjust_splits=True, adjust_divs=True)
+msft.history(..., adjust_splits=True, adjust_divs=True)
+```
+
+#### Verifying cache
+Cached prices can be compared against latest Yahoo Finance data, and correct differences:
+```python
+# Verify prices of one ticker symbol
+msft.verify_cached_prices(
+	correct=False,  # delete incorrect cached data?
+	discard_old=False,  # if cached data too old to check (e.g. 30m), assume incorrect and delete?
+	quiet=True,  # disable to print summary detail of why cached data wrong
+	debug=False,  # enable even more detail for debugging 
+	debug_interval=None)  # only verify this interval (note: 1d always verified)
+
+# Verify prices of entire cache, ticker symbols processed alphabetically
+yfc.verify_cached_tickers_prices(
+	session=None,
+	resume_from_tkr=None,  # in case you aborted verification, can jump ahead
+	debug_tkr=None,  # only verify this ticker symbol
+	debug_interval=None)
 ```
 
 ## Installation

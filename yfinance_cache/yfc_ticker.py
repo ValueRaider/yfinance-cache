@@ -290,7 +290,7 @@ class Ticker:
         return self._histories_manager.GetHistory(interval)._getCachedPrices()
 
 
-    def _verify_cached_prices(self, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
+    def verify_cached_prices(self, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         interval = yfcd.Interval.Days1
         cache_key = "history-"+yfcd.intervalToString[interval]
         if not yfcm.IsDatumCached(self.ticker, cache_key):
@@ -743,26 +743,26 @@ def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=N
 
         # print(">>> FIRST PASS")
         try:
-            v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=True, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(correct=True, discard_old=True, quiet=True, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
             print(str(e) + f" - is it delisted? Aborting verification so you can investigate.")
             return
         except Exception as e:
             print("FIRST PASS FAILED: " + str(e))
             print("re-running with debug=True")
-            v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
             quit()
         # sleep(0.5)
         # sleep(1)
         # Second pass is important, because some cached data may have been div-adjusted without 
         # record of that dividend. Well the first verify will re-apply that dividend, so 
         # potential for new mismatches to correct.
-        v = dat._verify_cached_prices(correct=True, discard_old=False, quiet=True, debug_interval=debug_interval)
+        v = dat.verify_cached_prices(correct=True, discard_old=False, quiet=True, debug_interval=debug_interval)
         # sleep(0.5)
         # sleep(1)
-        # v = dat._verify_cached_prices(correct=True, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+        # v = dat.verify_cached_prices(correct=True, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
         if not v:
-            v = dat._verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
             raise Exception(f"{tkr}: verify failing")
 
 

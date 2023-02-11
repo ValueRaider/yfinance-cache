@@ -215,7 +215,7 @@ def _separate_events_from_prices():
 
     print("Upgrading dividends/splits management, just a few seconds ...")
     print("")
-    print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker._verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
+    print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker.verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
 
     if dbg_tkr is not None:
         tkrs = [dbg_tkr]
