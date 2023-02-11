@@ -42,7 +42,8 @@ def _sanitise_prices():
             pass
         return
 
-    print("Sanitising prices ...")
+    # print("Sanitising prices ...")
+    # Update: run silently
 
     if dbg_tkr is not None:
         tkrs = [dbg_tkr]
@@ -91,7 +92,8 @@ def _reset_calendar_cache():
             pass
         return
 
-    print("Resetting calendar cache ...")
+    # print("Resetting calendar cache ...")
+    # Update: silently
 
     tkrs = os.listdir(d)
     for tkr in tkrs:
@@ -143,9 +145,7 @@ def _prune_incomplete_daily_intervals():
                         break
                 if interval is None:
                     raise Exception("Failed to map '{}' to Interval".format(f_base))
-                # print(interval)
                 itd = yfcd.intervalToTimedelta[interval]
-                # print(itd)
 
                 pkData = None
                 with open(fp, 'rb') as f:
@@ -172,7 +172,6 @@ def _prune_incomplete_daily_intervals():
                         h_modified = True
                 
                     if h_modified:
-                        # print("Fixing problems in", fp)
                         tkrs_repaired.add(tkr)
                         if h is None:
                             os.remove(fp)
@@ -207,14 +206,16 @@ def _separate_events_from_prices():
             pass
         return
 
-    msg = "Old version had bug in handling dividends & stock splits."\
-        f" Fix requires restructuring YFC cache @ {d}. Proceed? Can't go back."
+    msg = "IMPORTANT: Old version of yfinance_cache had bug in handling dividends & stock splits."\
+         f" Fix requires restructuring YFC cache. If you want to backup cache folder first, it's at: {d}"\
+          "\nProceed? Can't go back."
     r = click.confirm(msg, default=False)
     if not r:
         quit()
-    # print("Use 'Ticker._verifyCachedPrices()' to check for incorrect price data")
 
     print("Upgrading dividends/splits management, just a few seconds ...")
+    print("")
+    print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker._verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
 
     if dbg_tkr is not None:
         tkrs = [dbg_tkr]
@@ -231,16 +232,17 @@ def _separate_events_from_prices():
             with open(prices_fp, 'rb') as f:
                 dailyPklData = pickle.load(f)
             h = dailyPklData["data"]
-            # divs_df = h[h["Dividends"]!=0][["Dividends", "CDF"]].copy()
             divs_df = h[h["Dividends"] != 0][["Dividends"]].copy()
             splits_df = h[h["Stock Splits"] != 0][["Stock Splits"]].copy()
 
-            # with open(tkrd+"/info.pkl", 'rb') as f:
-            #     info = pickle.load(f)["data"]
-            # tz = ZoneInfo(info["exchangeTimezoneName"])
-            with open(tkrd+"/fast_info.pkl", 'rb') as f:
-                fast_info = pickle.load(f)["data"]
-            tz = ZoneInfo(fast_info["timezone"])
+            fp = os.path.join(tkrd, "fast_info.pkl")
+            if os.path.isfile(fp):
+                with open(fp, 'rb') as f:
+                    tz = ZoneInfo(pickle.load(f)["data"]["timezone"])
+            else:
+                fp = os.path.join(tkrd, "info.pkl")
+                with open(fp, 'rb') as f:
+                    tz = ZoneInfo(pickle.load(f)["data"]["exchangeTimezoneName"])
 
             # Add 'FetchDate'
             if divs_df.empty:
@@ -250,8 +252,6 @@ def _separate_events_from_prices():
             divs_df["FetchDate"] = divs_fetch_dt
             if divs_df.shape[0] > 0:
                 divs_df.index = divs_df.index.tz_convert(tz)
-            # divs_df = divs_df.reset_index(names="Date")
-            # divs_df["Obsolete?"] = False
             divs_df["Supersede?"] = False
             if splits_df.empty:
                 splits_fetch_dt = pd.NaT
@@ -285,9 +285,6 @@ def _separate_events_from_prices():
                         df = divs_df[divs_df.index.tz_convert(tz).date <= lastAdjustD]
                         if df.shape[0] > 0:
                             lastDivAdjustD = df.index[-1].date()
-                        # df = divs_df[divs_df["Date"].dt.date <= lastAdjustD]
-                        # if df.shape[0] > 0:
-                        #   lastDivAdjustD = df["Date"].iloc[-1].date()
                     lastSplitAdjustD = lastAdjustD  # default
                     if splits_df.shape[0] > 0:
                         splits_df.index = splits_df.index.tz_convert(tz)
@@ -297,29 +294,12 @@ def _separate_events_from_prices():
 
                     df = prices_pkl["data"]
 
-                    # df = df.drop(["Dividends", "Stock Splits"], axis=1)
-
                     df["FetchDate"] = df["FetchDate"].dt.tz_convert(tz)  # Ensure ZoneInfo
                     df["C-Check?"] = False
 
                     lastDivAdjustDt = datetime.datetime.combine(lastDivAdjustD, datetime.time(10), tz)
                     lastSplitAdjustDt = datetime.datetime.combine(lastSplitAdjustD, datetime.time(10), tz)
 
-                    # df["LastDivAdjustDt"] = lastDivAdjustDt
-                    # df["LastSplitAdjustDt"] = lastSplitAdjustDt
-                    # f = (df["LastDivAdjustDt"] < df["FetchDate"]).to_numpy()
-                    # if f.any():
-                    #   # df.loc[f,"LastDivAdjustDt"] = df["FetchDate"][f]
-                    #   new_dts = df["LastDivAdjustDt"].to_numpy()
-                    #   new_dts[f] = df["FetchDate"].to_numpy()[f]
-                    #   df["LastDivAdjustDt"] = new_dts
-                    # f = (df["LastSplitAdjustDt"] < df["FetchDate"]).to_numpy()
-                    # if f.any():
-                    #   # df.loc[f,"LastSplitAdjustDt"] = df["FetchDate"][f]
-                    #   new_dts = df["LastSplitAdjustDt"].to_numpy()
-                    #   new_dts[f] = df["FetchDate"].to_numpy()[f]
-                    #   df["LastSplitAdjustDt"] = new_dts
-                    #
                     df["LastDivAdjustDt"] = np.maximum(lastDivAdjustDt, df["FetchDate"])
                     df["LastSplitAdjustDt"] = np.maximum(lastSplitAdjustDt, df["FetchDate"])
 
@@ -350,7 +330,8 @@ def _fix_dividend_adjust():
     # Precondition:
     _separate_events_from_prices()
 
-    print("Fixing dividend adjustment, just a few seconds ...")
+    # print("Fixing dividend adjustment, just a few seconds ...")
+    # Update: run silently
 
     for tkr in os.listdir(d):
         tkrd = os.path.join(d, tkr)
@@ -400,9 +381,6 @@ def _fix_dividend_adjust():
         with open(prices_fp, 'rb') as f:
             pricesPklData = pickle.load(f)
         prices_1d_df = pricesPklData["data"]
-        # divs_df = divs_df.merge(prices_1d_df["Close"], how="left", left_index=True, right_index=True)
-        # divs_df["Back Adj."] = divs_df["Close"].to_numpy() / (divs_df["Close"].to_numpy() + divs_df["Dividends"].to_numpy())
-        # divs_df = divs_df.drop("Close", axis=1)
         divs_df["Close day before"] = 0.0
         for dt in divs_df.index:
             if dt == prices_1d_df.index[0]:
@@ -410,7 +388,6 @@ def _fix_dividend_adjust():
             else:
                 idx = prices_1d_df.index.get_loc(dt) - 1
             close_day_before = prices_1d_df["Close"].iloc[idx]
-            # close_day_before = prices_1d_df["Close"].iloc[idx] * prices_1d_df["CSF"].iloc[idx]
             divs_df.loc[dt, "Close day before"] = close_day_before
         divs_df["Back Adj."] = 1.0 - divs_df["Dividends"].to_numpy() / divs_df["Close day before"].to_numpy()
         divs_df = divs_df.drop("Close day before", axis=1)

@@ -542,13 +542,10 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=F
     td = yfcd.intervalToTimedelta[interval]
     if istr.endswith('h') or istr.endswith('m'):
         if td > timedelta(minutes=30):
-            # align = '30m'
-            align = -pd.Timedelta(minutes=30)
+            align = "-30m"
         else:
-            # align = istr
-            align = -pd.Timedelta(yfcd.intervalToTimedelta[interval])
-        # ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, ignore_breaks=ignore_breaks, align=align)
-        ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, ignore_breaks=ignore_breaks, align=align, align_pm=align)
+            align = "-" + istr
+        ti = cal.trading_index(start_d.isoformat(), (end_d-td_1d).isoformat(), period=istr, intervals=True, force_close=True, ignore_breaks=ignore_breaks, align=align)
         if len(ti) == 0:
             return None
         # Transfer IntervalIndex to DataFrame so can modify
@@ -868,7 +865,6 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, ignore_breaks=Fals
     # debug = True
 
     if debug:
-        print("")
         if len(ts) == 0:
             print("GetTimestampCurrentInterval_batch(ts=[], interval={}, weeklyUseYahooDef={})".format(interval, weeklyUseYahooDef))
         else:
@@ -1021,15 +1017,12 @@ def GetTimestampNextInterval(exchange, ts, interval, ignore_breaks=False, weekly
         if exchange == "TLV":
             istr = yfcd.intervalToString[interval]
             if td > timedelta(minutes=30):
-                # align = '30m'
-                align = -pd.Timedelta(minutes=30)
+                align = "-30m"
             else:
-                # align = istr
-                align = -pd.Timedelta(yfcd.intervalToTimedelta[interval])
+                align = "-"+istr
             d = next_sesh["market_open"].date()
             cal = GetCalendarViaCache(exchange, ts.year)
-            # ti = cal.trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
-            ti = cal.trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align, align_pm=align)
+            ti = cal.trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
             next_interval_start = ti.left[0]
         else:
             next_interval_start = next_sesh["market_open"]
@@ -1083,7 +1076,6 @@ def TimestampInBreak_batch(exchange, ts, interval):
     df.index = df["_indexBackup"]
 
     return (df.index >= df["break_start"].to_numpy()) & (df.index+itd <= df["break_end"].to_numpy())
-
 
 
 def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=False, yf_lag=None):
@@ -1166,7 +1158,6 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     # debug = True
 
     if debug:
-        print("")
         print("CalcIntervalLastDataDt_batch(interval={}, yf_lag={})".format(interval, yf_lag))
 
     if yf_lag is not None:

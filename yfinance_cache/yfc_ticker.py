@@ -10,8 +10,7 @@ import numpy as np
 import datetime
 from zoneinfo import ZoneInfo
 import os
-from time import perf_counter
-from tqdm import tqdm
+# from time import perf_counter
 
 # TODO: Ticker: add method to delete ticker from cache
 
@@ -291,13 +290,13 @@ class Ticker:
         return self._histories_manager.GetHistory(interval)._getCachedPrices()
 
 
-    def _verifyCachedPrices_all(self, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
+    def _verify_cached_prices(self, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         interval = yfcd.Interval.Days1
         cache_key = "history-"+yfcd.intervalToString[interval]
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verifyCachedPrices_all(tkr={self.ticker})"
+        log_msg = f"YFC: _verify_cached_prices(tkr={self.ticker})"
         if self._trace:
             self._trace_depth += 1
             print(" "*self._trace_depth + log_msg)
@@ -312,20 +311,20 @@ class Ticker:
         # First verify 1d
         # print(f"- {yfcd.intervalToString[interval]}")
         dt0 = self._histories_manager.GetHistory(interval)._getCachedPrices().index[0]
-        v = self._verifyCachedPrices(interval, correct, discard_old, quiet, debug)
+        v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
         if correct:
             # self.history(start=dt0.date())
             self.history(start=dt0.date(), quiet=quiet)
         #
         # repeat verification, because 'fetch backporting' may be buggy
-        v = self._verifyCachedPrices(interval, correct, discard_old, quiet, debug)
+        v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
         if not v and correct:
             # Rows were removed so re-fetch. Only do for 1d data
             # self.history(start=dt0.date())
             self.history(start=dt0.date(), quiet=quiet)
         #
         # verification should now pass, no exception
-        v = self._verifyCachedPrices(interval, correct, discard_old, quiet, debug)
+        v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
         if not v:
             raise Exception(f"{self.ticker}: 1d failing to fetch & verify")
 
@@ -341,7 +340,7 @@ class Ticker:
             if not yfcm.IsDatumCached(self.ticker, cache_key):
                 continue
             # print(f"- {istr}")
-            vi = self._verifyCachedPrices(interval, correct, discard_old, quiet, debug)
+            vi = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
 
             # Try a fetch and ensure re-verify. Ideally wouldn't do this, but it is finding bugs.
             try:
@@ -351,19 +350,19 @@ class Ticker:
                 else:
                     # self.history(interval=interval, period="1mo")
                     self.history(interval=interval, period="1mo", quiet=quiet)
-                vi = self._verifyCachedPrices(interval, correct, discard_old, quiet, debug)
+                vi = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
             except yfcd.NoPriceDataInRangeException as e:
                 pass
             
             v = v and vi
 
         if self._trace:
-            print(" "*self._trace_depth + f"YFC: _verifyCachedPrices_all() returning {v}")
+            print(" "*self._trace_depth + f"YFC: _verify_cached_prices() returning {v}")
             self._trace_depth -= 1
 
         return v
 
-    def _verifyCachedPrices(self, interval, correct=False, discard_old=False, quiet=True, debug=False):
+    def _verify_cached_prices_interval(self, interval, correct=False, discard_old=False, quiet=True, debug=False):
         # TODO: iterate over all intervals, but only once I'm sure verify is 100% solid. 
         #       - I remember needing 1d verified first => re-fetch after correction before verifying other intervals?
         if isinstance(interval, str):
@@ -376,7 +375,7 @@ class Ticker:
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verifyCachedPrices(tkr={self.ticker}, interval={istr})"
+        log_msg = f"YFC: _verify_cached_prices_interval(tkr={self.ticker}, interval={istr})"
         if self._trace:
             self._trace_depth += 1
             print(" "*self._trace_depth + log_msg)
@@ -389,7 +388,7 @@ class Ticker:
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(correct, discard_old, quiet, debug)
 
         if self._trace:
-            print(" "*self._trace_depth + f"YFC: _verifyCachedPrices() returning {v}")
+            print(" "*self._trace_depth + f"YFC: _verify_cached_prices_interval() returning {v}")
             self._trace_depth -= 1
 
         return v
@@ -687,7 +686,7 @@ class Ticker:
         return self._yf_lag
 
 
-def verify_cached_tickers(session=None, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
+def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
     """
     :Parameters:
         session:
@@ -714,73 +713,56 @@ def verify_cached_tickers(session=None, resume_from_tkr=None, debug_tkr=None, de
 
     if debug_tkr is not None:
         tkrs = [debug_tkr]
-    elif resume_from_tkr is not None:
-        tkrs = np.array(sorted(tkrs))
-        tkrs = tkrs[np.searchsorted(tkrs, resume_from_tkr, side="left"):]
+    else:
+        tkrs = sorted(tkrs)
+        if resume_from_tkr is not None:
+            tkrs = np.array(tkrs)
+            tkrs = tkrs[np.searchsorted(tkrs, resume_from_tkr, side="left"):]
 
     if debug_tkr is not None:
         tkrs = [debug_tkr]
-    # for tkr in tkrs:
-    num_tkrs_verified = 0
-    pc_start = perf_counter()
-    pc_timestamps = [pc_start]
-    pc_step = 20
-    # for i in range(len(tkrs)):
-    #     tkr = tkrs[i]
-        # print(f"{tkr}: verifying ...")
-        # if i > 0 and i%pc_step == 0:
-        #     # seconds_per_tkr = (i+1)/(perf_counter()-pc_start)
-        #     pc_timestamps.append(perf_counter())
-        #     if len(pc_timestamps) == 1:
-        #         seconds_per_tkr = pc_step/(pc_timestamps[1]-pc_timestamps[0])
-        #     else:
-        #         seconds_per_tkr = (pc_step*2)/(pc_timestamps[-1]-pc_timestamps[-3])
-
-        #     print('-'*40)
-        #     print(f"Avg time to verify ticker = {seconds_per_tkr:.1f} seconds")
-        #     seconds_to_complete = (len(tkrs)-i-1)*seconds_per_tkr
-        #     if seconds_to_complete > 60:
-        #         minutes_to_complete = seconds_to_complete//60
-        #         seconds_to_complete = seconds_to_complete%60
-        #         print(f"Estimated time to complete = {minutes_to_complete:.0f}m {seconds_to_complete:.0f}s")
-        #     else:
-        #         print(f"Estimated time to complete = {seconds_to_complete:.0f}s")
-        #     print('-'*40)
-    # for i in tqdm(range(len(tkrs))):
-    t = tqdm(range(len(tkrs)))
+    tqdm_loaded = False
+    try:
+        from tqdm import tqdm
+        t = tqdm(range(len(tkrs)))
+        tqdm_loaded = True
+    except ModuleNotFoundError:
+        print("Install Python module 'tqdm' to print progress bar + estimated time to completion")
+        t = range(len(tkrs))
     for i in t:
         tkr = tkrs[i]
-        t.set_description("Verifying " + tkr)
+        if tqdm_loaded:
+            t.set_description("Verifying " + tkr)
 
         # dat = Ticker(tkr)
         dat = Ticker(tkr, session=session)
 
         # if debug_tkr is not None:
-        #     v = dat._verifyCachedPrices_all(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
+        #     v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
         #     quit()
 
         # print(">>> FIRST PASS")
         try:
-            v = dat._verifyCachedPrices_all(correct=True, discard_old=True, quiet=True, debug_interval=debug_interval)
+            v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=True, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
             print(str(e) + f" - is it delisted? Aborting verification so you can investigate.")
             return
         except Exception as e:
             print("FIRST PASS FAILED: " + str(e))
             print("re-running with debug=True")
-            v = dat._verifyCachedPrices_all(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
+            v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
             quit()
         # sleep(0.5)
         # sleep(1)
         # Second pass is important, because some cached data may have been div-adjusted without 
         # record of that dividend. Well the first verify will re-apply that dividend, so 
         # potential for new mismatches to correct.
-        v = dat._verifyCachedPrices_all(correct=True, discard_old=False, quiet=True, debug_interval=debug_interval)
+        v = dat._verify_cached_prices(correct=True, discard_old=False, quiet=True, debug_interval=debug_interval)
         # sleep(0.5)
         # sleep(1)
-        # v = dat._verifyCachedPrices_all(correct=True, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+        # v = dat._verify_cached_prices(correct=True, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
         if not v:
-            v = dat._verifyCachedPrices_all(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+            v = dat._verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
             raise Exception(f"{tkr}: verify failing")
 
 

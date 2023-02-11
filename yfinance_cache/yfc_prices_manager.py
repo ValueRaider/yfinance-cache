@@ -458,7 +458,10 @@ class PriceHistory:
         debug_yfc = self._debug
         # debug_yfc = True
 
-        log_msg = f"PriceHistory-{self.istr}.get(tkr={self.ticker}, start={start}, end={end}, period={period}, prepost={prepost}, repair={repair})"
+        if period is not None:
+            log_msg = f"PriceHistory-{self.istr}.get(tkr={self.ticker}, period={period}, max_age={max_age}, prepost={prepost}, repair={repair})"
+        else:
+            log_msg = f"PriceHistory-{self.istr}.get(tkr={self.ticker}, start={start}, end={end}, max_age={max_age}, prepost={prepost}, repair={repair})"
         if tc is not None:
             tc.Enter(log_msg)
         elif debug_yfc:

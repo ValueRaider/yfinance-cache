@@ -1,8 +1,6 @@
 import os
 import pickle
 import json
-# from pprint import pprint
-# from enum import Enum
 import appdirs
 
 from datetime import datetime, date, timedelta
@@ -34,10 +32,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
     global cacheDirpath
-    # cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
-    # cacheDirpath = os.path.join(appdirs.user_cache_dir(), "yfinance-cache-testing")
-    # cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache.backup")
-    cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache-copy")
+    cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
 
 
 def SetCacheDirpath(dp):
@@ -90,8 +85,6 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
             fp = fp_base + ".json"
         elif pkl_exists:
             fp = fp_base + ".pkl"
-    # if fp is None:
-    #   raise Exception(f"GetFilepath({ticker}, {objectName}) returning None")
     return fp
 def GetFilepathPacked(ticker, objectName):
     if not IsObjectInPackedData(objectName):
@@ -320,10 +313,8 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
     if pkData is None:
         pkData = {}
         objData = None
-        # data = None
     elif objectName in pkData:
         objData = pkData[objectName]
-        # data   = objData["data"]
         if metadata is None:
             metadata = objData["metadata"] if "metadata" in objData else None
         if expiry is None:
@@ -352,7 +343,6 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
 
 
 def ReadCacheMetadata(ticker, objectName, key):
-    # data = None
     md = None
     if IsObjectInPackedData(objectName):
         pkData = _ReadPackedData(ticker, objectName)
