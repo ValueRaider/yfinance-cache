@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcal
+from copy import deepcopy
 
 import pandas as pd
 import numpy as np
@@ -512,7 +513,6 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=F
         end_d = end.astimezone(tz).date() + td_1d
 
     # First look in cache:
-    cache_key = None
     cache_key = (exchange, interval, start_d, end_d, weeklyUseYahooDef)
     if cache_key in schedIntervalsCache:
         s = schedIntervalsCache[cache_key]

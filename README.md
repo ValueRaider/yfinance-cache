@@ -1,3 +1,5 @@
+# IMPORTANT: Current version has bugs in applying new dividends and splits to cached data, just be aware. I have a big update almost ready that will fix this, and introduce 'data verification'. 
+
 # yfinance-cache
 Caching wrapper for yfinance module. Intelligent caching, not dumb caching of web requests:
 - If requested data not in cache, `yfinance` is called

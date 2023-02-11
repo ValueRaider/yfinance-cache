@@ -454,4 +454,3 @@ def _fix_dividend_adjust():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
         pass
-
