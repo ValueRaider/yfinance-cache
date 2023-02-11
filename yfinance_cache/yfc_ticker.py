@@ -196,11 +196,11 @@ class Ticker:
         hist = self._histories_manager.GetHistory(interval)
         interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
         if period is not None:
-            h = hist.get(start=None, end=None, period=period, quiet=quiet)
+            h = hist.get(start=None, end=None, period=period, max_age=max_age, quiet=quiet)
         elif interday:
-            h = hist.get(start_d, end_d, period=None, quiet=quiet)
+            h = hist.get(start_d, end_d, period=None, max_age=max_age, quiet=quiet)
         else:
-            h = hist.get(start, end, period=None, quiet=quiet)
+            h = hist.get(start, end, period=None, max_age=max_age, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
             raise Exception("history() is exiting without price data")
 

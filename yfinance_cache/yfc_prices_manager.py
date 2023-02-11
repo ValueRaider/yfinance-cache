@@ -1825,6 +1825,7 @@ class PriceHistory:
                 if df is not None and not df.empty:
                     if pstr == "max":
                         found_listing_day = True
+                        listing_day = df.index[0]
                     else:
                         if pstr is not None:
                             fetch_start, fetch_end_d = yfct.MapPeriodToDates(self.exchange, yfcd.periodStrToEnum[pstr])
@@ -1858,7 +1859,7 @@ class PriceHistory:
                                 msg = "- requested date range was before listing date"
                                 tc.Print(msg) if tc is not None else print(msg)
                             return None
-                if found_listing_day:
+                if found_listing_day and not start is None:
                     # Apply to fetch start
                     if isinstance(start, datetime):
                         listing_date = datetime.combine(listing_day, time(0), self.tz)
