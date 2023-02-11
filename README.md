@@ -47,9 +47,9 @@ msft.verify_cached_prices(
 	debug=False,  # enable even more detail for debugging 
 	debug_interval=None)  # only verify this interval (note: 1d always verified)
 
-# Verify prices of entire cache, ticker symbols processed alphabetically
+# Verify prices of entire cache, ticker symbols processed alphabetically. Recommend using `requests_cache` session.
 yfc.verify_cached_tickers_prices(
-	session=None,
+	session=None,  # recommend you provide a requests_cache here
 	resume_from_tkr=None,  # in case you aborted verification, can jump ahead
 	debug_tkr=None,  # only verify this ticker symbol
 	debug_interval=None)
