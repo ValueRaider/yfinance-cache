@@ -15,9 +15,6 @@ from . import yfc_dat as yfcd
 # from . import yfc_ticker as yfc
 
 
-dbg_tkr = None
-# dbg_tkr = "QDEL"
-
 
 def _move_cache_dirpath():
     oldCacheDirpath = os.path.join(appdirs.user_cache_dir(), "yfinance-cache")
@@ -45,10 +42,7 @@ def _sanitise_prices():
     # print("Sanitising prices ...")
     # Update: run silently
 
-    if dbg_tkr is not None:
-        tkrs = [dbg_tkr]
-    else:
-        tkrs = os.listdir(d)
+    tkrs = os.listdir(d)
     for tkr in tkrs:
         tkrd = os.path.join(d, tkr)
 
@@ -126,10 +120,7 @@ def _prune_incomplete_daily_intervals():
     print("Scanning cache for incomplete daily+ price data ...")
     tkrs_repaired = set()
 
-    if dbg_tkr is not None:
-        tkrs = [dbg_tkr]
-    else:
-        tkrs = os.listdir(d)
+    tkrs = os.listdir(d)
     for tkr in tkrs:
         tkrd = os.path.join(d, tkr)
         for f in os.listdir(tkrd):
@@ -217,10 +208,7 @@ def _separate_events_from_prices():
     print("")
     print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker.verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
 
-    if dbg_tkr is not None:
-        tkrs = [dbg_tkr]
-    else:
-        tkrs = os.listdir(d)
+    tkrs = os.listdir(d)
     for tkr in tkrs:
         tkrd = os.path.join(d, tkr)
 

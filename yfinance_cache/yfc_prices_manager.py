@@ -67,7 +67,7 @@ class HistoriesManager:
                 else:
                     self.histories[key] = PriceHistory(self, self.ticker, self.exchange, self.tzName, key, self.session, self.proxy, repair=True, contiguous=False)
             elif key == "Events":
-                self.histories[key] = EventsHistory(self, self.ticker, self.exchange, self.tzName, self.session, self.proxy)
+                self.histories[key] = EventsHistory(self, self.ticker, self.exchange, self.tzName, self.proxy)
             else:
                 raise Exception(f"Not implemented code path for key='{key}'")
 
@@ -75,7 +75,7 @@ class HistoriesManager:
 
 
 class EventsHistory:
-    def __init__(self, manager, ticker, exchange, tzName, session, proxy):
+    def __init__(self, manager, ticker, exchange, tzName, proxy):
         if not isinstance(manager, HistoriesManager):
             raise TypeError(f"'manager' must be HistoriesManager not {type(manager)}")
         yfcu.TypeCheckStr(ticker, "ticker")
@@ -86,7 +86,6 @@ class EventsHistory:
         self.ticker = ticker
         self.exchange = exchange
         self.tzName = tzName
-        self.session = session
         self.proxy = proxy
 
         self.tz = ZoneInfo(self.tzName)
@@ -196,7 +195,7 @@ class EventsHistory:
                 tc.Enter(f"UpdateSplits(n={n})")
 
         debug = False
-        debug = True
+        # debug = True
 
         yfcu.TypeCheckDataFrame(splits_df, "splits_df")
         splits_df = splits_df.copy()
@@ -247,7 +246,7 @@ class EventsHistory:
                 tc.Enter(f"UpdateDividends(n={n})")
 
         debug = False
-        debug = True
+        # debug = True
 
         yfcu.TypeCheckDataFrame(divs_df, "divs_df")
         divs_df = divs_df.copy()
@@ -454,7 +453,7 @@ class PriceHistory:
                 if start >= tomorrow_d:
                     return None
 
-        debug = False
+        debug_yf = False
         debug_yfc = self._debug
         # debug_yfc = True
 
@@ -582,16 +581,16 @@ class PriceHistory:
             # Simple, just fetch the requested data
 
             if period is not None:
-                h = self._fetchYfHistory(pstr, None, None, prepost, debug)
+                h = self._fetchYfHistory(pstr, None, None, prepost, debug_yf)
                 if h is None:
                     raise Exception(f"{self.ticker}: Failed to fetch period={period}")
             else:
                 # if self.interval == yfcd.Interval.Days1:
                 if self.contiguous:
                     # Ensure daily always up-to-now
-                    h = self._fetchYfHistory(pstr, start, tomorrow, prepost, debug)
+                    h = self._fetchYfHistory(pstr, start, tomorrow, prepost, debug_yf)
                 else:
-                    h = self._fetchYfHistory(pstr, start, end, prepost, debug)
+                    h = self._fetchYfHistory(pstr, start, end, prepost, debug_yf)
                 if h is None:
                     raise Exception(f"{self.ticker}: Failed to fetch date range {start}->{end}")
             # h_modified = True
@@ -814,9 +813,9 @@ class PriceHistory:
                     # quiet = not debug_yfc
                 # if self.interval == yfcd.Interval.Days1:
                 if self.contiguous:
-                    self._fetchAndAddRanges_contiguous(pstr, ranges_to_fetch, prepost, debug, quiet=quiet)
+                    self._fetchAndAddRanges_contiguous(pstr, ranges_to_fetch, prepost, debug_yf, quiet=quiet)
                 else:
-                    self._fetchAndAddRanges_sparse(pstr, ranges_to_fetch, prepost, debug, quiet=quiet)
+                    self._fetchAndAddRanges_sparse(pstr, ranges_to_fetch, prepost, debug_yf, quiet=quiet)
 
         if "Adj Close" in self.h.columns:
             raise Exception("Adj Close in self.h")
@@ -1611,13 +1610,13 @@ class PriceHistory:
         yfcu.TypeCheckBool(prepost, "prepost")
         yfcu.TypeCheckBool(debug, "debug")
 
-        _debug = False
-        # _debug = True
+        debug_yfc = False
+        # debug_yfc = True
 
         log_msg = f"_fetchYfHistory-{self.istr}(pstr={pstr} , {start}->{end}, prepost={prepost})"
         if tc is not None:
             tc.Enter(log_msg)
-        elif _debug:
+        elif debug_yfc:
             print("")
             print(log_msg)
 
@@ -1705,12 +1704,12 @@ class PriceHistory:
                     listing_date_check_tol = yfcd.listing_date_check_tols[self.interval]
                     fetch_start -= 2*listing_date_check_tol
                     fetch_end += 2*listing_date_check_tol
-                    if _debug:
+                    if debug_yfc:
                         msg = "- first fetch failed, trying again with wider range: {} -> {}".format(fetch_start, fetch_end)
                         tc.Print(msg) if tc is not None else print(msg)
                     try:
                         df_wider = self._fetchYfHistory_dateRange(fetch_start, fetch_end, prepost, debug)
-                        if _debug:
+                        if debug_yfc:
                             msg = "- second fetch returned:"
                             tc.Print(msg) if tc is not None else print(msg)
                             print(df_wider)
@@ -1723,6 +1722,9 @@ class PriceHistory:
                             raise e
 
                     if df_wider is not None:
+                        if debug_yfc:
+                            print("- detected listing date =", df_wider.index[0].date())
+                        yfcm.StoreCacheDatum(self.ticker, "listing_date", df_wider.index[0].date())
                         df = df_wider
                         if fetch_start is not None:
                             df = df.loc[fetch_start_dt:]
@@ -1759,13 +1761,15 @@ class PriceHistory:
                             s = s.drop(s.index[-1])
                         # fetch_ranges = yfcu.ChunkDatesIntoYfFetches(start_d, end_d, s, maxRange.days, overlapDays=2)
                         fetch_ranges = yfcu.ChunkDatesIntoYfFetches(s, maxRange.days, overlapDays=2)
-                        if _debug:
+                        if debug_yfc:
                             print("- fetch_ranges:")
                             pprint(fetch_ranges)
                         # Don't need to fetch all of padding days, just the end/start of session
                         # fetch_ranges[0][0] = s["close"].iloc[0] - timedelta(hours=2)
                         # fetch_ranges[-1][1] = s["open"].iloc[-1] + timedelta(hours=2)
-                        fetch_ranges[0]["fetch start"] = s["close"].iloc[0] - timedelta(hours=2)
+                        # fetch_ranges[0]["fetch start"] = s["close"].iloc[0] - timedelta(hours=2)
+                        # Update: need start further back for low-volume tickers
+                        fetch_ranges[0]["fetch start"] = s["open"].iloc[0]
                         fetch_ranges[-1]["fetch end"] = s["open"].iloc[-1] + timedelta(hours=2)
                         # print("- fetch_ranges:")
                         # pprint(fetch_ranges)
@@ -1774,7 +1778,7 @@ class PriceHistory:
                             maxLookback_dt = (pd.Timestamp.utcnow() - maxLookback).tz_convert(tz_exchange)
                             for i in range(len(fetch_ranges)-1, -1, -1):
                                 if fetch_ranges[i]["fetch start"] < maxLookback_dt:
-                                    if _debug:
+                                    if debug_yfc:
                                         print("- capping start to maxLookback_dt")
                                     # fetch_ranges[i]["fetch start"] = maxLookback_dt
                                     fetch_ranges[i]["fetch start"] = maxLookback_dt.ceil("D")
@@ -1784,7 +1788,7 @@ class PriceHistory:
 
                 df = None
                 for r in fetch_ranges:
-                    if _debug:
+                    if debug_yfc:
                         print("- fetching:")
                         print(r)
                     fetch_start = r["fetch start"]
@@ -1792,7 +1796,7 @@ class PriceHistory:
                     dfr = self._fetchYfHistory_dateRange(fetch_start, fetch_end, prepost, debug)
                     # Discard padding days:
                     dfr = dfr.loc[r["core start"] : r["core end"] - timedelta(milliseconds=1)]
-                    if _debug:
+                    if debug_yfc:
                         print("- dfr after discarding padding days:")
                         print(dfr[[c for c in ["Open", "Low", "High", "Close", "Dividends", "Volume"] if c in dfr.columns]])
                     if df is None:
@@ -1809,7 +1813,7 @@ class PriceHistory:
             # Convert to ZoneInfo
             df.index = df.index.tz_convert(tz_exchange)
 
-        if _debug:
+        if debug_yfc:
             if df is None:
                 msg = "- YF returned None"
                 tc.Print(msg) if tc is not None else print(msg)
@@ -1845,12 +1849,12 @@ class PriceHistory:
                             #     start_expected -= timedelta(days=start_expected.weekday())
                             if (df.index[0].date() - start_expected) > tol:
                                 found_listing_day = True
-                    if _debug:
+                    if debug_yfc:
                         msg = "- found_listing_day = {}".format(found_listing_day)
                         tc.Print(msg) if tc is not None else print(msg)
                     if found_listing_day:
                         listing_day = df.index[0].date()
-                        if _debug:
+                        if debug_yfc:
                             msg = "YFC: inferred listing_date = {}".format(listing_day)
                             tc.Print(msg) if tc is not None else print(msg)
                         yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_day)
@@ -1858,7 +1862,7 @@ class PriceHistory:
                     if (listing_day is not None) and first_fetch_failed:
                         if end <= listing_day:
                             # Aha! Requested date range was entirely before listing
-                            if _debug:
+                            if debug_yfc:
                                 msg = "- requested date range was before listing date"
                                 tc.Print(msg) if tc is not None else print(msg)
                             return None
@@ -1888,7 +1892,7 @@ class PriceHistory:
                 # For missing intervals during last 2 weeks, if few in number, then fill with NaNs
                 # For missing intervals older than 2 weeks, fill all with NaNs
 
-                if _debug:
+                if debug_yfc:
                     n = intervals_missing_df.shape[0]
                     if n <= 3:
                         msg = f"- YF data missing {n} intervals: {intervals_missing_df['open'].to_numpy()}"
@@ -1925,7 +1929,7 @@ class PriceHistory:
                         else:
                             threshold = 2
                     if nm <= threshold:
-                        if _debug:
+                        if debug_yfc:
                             msg = "- found missing intervals, inserting nans:"
                             tc.Print(msg) if tc is not None else print(msg)
                             print(intervals_missing_df_recent)
@@ -1935,7 +1939,7 @@ class PriceHistory:
                             missing_intervals_to_add = np.append(missing_intervals_to_add, intervals_missing_df_recent["open"].to_numpy())
 
                 if missing_intervals_to_add is not None:
-                    if _debug:
+                    if debug_yfc:
                         n = missing_intervals_to_add.shape[0]
                         if n <= 3:
                             msg = f"- insertings NaNs for {n} missing intervals: {missing_intervals_to_add}"
@@ -2001,7 +2005,7 @@ class PriceHistory:
                 f_in_break = yfct.TimestampInBreak_batch(self.exchange, yfIntervalStarts, self.interval)
                 if f_in_break.any():
                     # Discard these
-                    if _debug:
+                    if debug_yfc:
                         msg = "- dropping rows in break times"
                         tc.Print(msg) if tc is not None else print(msg)
                     yfIntervalStarts = yfIntervalStarts[~f_in_break]
@@ -2052,7 +2056,7 @@ class PriceHistory:
                     f_vol0 = df2["Volume"] == 0
                     f_drop = f_vol0 & f_close
                     if f_drop.any():
-                        if _debug:
+                        if debug_yfc:
                             msg = "- dropping 0-volume rows starting at market close"
                             tc.Print(msg) if tc is not None else print(msg)
                         yfIntervalStarts = yfIntervalStarts[~f_drop]
@@ -2108,7 +2112,7 @@ class PriceHistory:
                     # Solution = drop:
                     f_na_zeroVol = f_na & (df["Volume"] == 0).to_numpy()
                     if f_na_zeroVol.any():
-                        if _debug:
+                        if debug_yfc:
                             msg = "- dropping {} 0-volume rows with no matching interval".format(sum(f_na_zeroVol))
                             tc.Print(msg) if tc is not None else print(msg)
                         f_drop = f_na_zeroVol
@@ -2127,7 +2131,7 @@ class PriceHistory:
                                 if (df.loc[dt, yfcd.yf_data_cols] == df.loc[last_dt, yfcd.yf_data_cols]).all():
                                     f_drop[i] = True
                         if f_drop.any():
-                            if _debug:
+                            if debug_yfc:
                                 msg = "- dropping rows with no interval that are identical to previous row"
                                 tc.Print(msg) if tc is not None else print(msg)
                             yfIntervalStarts = yfIntervalStarts[~f_drop]
@@ -2184,7 +2188,6 @@ class PriceHistory:
                         accept = True
                     else:
                         accept = click.confirm(msg, default=False)
-                        # accept = True
                     if accept:
                         for idx in np.where(f_na)[0]:
                             dt = intervals.index[idx]
@@ -2222,7 +2225,7 @@ class PriceHistory:
         log_msg = f"_fetchYfHistory() returning DF {df.index[0]} -> {df.index[-1]}"
         if tc is not None:
             tc.Exit(log_msg)
-        elif _debug:
+        elif debug_yfc:
             print(log_msg)
 
         return df

@@ -423,8 +423,6 @@ class Ticker:
         self._info = self.dat.info
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
-        yfct.SetExchangeTzName(self._info["exchange"], self._info["exchangeTimezoneName"])
-
         return self._info
 
     @property
@@ -441,7 +439,16 @@ class Ticker:
                 return self._fast_info
 
         # self._fast_info = self.dat.fast_info
-        self._fast_info = {k:self.dat.fast_info[k] for k in self.dat.fast_info.keys()}
+        self._fast_info = {}
+        for k in self.dat.fast_info.keys():
+            try:
+                self._fast_info[k] = self.dat.fast_info[k]
+            except Exception as e:
+                if "decrypt" in str(e):
+                    pass
+                else:
+                    print(f"TICKER = {self.ticker}")
+                    raise
         yfcm.StoreCacheDatum(self.ticker, "fast_info", self._fast_info)
 
         yfct.SetExchangeTzName(self._fast_info["exchange"], self._fast_info["timezone"])
@@ -733,6 +740,8 @@ def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=N
         tkr = tkrs[i]
         if tqdm_loaded:
             t.set_description("Verifying " + tkr)
+        else:
+            print(f"{tkr} : {i+1}/{len(tkrs)}")
 
         # dat = Ticker(tkr)
         dat = Ticker(tkr, session=session)
