@@ -1088,7 +1088,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
     # debug = True
 
     if debug:
-        print("CalcIntervalLastDataDt(intervalStart={}, interval={})".format(intervalStart, interval))
+        print(f"CalcIntervalLastDataDt(exchange={exchange}, intervalStart={intervalStart}, interval={interval})")
 
     irange = GetTimestampCurrentInterval(exchange, intervalStart, interval, ignore_breaks=ignore_breaks)
     if irange is None:
@@ -1107,6 +1107,18 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
         print("- intervalSched:")
         pprint(intervalSched)
 
+    if yf_lag is not None:
+        yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
+    else:
+        yf_lag = GetExchangeDataDelay(exchange)
+
+    if intervalSched is None or intervalSched.empty:
+        # Exchange closed so data cannot update/expire
+        lastDataDt = irange["interval_close"]
+        if not isinstance(lastDataDt, pd.Timestamp):
+            lastDataDt = pd.Timestamp(lastDataDt).tz_localize(tz)
+        return lastDataDt + yf_lag
+
     intervalEnd = irange["interval_close"]
 
     # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
@@ -1122,11 +1134,6 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
         intervalEnd_dt = intervalEnd
     else:
         intervalEnd_dt = datetime.combine(intervalEnd, time(0), tz)
-
-    if yf_lag is not None:
-        yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
-    else:
-        yf_lag = GetExchangeDataDelay(exchange)
 
     lastDataDt = min(intervalEnd_dt, intervalSched["close"][-1]) + yf_lag
 
@@ -1282,7 +1289,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, max_age, exchange, interval
 
     if debug:
         print("") ; print("")
-        print("IsPriceDatapointExpired(intervalStart={}, fetch_dt={}, max_age={}, triggerExpiryOnClose={}, dt_now={})".format(intervalStart, fetch_dt, max_age, triggerExpiryOnClose, dt_now))
+        print(f"IsPriceDatapointExpired(intervalStart={intervalStart}, fetch_dt={fetch_dt}, max_age={max_age}, interval={interval}, triggerExpiryOnClose={triggerExpiryOnClose}, dt_now={dt_now})")
 
     if dt_now is not None:
         yfcu.TypeCheckDatetime(dt_now, "dt_now")
