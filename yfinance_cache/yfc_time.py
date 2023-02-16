@@ -330,6 +330,7 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
     else:
         end_d = end.astimezone(tz).date() + td_1d
         # end_dt = end
+    dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
 
     week_starts_sunday = (exchange in ["TLV"]) and (not weeklyUseYahooDef)
     if debug:
@@ -397,7 +398,11 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         next_sesh = cal.next_session(weeks[k][-1].date())
         if debug:
             print(f"- next_sesh of {weeks[k][-1].date()} = {next_sesh}")
-        last_week_cutoff = next_sesh <= k.end_time
+        if k.end_time.tz_localize(tz) >= dt_now:
+            # Week ends in future so inevitably cut off but allow it
+            pass
+        elif next_sesh <= k.end_time:
+            last_week_cutoff = True
 
     else:
         # Add one day to start and end. If returns more open days, then means
@@ -428,7 +433,10 @@ def GetExchangeWeekSchedule(exchange, start, end, weeklyUseYahooDef=True):
         kn1 = sorted(list(weeks.keys()))[-1]
         mn1 = sorted(list(weeks2.keys()))[-1]
         if kn1 == mn1:
-            if weeks2[mn1][-1] > weeks[kn1][-1]:
+            if weeks[kn1][-1].tz_localize(tz) >= dt_now:
+                # Week ends in future so inevitably cut off but allow it
+                pass
+            elif weeks2[mn1][-1] > weeks[kn1][-1]:
                 last_week_cutoff = True
 
     if debug:
