@@ -958,7 +958,7 @@ class PriceHistory:
         h2_pre = None ; h2_post = None
         if range_pre is not None:
             r = range_pre
-            check_for_listing = False
+            # check_for_listing = False
             try:
                 h2_pre = self._fetchYfHistory(pstr, r[0], r[1], prepost, debug)
             except yfcd.NoPriceDataInRangeException:
@@ -971,23 +971,23 @@ class PriceHistory:
                     h2_pre = None
                 elif (range_post is None) and (r[1]-r[0] < td_1d*7) and (r[1]-r[0] > td_1d*3):
                     # Small date range, potentially trying to fetch before listing data
-                    check_for_listing = True
+                    # check_for_listing = True
                     h2_pre = None
                 else:
                     raise
-            if check_for_listing:
-                df = None
-                try:
-                    df = self._fetchYfHistory(pstr, r[0], r[1]+td_1d*7, prepost, debug)
-                except Exception:
-                    # Discard
-                    pass
-                if df is not None:
-                    # Then the exception above occurred because trying to fetch before listing dated!
-                    yfcm.StoreCacheDatum(self.ticker, "listing_date", self.h.index[0].date())
-                else:
-                    # Then the exception above was genuine and needs to be propagated
-                    raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, r[0], r[1])
+            # if check_for_listing:
+            #     df = None
+            #     try:
+            #         df = self._fetchYfHistory(pstr, r[0], r[1]+td_1d*7, prepost, debug)
+            #     except Exception:
+            #         # Discard
+            #         pass
+            #     if df is not None:
+            #         # Then the exception above occurred because trying to fetch before listing dated!
+            #         yfcm.StoreCacheDatum(self.ticker, "listing_date", self.h.index[0].date())
+            #     else:
+            #         # Then the exception above was genuine and needs to be propagated
+            #         raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, r[0], r[1])
 
         if range_post is not None:
             r = range_post
@@ -1003,6 +1003,11 @@ class PriceHistory:
                     h2_post = None
                 else:
                     raise
+
+        listing_date = yfcm.ReadCacheDatum(self.ticker, "listing_date")
+        if listing_date is None:
+            listing_date = self.dat.history_metadata["firstTradeDate"]
+            yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_date.date())
 
         if h2_post is not None:
             # De-adjust the new data, and backport any new events in cached data

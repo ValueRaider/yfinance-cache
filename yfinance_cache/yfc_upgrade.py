@@ -14,6 +14,7 @@ from . import yfc_cache_manager as yfcm
 from . import yfc_dat as yfcd
 # from . import yfc_ticker as yfc
 
+import yfinance as yf
 
 
 def _move_cache_dirpath():
@@ -442,3 +443,35 @@ def _fix_dividend_adjust():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
         pass
+
+
+def _fix_listing_date():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-fixed-listing-dates")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    for tkr in os.listdir(d):
+        tkrd = os.path.join(d, tkr)
+
+        # First, recalculate dividend adjustment
+        lst_fp = os.path.join(tkrd, "listing_date.json")
+        if os.path.isfile(lst_fp):
+            dat = yf.Ticker(tkr)
+            df = dat.history(period="1d")
+            listing_date = dat.history_metadata["firstTradeDate"]
+            yfcm.StoreCacheDatum(tkr, "listing_date", listing_date.date())
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+

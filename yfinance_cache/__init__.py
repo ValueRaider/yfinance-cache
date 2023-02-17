@@ -15,5 +15,8 @@ _sanitise_prices()
 _separate_events_from_prices()
 _fix_dividend_adjust()
 
+from .yfc_upgrade import _fix_listing_date
+_fix_listing_date()
+
 # __all__ = ['Ticker', 'Period', 'Interval']
 
