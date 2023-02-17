@@ -2681,7 +2681,12 @@ class PriceHistory:
                     if debug:
                         print("- fetching df_fine via _fetchYfHistory() wrapper")
                         print(f"- - fetch_start={fetch_start} fetch_end={fetch_end}")
-                    df_fine = hist_sub._fetchYfHistory(pstr=None, start=fetch_start, end=fetch_end, prepost=prepost, debug=False, verify_intervals=False, disable_yfc_metadata=True)
+                    try:
+                        df_fine = hist_sub._fetchYfHistory(pstr=None, start=fetch_start, end=fetch_end, prepost=prepost, debug=False, verify_intervals=False, disable_yfc_metadata=True)
+                    except yfcd.NoPriceDataInRangeException as e:
+                        if debug:
+                            print("- fetch of fine price data failed:" + str(e))
+                        continue
                     if df_fine is not None:
                         adj = (df_fine["Adj Close"]/df_fine["Close"]).to_numpy()
                         for c in ["Open", "Low", "High", "Close"]:
