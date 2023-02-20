@@ -421,7 +421,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
             print(f"{n_diff}/{n} differences in column {c}")
         df_diffs = pd.DataFrame(h_ss[f_diff]).join(yf_ss[f_diff], lsuffix="_cache", rsuffix="_Yahoo")
         df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
-        df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(1).astype(str) + '%'
+        df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
         raise Exception("Need to test handling stock split mismatches - prune stock-split store?")
 
 
@@ -434,7 +434,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
             df_diffs.index = df_diffs.index.tz_convert(df.index[0].tz)
 
             df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
-            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(1).astype(str) + '%'
+            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
 
             f_diff_n = sum(f_diff)
             print(f"- {f_diff_n}/{n} sig. diffs in column {c} with rtol={rtol}")

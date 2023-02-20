@@ -296,7 +296,7 @@ class Ticker:
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verify_cached_prices(tkr={self.ticker})"
+        log_msg = f"YFC: _verify_cached_prices(tkr={self.ticker}, debug_interval={debug_interval})"
         if self._trace:
             self._trace_depth += 1
             print(" "*self._trace_depth + log_msg)
@@ -308,10 +308,16 @@ class Ticker:
 
         v = True
 
+        if debug_interval == yfcd.Interval.Days1:
+            debug = True
         # First verify 1d
-        # print(f"- {yfcd.intervalToString[interval]}")
         dt0 = self._histories_manager.GetHistory(interval)._getCachedPrices().index[0]
         v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
+        if debug_interval == yfcd.Interval.Days1:
+            if self._trace:
+                print(" "*self._trace_depth + f"YFC: _verify_cached_prices() returning {v}")
+                self._trace_depth -= 1
+            return v
         if correct:
             # self.history(start=dt0.date())
             self.history(start=dt0.date(), quiet=quiet)
@@ -329,7 +335,11 @@ class Ticker:
             raise Exception(f"{self.ticker}: 1d failing to fetch & verify")
 
         if debug_interval is not None:
-            intervals = [debug_interval]
+            if debug_interval == yfcd.Interval.Days1:
+                intervals = []
+            else:
+                intervals = [debug_interval]
+            debug = True
         else:
             intervals = yfcd.Interval
         for interval in intervals:
@@ -375,7 +385,7 @@ class Ticker:
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verify_cached_prices_interval(tkr={self.ticker}, interval={istr})"
+        log_msg = f"YFC: _verify_cached_prices_interval(tkr={self.ticker}, interval={istr}, debug={debug})"
         if self._trace:
             self._trace_depth += 1
             print(" "*self._trace_depth + log_msg)
@@ -693,7 +703,7 @@ class Ticker:
         return self._yf_lag
 
 
-def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
+def verify_cached_tickers_prices(session=None, correct=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
     """
     :Parameters:
         session:
@@ -718,6 +728,7 @@ def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=N
     # tkrs = tkrs[:20]
     # tkrs = tkrs[tkrs.index("DDOG"):]
 
+    debug = debug_tkr is not None
     if debug_tkr is not None:
         tkrs = [debug_tkr]
     else:
@@ -747,31 +758,35 @@ def verify_cached_tickers_prices(session=None, resume_from_tkr=None, debug_tkr=N
         dat = Ticker(tkr, session=session)
 
         # if debug_tkr is not None:
-        #     v = dat._verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
+        #     v = dat._verify_cached_prices(correct=correct, discard_old=correct, quiet=False, debug=debug, debug_interval=debug_interval)
         #     quit()
 
         # print(">>> FIRST PASS")
         try:
-            v = dat.verify_cached_prices(correct=True, discard_old=True, quiet=True, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(correct=correct, discard_old=correct, quiet=True, debug=debug, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
             print(str(e) + f" - is it delisted? Aborting verification so you can investigate.")
             return
         except Exception as e:
             print("FIRST PASS FAILED: " + str(e))
-            print("re-running with debug=True")
-            v = dat.verify_cached_prices(correct=True, discard_old=True, quiet=False, debug=True, debug_interval=debug_interval)
+            if not debug:
+                print("re-running with debug=True")
+                v = dat.verify_cached_prices(correct=correct, discard_old=correct, quiet=False, debug=True, debug_interval=debug_interval)
             quit()
+        if debug:
+            return
         # sleep(0.5)
         # sleep(1)
         # Second pass is important, because some cached data may have been div-adjusted without 
         # record of that dividend. Well the first verify will re-apply that dividend, so 
         # potential for new mismatches to correct.
-        v = dat.verify_cached_prices(correct=True, discard_old=False, quiet=True, debug_interval=debug_interval)
+        v = dat.verify_cached_prices(correct=correct, discard_old=False, quiet=True, debug=debug, debug_interval=debug_interval)
         # sleep(0.5)
         # sleep(1)
         # v = dat.verify_cached_prices(correct=True, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
         if not v:
-            v = dat.verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+            if correct:
+                v = dat.verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
             raise Exception(f"{tkr}: verify failing")
 
 

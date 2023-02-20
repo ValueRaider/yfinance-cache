@@ -1247,8 +1247,8 @@ class PriceHistory:
         # elif debug:
         #     print(log_msg)
 
-        def _verifyCachedPrices_exitClean():
-            log_msg = f"_verifyCachedPrices-{self.istr}() returning"
+        def _verifyCachedPrices_exitClean(result):
+            log_msg = f"_verifyCachedPrices-{self.istr}() returning {result}"
             if tc is not None:
                 tc.Exit(log_msg)
             # elif debug:
@@ -1257,7 +1257,6 @@ class PriceHistory:
         # New code: hopefully this will correct bad CDF in 1wk etc
         self._applyNewEvents()
 
-        # h = self._getCachedPrices()
         h = self.h.copy()  # working copy for comparison with YF
         h_modified = False
         h_new = self.h.copy()  # copy for storing changes
@@ -1383,7 +1382,7 @@ class PriceHistory:
             # Sometimes Yahoo doesn't return full trading data for last day if end = day after.
             # Add some more days to avoid problem.
             fetch_end += 3*td_1d
-            fetch_end = min(fetch_end, pd.Timestamp.utcnow().tz_convert(self.tzName).ceil("D").date())
+            fetch_end = min(fetch_end, dt_now.tz_convert(self.tzName).ceil("D").date())
             repair = True if debug else "silent"
             if self.intraday:
                 if self.interval == yfcd.Interval.Mins1:
@@ -1551,16 +1550,14 @@ class PriceHistory:
                 yfcm.StoreCacheDatum(self.ticker, self.cache_key, h_new)
                 self.h = self._getCachedPrices()
 
-            _verifyCachedPrices_exitClean()
+            _verifyCachedPrices_exitClean(True)
             return True
 
         # h = self.h
         h = h_new
         if correct:
             drop_dts = f_diff_all.index[f_diff_all]
-            # dtnow = pd.Timestamp.utcnow()
-            dtnow = pd.Timestamp.utcnow().tz_convert(self.tz).floor("D")
-            drop_dts_ages = dtnow - drop_dts
+            drop_dts_ages = dt_now - drop_dts
             if self.interval == yfcd.Interval.Week:
                 f = drop_dts_ages > timedelta(days=8)
             else:
@@ -1571,10 +1568,13 @@ class PriceHistory:
             if self.contiguous:
                 # Daily must always be contiguous, so drop everything from first diff
                 if len(drop_dts_not_recent) > 0:
-                    if self.interday:
-                        msg += f": dropping all rows from {drop_dts_not_recent[0].date()}"
+                    if len(drop_dts_not_recent) == 1:
+                        msg += f": dropping {drop_dts_not_recent[0].date()}"
                     else:
-                        msg += f": dropping all rows from {drop_dts_not_recent[0]}"
+                        if self.interday:
+                            msg += f": dropping all rows from {drop_dts_not_recent[0].date()}"
+                        else:
+                            msg += f": dropping all rows from {drop_dts_not_recent[0]}"
                     if tc is not None:
                         tc.Print(msg)
                     else:
@@ -1627,7 +1627,7 @@ class PriceHistory:
             yfcm.StoreCacheDatum(self.ticker, self.cache_key, h)
             self.h = self._getCachedPrices()
 
-        _verifyCachedPrices_exitClean()
+        _verifyCachedPrices_exitClean(False)
         return False
 
 
