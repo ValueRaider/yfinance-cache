@@ -666,6 +666,7 @@ class PriceHistory:
                         ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, end, self.interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
                 else:
                     # Ensure that daily data always up-to-date to now
+                    # Update: only necessary to be up-to-date to now if a fetch happens
                     dt_start = yfct.ConvertToDatetime(self.h.index[0], tz=tz_exchange)
                     dt_end = yfct.ConvertToDatetime(self.h.index[-1], tz=tz_exchange)
                     h_start = yfct.GetTimestampCurrentInterval(self.exchange, dt_start, self.interval, ignore_breaks=True, weeklyUseYahooDef=True)["interval_open"]
@@ -682,16 +683,22 @@ class PriceHistory:
                             raise Exception("Expected only one element in rangePre_to_fetch[], but = {}".format(rangePre_to_fetch))
                         rangePre_to_fetch = rangePre_to_fetch[0]
                     #
-                    target_end_d = tomorrow_d
                     rangePost_to_fetch = None
                     if self.interday:
+                        if rangePre_to_fetch is not None or end > h_end:
+                            target_end_d = tomorrow_d
+                        else:
+                            target_end_d = end
                         if h_end < target_end_d:
                             try:
                                 rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_d, self.interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
                             except yfcd.NoIntervalsInRangeException:
                                 rangePost_to_fetch = None
                     else:
-                        target_end_dt = dt_now
+                        if rangePre_to_fetch is not None or end > h_end:
+                            target_end_dt = dt_now
+                        else:
+                            target_end_dt = end
                         d = target_end_dt.astimezone(tz_exchange).date()
                         sched = yfct.GetExchangeSchedule(self.exchange, d, d + td_1d)
                         if (sched is not None) and (not sched.empty) and (dt_now > sched["open"].iloc[0]):
