@@ -370,13 +370,22 @@ def WriteCacheMetadata(ticker, objectName, key, value):
     if IsObjectInPackedData(objectName):
         return WriteCachePackedMetadata(ticker, objectName, key, value)
 
+    if verbose:
+        if value is None:
+            print(f"WriteCacheMetadata({ticker}, {objectName}, {key}) deleting")
+        else:
+            print(f"WriteCacheMetadata({ticker}, {objectName}, {key}) storing")
+
     d = _ReadData(ticker, objectName)
     if d is None:
         raise Exception("'{}/{}' not in cache, cannot add metadata".format(ticker, objectName))
 
     if "metadata" in d:
-        d["metadata"][key] = value
-    else:
+        if value is None:
+            del d["metadata"][key]
+        else:
+            d["metadata"][key] = value
+    elif value is not None:
         d["metadata"] = {key: value}
 
     if verbose:

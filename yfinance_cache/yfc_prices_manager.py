@@ -341,9 +341,7 @@ class PriceHistory:
 
         # A place to temporarily store new dividends, until prices have 
         # been repaired, then they can be sent to EventsHistory
-        # TODO: store these in file, in case script killed before 
-        # divs can be stored properly. Delete file after sent.
-        self._newDivs = []
+        self._newDivs = None
 
         self._debug = False
         # self._debug = True
@@ -606,8 +604,11 @@ class PriceHistory:
                     self.manager.GetHistory("Events").UpdateSplits(h_splits)
                 h_divs = h[h["Dividends"] != 0]
                 if len(h_divs) > 0:
-                    # self.manager.GetHistory("Events").UpdateDividends(h_divs)
-                    self._newDivs.append(h_divs.copy())
+                    if self._newDivs is None:
+                        self._newDivs = h_divs.copy()
+                    else:
+                        self._newDivs = pd.concat([self._newDivs, h_divs])
+                    yfcm.StoreCacheDatum(self.ticker, "new_divs", self._newDivs)
 
             # if self.repair:
             #     h = self._repairZeroPrices(h)
@@ -838,28 +839,44 @@ class PriceHistory:
                 self._updatedCachedPrices(self.h)
 
         # Now prices have been repaired, can send out dividends
-        if len(self._newDivs) > 0:
+        cached_new_divs = yfcm.ReadCacheDatum(self.ticker, "new_divs")
+        if cached_new_divs is not None:
+            cached_new_divs_locked = yfcm.ReadCacheMetadata(self.ticker, "new_divs", "locked")
+            # tc.Print(f"cached_new_divs_locked = {cached_new_divs_locked}")
+            if cached_new_divs_locked is None:
+                yfcm.WriteCacheMetadata(self.ticker, "new_divs", "locked", 1)
+                if self._newDivs is None:
+                    self._newDivs = cached_new_divs
+                else:
+                    cached_new_divs = cached_new_divs[~cached_new_divs.index.isin(self._newDivs.index)]
+                    if not cached_new_divs.empty:
+                        self._newDivs = pd.concat([self._newDivs, cached_new_divs])
+        if self._newDivs is not None and not self._newDivs.empty:
             if tc is not None:
                 tc.Print("sending out new dividends ...")
             # TODO: remove duplicates from _newDivs (possible when restoring file file)
-            for divs_df in self._newDivs:
-                divs_df["Close day before"] = np.nan
-                for dt in divs_df.index:
-                    if dt >= self.h.index[1]:
-                        idx = self.h.index.get_loc(dt)
-                        close_day_before = self.h["Close"].iloc[idx-1]
-                        # close_day_before = self.h["Close"].iloc[idx-1] * self.h["CSF"].iloc[idx-1]
-                    else:
-                        # hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date())
-                        # hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=True)
-                        hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=False)
-                        close_day_before = hist_before["Close"].iloc[-1]
-                    divs_df.loc[dt, "Close day before"] = close_day_before
-                    # close_today = self.h.loc[dt, "Close"]
-                    # divs_df.loc[dt, "Close today"] = close_today
-                self.manager.GetHistory("Events").UpdateDividends(divs_df)
-            self._newDivs = []
+            divs_df = self._newDivs
+            divs_df["Close day before"] = np.nan
+            for dt in divs_df.index:
+                if dt >= self.h.index[1]:
+                    idx = self.h.index.get_loc(dt)
+                    close_day_before = self.h["Close"].iloc[idx-1]
+                    # close_day_before = self.h["Close"].iloc[idx-1] * self.h["CSF"].iloc[idx-1]
+                else:
+                    # hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date())
+                    # hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=True)
+                    hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=False)
+                    # TODO: why not disabling adjust_divs?
+                    # hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=False, adjust_divs=False)
+                    close_day_before = hist_before["Close"].iloc[-1]
+                divs_df.loc[dt, "Close day before"] = close_day_before
+                # close_today = self.h.loc[dt, "Close"]
+                # divs_df.loc[dt, "Close today"] = close_today
+            self.manager.GetHistory("Events").UpdateDividends(divs_df)
+            self._newDivs = None
             self._applyNewEvents()
+            if cached_new_divs is not None and not cached_new_divs_locked:
+                yfcm.StoreCacheDatum(self.ticker, "new_divs", None)  # delete
 
         if "Adj Close" in self.h.columns:
             raise Exception("Adj Close in self.h")
@@ -1036,7 +1053,11 @@ class PriceHistory:
                     if debug_yfc:
                         print("- h2_post_divs:")
                         print(h2_post_divs)
-                    self._newDivs.append(h2_post_divs.copy())
+                    if self._newDivs is None:
+                        self._newDivs = h2_post_divs.copy()
+                    else:
+                        self._newDivs = pd.concat([self._newDivs, h2_post_divs])
+                    yfcm.StoreCacheDatum(self.ticker, "new_divs", self._newDivs)
                 h2_post_splits = h2_post[h2_post["Stock Splits"] != 0][["Stock Splits", "FetchDate"]].copy()
                 if not h2_post_splits.empty:
                     self.manager.GetHistory("Events").UpdateSplits(h2_post_splits)
