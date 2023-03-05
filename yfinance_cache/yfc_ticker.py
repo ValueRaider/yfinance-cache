@@ -7,9 +7,11 @@ from . import yfc_time as yfct
 from . import yfc_prices_manager as yfcp
 
 import numpy as np
+import pandas as pd
 import datetime
 from zoneinfo import ZoneInfo
 import os
+import re
 # from time import perf_counter
 
 # TODO: Ticker: add method to delete ticker from cache
@@ -95,8 +97,13 @@ class Ticker:
         dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
         # Type checks
-        if (max_age is not None) and (not isinstance(max_age, datetime.timedelta)):
-            raise Exception("Argument 'max_age' must be timedelta")
+        if max_age is not None:
+            if isinstance(max_age, str):
+                if max_age.endswith("wk"):
+                    max_age = re.sub("wk$", "w", max_age)
+                max_age = pd.Timedelta(max_age)
+            if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+                raise Exception("Argument 'max_age' must be Timedelta or valid string")
         if period is not None:
             if start is not None or end is not None:
                 raise Exception("Don't set both 'period' and 'start'/'end'' arguments")

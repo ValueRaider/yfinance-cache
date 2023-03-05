@@ -25,10 +25,10 @@ hist = msft.history(period="max")
 
 #### Refreshing cache
 ```python
-msft.history(interval="1d", max_age=datetime.timedelta(hours=1), ...)
+msft.history(interval="1d", max_age="1h", ...)
 ```
 `max_age` controls when to refresh cached data to avoid spam. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. 
-Defaults to half of interval. Refresh also triggered if market closed since last fetch.
+Must be `Timedelta` or equivalent `str`. Defaults to half of interval. Refresh also triggered if market has closed since last fetch.
 
 #### Adjusting price
 Price can be adjusted for stock splits, dividends, or both. `yfinance` only allows control of dividends adjustment via `auto_adjust`. How Yahoo adjusts for dividends is slightly mysterious so djusted prices are slightly different to Yahoo (tiny relative error ~1e-7)
