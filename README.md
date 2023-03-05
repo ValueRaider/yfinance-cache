@@ -1,13 +1,12 @@
 # yfinance-cache
-Caching wrapper for yfinance module. Intelligent caching, not dumb caching of web requests:
-- If requested data not in cache, `yfinance` is called
-- If all requested data is in cache, return that
-- If some in cache but some missing, ask `yfinance` for the missing data
+Caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests. This means only updating cache if (i) missing and (ii) new data expected.
 
-Additional logic decides if cached data needs refresh.
+Only price data fully implemented. Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+
+Planning to intelligently cache financials too using Yahoo's earnings calendar to estimate next release (prototype code ready), but `yfinance` decryption issue blocks this.
 
 ## Interface
-Interaction is almost identical to yfinance. Differences are highlighted underneath code:
+Interaction almost identical to yfinance. Differences highlighted underneath code:
 
 ```python
 import yfinance_cache as yfc
@@ -27,11 +26,10 @@ hist = msft.history(period="max")
 ```python
 msft.history(interval="1d", max_age="1h", ...)
 ```
-`max_age` controls when to refresh cached data to avoid spam. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. 
-Must be `Timedelta` or equivalent `str`. Defaults to half of interval. Refresh also triggered if market has closed since last fetch.
+`max_age` controls when to yodate cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. Refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
 
 #### Adjusting price
-Price can be adjusted for stock splits, dividends, or both. `yfinance` only allows control of dividends adjustment via `auto_adjust`. How Yahoo adjusts for dividends is slightly mysterious so djusted prices are slightly different to Yahoo (tiny relative error ~1e-7)
+Price can be adjusted for stock splits, dividends, or both.
 ```python
 msft.history(..., adjust_splits=True, adjust_divs=True)
 ```
@@ -43,31 +41,29 @@ Cached prices can be compared against latest Yahoo Finance data, and correct dif
 msft.verify_cached_prices(
 	correct=False,  # delete incorrect cached data?
 	discard_old=False,  # if cached data too old to check (e.g. 30m), assume incorrect and delete?
-	quiet=True,  # disable to print summary detail of why cached data wrong
+	quiet=True,  # enable to print nothing, disable to print summary detail of why cached data wrong
 	debug=False,  # enable even more detail for debugging 
 	debug_interval=None)  # only verify this interval (note: 1d always verified)
 
 # Verify prices of entire cache, ticker symbols processed alphabetically. Recommend using `requests_cache` session.
 yfc.verify_cached_tickers_prices(
 	session=None,  # recommend you provide a requests_cache here
+	correct=False,
 	resume_from_tkr=None,  # in case you aborted verification, can jump ahead
 	debug_tkr=None,  # only verify this ticker symbol
 	debug_interval=None)
 ```
 
+With latest version the only genuine differences you should see are tiny Volume differences (~0.5%). Seems Yahoo is still adjusting Volume over 24 hours after that day ended, e.g. updating Monday Volume on Wednesday.
+
+If you see big differences in the OHLC price of recent intervals (last few days), probably Yahoo is wrong! Since fetching that price data on day / day after, Yahoo has messed up their data - at least this is my experience. Cross-check against TradingView or stock exchange website.
+
 ## Installation
 
 Available on PIP: `pip install yfinance_cache`
 
-## Known issues / pending tasks
-
-- Considering adding a 'verify' function, checking all cached data against Yahoo.
-- Add refresh check to financials data, then to earnings dates.
-
 ## Limitations
-
-Code is being actively developed so some features missing:
 
 - only price data is checked if refresh needed
 - `Tickers` class and `download()` not available - use `Ticker.history()`
-- pre/post price data not available
+- intraday pre/post price data not available
