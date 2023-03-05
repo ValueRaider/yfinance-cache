@@ -1,7 +1,9 @@
 from enum import Enum
-from datetime import timedelta
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
+
 import numpy as np
+import pandas as pd
 
 yf_price_data_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close']
 yf_data_cols = yf_price_data_cols+['Volume', 'Dividends', 'Stock Splits']
@@ -10,6 +12,9 @@ yf_min_year = 1950
 
 class DateInterval:
     def __init__(self, left, right, closed=None):
+        if not isinstance(left, date) or isinstance(left, datetime):
+            raise TypeError("'left' must be date object not datetime")
+
         self.left = left
         self.right = right
 
@@ -39,12 +44,19 @@ class DateInterval:
     def __repr__(self):
         return self.__str__()
 
+
 class DateIntervalIndex:
     def __init__(self, intervals):
+        if not isinstance(intervals, (list, np.ndarray, pd.Series)):
+            raise TypeError(f"'intervals' must be iterable not '{type(intervals)}'")
         if not isinstance(intervals, np.ndarray):
             self.array = np.array(intervals)
         else:
             self.array = intervals
+
+        self._left = np.array([x.left for x in self.array])
+        self._right = np.array([x.right for x in self.array])
+        self._right_inc = self._right - timedelta(days=1)
 
     @classmethod
     def from_arrays(cls, left, right, closed=None):
@@ -55,15 +67,37 @@ class DateIntervalIndex:
 
     @property
     def left(self):
-        return np.array([x.left for x in self.array])
+        return self._left
 
     @property
     def right(self):
-        return np.array([x.right for x in self.array])
+        return self._right
 
     @property
     def shape(self):
         return (len(self.array), 2)
+
+    @property
+    def empty(self):
+        return self.shape[0] == 0
+
+    def __len__(self):
+        return self.shape[0]
+
+    def sort_values(self):
+        return DateIntervalIndex(self.array[np.argsort(self._left)])
+
+    def get_indexer(self, values):
+        idx_right = np.searchsorted(self._right_inc, values)
+
+        idx_left = np.searchsorted(self._left, values, side="right")
+        idx_left -= 1
+
+        f_match = idx_right == idx_left
+
+        idx = idx_left
+        idx[~f_match] = -1
+        return idx
 
     def __getitem__(self, i):
         v = self.array[i]
@@ -79,13 +113,16 @@ class DateIntervalIndex:
             return False
         if len(self.array) != len(other.array):
             return False
-        return np.equal(self.array, other.array).all()
+        return np.equal(self.array, other.array)
+
+    def equals(self, other):
+        return (self == other).all()
 
     def __str__(self):
-        s = "[ "
+        s = "DateIntervalIndex([ "
         for x in self.array:
             s += x.__str__() + " , "
-        s += "]"
+        s += "])"
         return s
 
     def __repr__(self):
@@ -120,19 +157,20 @@ periodToString[Period.Ytd] = "ytd"
 periodToString[Period.Max] = "max"
 periodStrToEnum = {v: k for k, v in periodToString.items()}
 
+
 class Interval(Enum):
     Months3 = 0
     Months1 = 2
-    Week    = 5
-    Days1   = 10
-    Hours1  = 20
-    Mins90  = 21
-    Mins60  = 22
-    Mins30  = 23
-    Mins15  = 24
-    Mins5   = 25
-    Mins2   = 26
-    Mins1   = 27
+    Week = 5
+    Days1 = 10
+    Hours1 = 20
+    Mins90 = 21
+    Mins60 = 22
+    Mins30 = 23
+    Mins15 = 24
+    Mins5 = 25
+    Mins2 = 26
+    Mins1 = 27
 intervalToString = {}
 intervalToString[Interval.Mins1] = "1m"
 intervalToString[Interval.Mins2] = "2m"
@@ -302,7 +340,8 @@ class NoIntervalsInRangeException(Exception):
 
     def __str__(self):
         return ("No {} intervals found between {}->{}".format(self.interval, self.start_dt, self.end_dt))
-        
+
+
 class NoPriceDataInRangeException(Exception):
     def __init__(self, tkr, interval, start_dt, end_dt, *args):
         super().__init__(args)

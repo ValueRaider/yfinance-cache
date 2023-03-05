@@ -22,9 +22,7 @@ from pprint import pprint
 import appdirs
 
 
-# class Test_Unadjust(unittest.TestCase):
 class Test_Unadjust(Test_Base):
-
     def setUp(self):
         self.tkrs = ["PNL.L", "I3E.L", "INTC", "GME", "AMC", "ESLT.TA"]
 

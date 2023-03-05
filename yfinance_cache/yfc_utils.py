@@ -72,7 +72,6 @@ def TypeCheckIntervalDt(var, interval, varName, strict=True):
     except Exception as e:
         raise TypeError(str(e) + " for interval "+yfcd.intervalToString[interval])
 
-
 def TypeCheckPeriod(var, varName):
     if not isinstance(var, yfcd.Period):
         raise TypeError(f"'{varName}' must be yfcd.Period not {type(var)}")
@@ -86,6 +85,26 @@ def TypeCheckDataFrame(var, varName):
 def TypeCheckDatetimeIndex(var, varName):
     if not isinstance(var, pd.DatetimeIndex):
         raise TypeError(f"'{varName}' must be pd.DatetimeIndex not {type(var)}")
+
+
+class TraceLogger:
+    def __init__(self):
+        self._trace_depth = 0
+
+    def Print(self, log_msg):
+        print(" "*self._trace_depth + log_msg)
+
+    def Enter(self, log_msg):
+        self.Print(log_msg)
+        self._trace_depth += 2
+
+    def Exit(self, log_msg):
+        self._trace_depth -= 2
+        self.Print(log_msg)
+
+tc = None
+# tc = TraceLogger()
+
 
 def JsonEncodeValue(value):
     if isinstance(value, date):
@@ -128,7 +147,7 @@ def GetSigFigs(n):
     if n == 0:
         return 0
     n_str = str(n).replace('.', '')
-    m = re.match( r'0*[1-9](\d*[1-9])?', n_str)
+    m = re.match(r'0*[1-9](\d*[1-9])?', n_str)
     sf = len(m.group())
 
     return sf
@@ -188,7 +207,7 @@ def GetCDF0(df, close_day_before=None):
 
     cdf = df["CDF"][0]
     if cdf != 1.0:
-        # Yahoo's dividend adjustment has tiny variation (~1e-6), 
+        # Yahoo's dividend adjustment has tiny variation (~1e-6),
         # so use mean to minimise accuracy loss of adjusted->deadjust->adjust
         i = np.argmax(df["Dividends"] != 0.0)
         cdf_mean = df["CDF"].iloc[0:i].mean()
@@ -206,9 +225,6 @@ def GetCDF0(df, close_day_before=None):
 
 
 
-# def ChunkDatesIntoYfFetches(start_d, end_d, schedule, maxDays, overlapDays):
-#     TypeCheckDateStrict(start_d, "start_d")
-#     TypeCheckDateStrict(end_d, "end_d")
 def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
     TypeCheckDataFrame(schedule, "schedule")
     TypeCheckInt(maxDays, "maxDays")
@@ -253,7 +269,7 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
             groupEnds.append(i)
             # Start new group, 2 indices back
             i -= 2
-            nextStart = s.index[i]
+            # nextStart = s.index[i]
             # groupStarts.append(nextStart)
             groupStarts.append(i)
             grpSize = s["step"].iloc[i]
@@ -292,7 +308,7 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
     return groups
 
 
-def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
+def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False, debug=False):
     if df_yf.empty:
         raise Exception("VerifyPricesDf() has been given empty df_yf")
 
@@ -309,7 +325,6 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
             print(msg)
         print(f"{np.sum(f_na)}/{h.shape[0]} NaNs detected in dividends & stock splits")
         f_diff_all = f_diff_all | f_na
-
 
     # Test: index should match
     f_missing = ~df_yf.index.isin(h.index)
@@ -333,10 +348,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
     else:
         dts_missing_from_yf = []
 
-
     # Drop NaNs from YF data:
     df_yf = df_yf[~df_yf[yfcd.yf_price_data_cols].isna().any(axis=1)]
-
 
     # Drop mismatching indices for value check
     h = h[h.index.isin(df_yf.index)]
@@ -352,7 +365,6 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
         print(f"- df_yf: {df_yf.index[0]} -> {df_yf.index[-1]}")
         raise Exception("Different #rows")
     n = h.shape[0]
-
 
     # Apply dividend-adjustment
     h_adj = h.copy()
@@ -373,12 +385,14 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
     yf_divs = df_yf.loc[df_yf[c] != 0.0, c]
     dts_missing_from_cache = yf_divs.index[~yf_divs.index.isin(h_divs.index)]
     dts_missing_from_yf = h_divs.index[~h_divs.index.isin(yf_divs.index)]
+    divs_bad = False
     if len(dts_missing_from_cache) > 0:
         if not quiet:
             print("WARNING: Dividends missing from cache:")
             print("- ", dts_missing_from_cache)
         for dt in dts_missing_from_cache:
             f_diff_all.loc[dt] = True
+        divs_bad = True
     if len(dts_missing_from_yf) > 0 and not quiet:
         print("ERROR: Cache contains dividends missing from Yahoo:")
         print(dts_missing_from_yf)
@@ -395,7 +409,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
         df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
         df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(1).astype(str) + '%'
         f_diff_all = f_diff_all | f_diff
-
+        divs_bad = True
 
     # Verify stock splits
     # - first compare dates
@@ -424,7 +438,6 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
         df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
         raise Exception("Need to test handling stock split mismatches - prune stock-split store?")
 
-
     def _print_sig_diffs(df, df_yf, column, rtol):
         c = column
         f_close = np.isclose(df[c].to_numpy(), df_yf[c].to_numpy(), rtol=rtol)
@@ -442,7 +455,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
 
     # Verify volumes match
     c = "Volume"
-    f_close = np.isclose(h[c].to_numpy(), df_yf[c].to_numpy(), rtol)
+    f_close = np.isclose(h[c].to_numpy(), df_yf[c].to_numpy(), vol_rtol)
     f_close = pd.Series(f_close, h.index)
     f_yfZeroVol = df_yf[c].to_numpy() == 0
     if f_yfZeroVol.any():
@@ -455,7 +468,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
     f_diff_vol = ~f_close
     if f_diff_vol.any():
         if debug:
-            _print_sig_diffs(h, df_yf, "Volume", rtol)
+            _print_sig_diffs(h, df_yf, "Volume", vol_rtol)
         elif not quiet:
             print(f"WARNING: {np.sum(f_diff_vol)}/{n} differences in 'Volume'")
         f_diff_all = f_diff_all | f_diff_vol
@@ -471,27 +484,27 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, quiet=False, debug=False):
                 print(f"WARNING: {np.sum(f_diff_vol)}/{n} differences in '{c}'")
             f_diff_all = f_diff_all | f_diff_c
 
-    f_diff_divs = pd.Series(np.full(h.shape[0], False), h_adj.index)
-    if interday:
-        # Yahoo div-adjusts interday data, so check my div adjustment
-        for c in ["Open", "Close", "High", "Low"]:
-            c = "Adj "+c
-            # f_close = np.isclose(h_adj[c].to_numpy(), df_yf_adj[c].to_numpy(), rtol=0.0001)
-            f_close = np.isclose(h_adj[c].to_numpy(), df_yf_adj[c].to_numpy(), rtol=0.0005)
-            f_close = pd.Series(f_close, h.index)
-            f_diff_c = (~f_close) & (~f_diff_all)
-            f_diff_divs = f_diff_divs | f_diff_c
-    f_diff_divs = f_diff_divs & ~f_diff_all
-    if f_diff_divs.any():
-        if debug:
-            print("Bad div-adjustments detected:")
-            if not f_diff_all.any():
-                print("- no other differences")
-            _print_sig_diffs(h_adj, df_yf_adj, "Adj Open", rtol)
-        elif not quiet:
-            print(f"{np.sum(f_diff_divs)}/{h.shape[0]} div-adjustment errors")
+    if not divs_bad:
+        f_diff_divs = pd.Series(np.full(h.shape[0], False), h_adj.index)
+        if interday:
+            # Yahoo div-adjusts interday data, so check my div adjustment
+            for c in ["Open", "Close", "High", "Low"]:
+                c = "Adj "+c
+                f_close = np.isclose(h_adj[c].to_numpy(), df_yf_adj[c].to_numpy(), rtol=0.0005)
+                f_close = pd.Series(f_close, h.index)
+                f_diff_c = (~f_close) & (~f_diff_all)
+                f_diff_divs = f_diff_divs | f_diff_c
+        f_diff_divs = f_diff_divs & ~f_diff_all
+        if f_diff_divs.any():
+            if debug:
+                print("Bad div-adjustments detected:")
+                if not f_diff_all.any():
+                    print("- no other differences")
+                _print_sig_diffs(h_adj, df_yf_adj, "Adj Open", rtol)
+            elif not quiet:
+                print(f"{np.sum(f_diff_divs)}/{h.shape[0]} div-adjustment errors")
 
-    f_diff_all = f_diff_all | f_diff_divs
+        f_diff_all = f_diff_all | f_diff_divs
 
     return f_diff_all
 
@@ -535,7 +548,7 @@ def np_weighted_mean_and_std(values, weights):
     std = math.sqrt(std2)
     # print(f"std = {std}")
 
-    std_pct = std / mean
+    # std_pct = std / mean
     # print(f"std_pct = {std_pct}")
 
     # return std_pct

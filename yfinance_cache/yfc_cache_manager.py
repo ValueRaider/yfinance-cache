@@ -348,7 +348,6 @@ def ReadCacheMetadata(ticker, objectName, key):
         pkData = _ReadPackedData(ticker, objectName)
         if (pkData is not None) and (objectName in pkData):
             objData = pkData[objectName]
-            # data    = objData["data"]
             md      = objData["metadata"] if "metadata" in objData else None
     else:
         d = _ReadData(ticker, objectName)
@@ -399,6 +398,7 @@ def WriteCacheMetadata(ticker, objectName, key, value):
     else:
         with open(fp, 'wb') as outData:
             pickle.dump(d, outData, 4)
+
 
 def WriteCachePackedMetadata(ticker, objectName, key, value):
     if not IsObjectInPackedData(objectName):

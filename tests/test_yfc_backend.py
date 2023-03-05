@@ -36,8 +36,17 @@ import appdirs
 ##  Mo   Tu   We   Th   Fr   Sa   Su
 ##  4    5    6    7    8    9    10
 ##  11   12   13   14   15*  16   17
-##  18*  19*  20   21   22   23   24
+##  18*  19   20   21   22   23   24
 ##  25*
+##
+## Taiwan
+##  -- February --
+##  Mo   Tu   We   Th   Fr   Sa   Su
+##  -    1*   2*   3*   4*   5*   6*
+##  7    8    9    10   11   12   13
+##  14   15   16   17   18   19   20
+##  21*  22   23   24   25   26   27
+##  28*
 
 class Test_Yfc_Backend(unittest.TestCase):
 
@@ -55,8 +64,8 @@ class Test_Yfc_Backend(unittest.TestCase):
         self.usa_exchange = "NMS"
         self.usa_market_tz_name = 'America/New_York'
         self.usa_market_tz = ZoneInfo('America/New_York')
-        self.usa_market_open_time  = time(hour=9, minute=30)
-        self.usa_market_close_time = time(hour=16, minute=0)
+        self.usa_market_open_time  = time(9, 30)
+        self.usa_market_close_time = time(16)
         self.usa_dat = yfc.Ticker(self.usa_tkr, session=self.session)
 
         self.nze_tkr = "MEL.NZ"
@@ -64,15 +73,16 @@ class Test_Yfc_Backend(unittest.TestCase):
         self.nze_exchange = "NZE"
         self.nze_market_tz_name = 'Pacific/Auckland'
         self.nze_market_tz = ZoneInfo('Pacific/Auckland')
-        self.nze_market_open_time  = time(hour=10, minute=0)
-        self.nze_market_close_time = time(hour=16, minute=45)
+        self.nze_market_open_time  = time(10)
+        self.nze_market_close_time = time(16, 45)
         self.nze_dat = yfc.Ticker(self.nze_tkr, session=self.session)
 
+        self.td1h = timedelta(hours=1)
+        self.td1d = timedelta(days=1)
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
         self.session.close()
-
 
     def test_yf_lag(self):
         ## Only use high-volume stocks:
@@ -107,140 +117,10 @@ class Test_Yfc_Backend(unittest.TestCase):
             lag_cache = dat.yf_lag
             self.assertEqual(lag, lag_cache)
 
-
-    def test_CalcIntervalLastDataDt_USA_hourly(self):
-        interval = yfcd.Interval.Hours1
-
-        day = date(2022,2,7)
-
-        exchange = self.usa_exchange
-        tz = self.usa_market_tz
-        yfct.SetExchangeTzName(exchange, self.usa_market_tz_name)
-        market_close_dt = datetime.combine(day, self.usa_market_close_time, tz)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        for h in range(9,16):
-            dt = datetime.combine(day, time(h,30), tz)
-            dts.append(dt)
-            dt_last = min(dt+timedelta(hours=1), market_close_dt)
-            answers.append(dt_last+lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        for h in range(9,16):
-            dt = datetime.combine(day, time(h,30), tz)
-            dts.append(dt)
-            dt_last = min(dt+timedelta(hours=1), market_close_dt)
-            answers.append(dt_last+lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-
-    def test_CalcIntervalLastDataDt_USA_daily(self):
-        interval = yfcd.Interval.Days1
-
-        exchange = self.usa_exchange
-        tz = self.usa_market_tz
-        yfct.SetExchangeTzName(exchange, self.usa_market_tz_name)
-        td_1d = timedelta(days=1)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        for d in range(7,12):
-            day = date(2022,2,d)
-            dt = datetime.combine(day, time(14,30), tz)
-            dts.append(dt)
-            dt_last = datetime.combine(day+td_1d, time(0), tz)
-            answers.append(dt_last+lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        for d in range(7,12):
-            day = date(2022,2,d)
-            dt = datetime.combine(day, time(14,30), tz)
-            dts.append(dt)
-            dt_last = datetime.combine(day+td_1d, time(0), tz)
-            answers.append(dt_last+lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-
-    def test_CalcIntervalLastDataDt_USA_weekly(self):
-        interval = yfcd.Interval.Week
-
-        exchange = self.usa_exchange
-        tz = self.usa_market_tz
-        yfct.SetExchangeTzName(exchange, self.usa_market_tz_name)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        week_start_day = date(2022,2,7)
-        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
-        for d in range(7,12):
-            day = date(2022,2,d)
-            dt = datetime.combine(day, time(14,30), tz)
-            dts.append(dt)
-            answers.append(answer+lag)
-        week_start_day = date(2022,2,14)
-        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
-        for d in range(14,19):
-            day = date(2022,2,d)
-            dt = datetime.combine(day, time(14,30), tz)
-            dts.append(dt)
-            answers.append(answer+lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-
     def test_CalcIntervalLastDataDt_NZE_hourly(self):
         interval = yfcd.Interval.Hours1
 
-        day = date(2022,4,4)
+        day = date(2022, 4, 4)
 
         exchange = self.nze_exchange
         tz = self.nze_market_tz
@@ -250,11 +130,13 @@ class Test_Yfc_Backend(unittest.TestCase):
         lag = timedelta(0)
         dts = []
         answers = []
-        for h in range(10,17):
+        for h in range(10, 17):
             dt = datetime.combine(day, time(h), tz)
             dts.append(dt)
-            dt_last = min(dt+timedelta(hours=1), market_close_dt)
-            answers.append(dt_last+lag)
+            if h == 16:
+                answers.append(datetime.combine(day + self.td1d, time(10), tz))
+            else:
+                answers.append(min(dt+self.td1h, market_close_dt))
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
             try:
@@ -268,11 +150,13 @@ class Test_Yfc_Backend(unittest.TestCase):
         lag = timedelta(minutes=15)
         dts = []
         answers = []
-        for h in range(10,17):
+        for h in range(10, 17):
             dt = datetime.combine(day, time(h), tz)
             dts.append(dt)
-            dt_last = min(dt+timedelta(hours=1), market_close_dt)
-            answers.append(dt_last+lag)
+            if h == 16:
+                answers.append(datetime.combine(day + self.td1d, time(10), tz) + lag)
+            else:
+                answers.append(min(dt+self.td1h, market_close_dt) + lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
             try:
@@ -282,7 +166,6 @@ class Test_Yfc_Backend(unittest.TestCase):
                 print("response = {}".format(response))
                 print("answer = {}".format(answers[i]))
                 raise
-
 
     def test_CalcIntervalLastDataDt_NZE_daily(self):
         interval = yfcd.Interval.Days1
@@ -290,17 +173,18 @@ class Test_Yfc_Backend(unittest.TestCase):
         exchange = self.nze_exchange
         tz = self.nze_market_tz
         yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
-        td_1d = timedelta(days=1)
 
         lag = timedelta(0)
         dts = []
         answers = []
-        for d in range(4,9):
-            day = date(2022,4,d)
+        for d in range(4, 9):
+            day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day+td_1d, time(0), tz)
-            answers.append(dt_last+lag)
+            if d == 8:
+                answers.append(datetime.combine(day+3*self.td1d, time(10), tz))
+            else:
+                answers.append(datetime.combine(day+self.td1d, time(10), tz))
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
             try:
@@ -314,12 +198,14 @@ class Test_Yfc_Backend(unittest.TestCase):
         lag = timedelta(minutes=15)
         dts = []
         answers = []
-        for d in range(4,9):
-            day = date(2022,4,d)
+        for d in range(4, 9):
+            day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            dt_last = datetime.combine(day+td_1d, time(0), tz)
-            answers.append(dt_last+lag)
+            if d == 8:
+                answers.append(datetime.combine(day+3*self.td1d, time(10), tz) + lag)
+            else:
+                answers.append(datetime.combine(day+self.td1d, time(10), tz) + lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
             try:
@@ -329,7 +215,6 @@ class Test_Yfc_Backend(unittest.TestCase):
                 print("response = {}".format(response))
                 print("answer = {}".format(answers[i]))
                 raise
-
 
     def test_CalcIntervalLastDataDt_NZE_weekly(self):
         interval = yfcd.Interval.Week
@@ -338,23 +223,36 @@ class Test_Yfc_Backend(unittest.TestCase):
         tz = self.nze_market_tz
         yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
 
-        lag = timedelta(0)
+        lag = timedelta(minutes=15)
         dts = []
         answers = []
-        week_start_day = date(2022,4,4)
-        answer = datetime.combine(date(2022,4,9), time(0), tz)
-        for d in range(4,9):
-            day = date(2022,4,d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
+        week_start_day = date(2022, 4, 4)
+        answer = datetime.combine(date(2022, 4, 11), self.nze_market_open_time, tz)
+        for d in range(4, 9):
+            day = date(2022, 4, d)
+
+            dts.append(datetime.combine(day, time(0), tz))
             answers.append(answer+lag)
-        week_start_day = date(2022,4,11)
-        answer = datetime.combine(date(2022,4,15), time(0), tz)
-        for d in range(11,16):
-            day = date(2022,4,d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
+            dts.append(datetime.combine(day, time(12), tz))
             answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(20), tz))
+            answers.append(answer+lag)
+
+        week_start_day = date(2022, 4, 11)
+        answer = datetime.combine(date(2022, 4, 19), time(10), tz)
+        for d in range(11, 16):
+            day = date(2022, 4, d)
+            
+            dts.append(datetime.combine(day, time(0), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(12), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(20), tz))
+            answers.append(answer+lag)
+
+
+        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
+
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
             try:
@@ -365,42 +263,13 @@ class Test_Yfc_Backend(unittest.TestCase):
                 print("answer = {}".format(answers[i]))
                 raise
 
-
-    def test_CalcIntervalLastDataDt_USA_hourly_batch(self):
-        interval = yfcd.Interval.Hours1
-
-        exchange = self.usa_exchange
-        tz = self.usa_market_tz
-        yfct.SetExchangeTzName(exchange, self.usa_market_tz_name)
-
-        lags = [timedelta(0), timedelta(minutes=15)]
-
-        start_d = date.today()
-        td_1d = timedelta(days=1)
-        week_start_d = start_d - td_1d*start_d.weekday()
-        week2_start_d = week_start_d -7*td_1d
-        week1_start_d = week2_start_d -7*td_1d
-        days =  [week1_start_d+x*td_1d for x in [0,1,2,3,4]]
-        days += [week2_start_d+x*td_1d for x in [0,1,2,3,4]]
-
-        times = [time(h,30) for h in range(9,16)]
-        dts = []
-        for d in days:
-            if yfct.ExchangeOpenOnDay(exchange, d):
-                for t in times:
-                    dts.append(datetime.combine(d, t, tz))
-
-        for lag in lags:
-            responses = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-            for i in range(len(dts)):
-                answer = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-                try:
-                    self.assertEqual(responses[i], answer)
-                except:
-                    print("dt = {}".format(dts[i]))
-                    print("response = {}".format(responses[i]))
-                    print("answer = {}".format(answer))
-                    raise
+            try:
+                self.assertEqual(response_batch[i], answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response_batch[i] = {}".format(response_batch[i]))
+                print("answer = {}".format(answers[i]))
+                raise
 
 
     def test_CalcIntervalLastDataDt_UK_weekly(self):
@@ -413,11 +282,10 @@ class Test_Yfc_Backend(unittest.TestCase):
         lag = timedelta(0)
         dts = []
         answers = []
-        week_start_day = date(2022,5,2)
-        answer = datetime.combine(week_start_day, time(0), tz)+timedelta(days=5)
-        for d in range(2,7):
-            day = date(2022,5,d)
-            dt = datetime.combine(day, time(14,30), tz)
+        answer = datetime.combine(date(2022, 5, 9), time(8), tz)
+        for d in range(3, 7):  # 2nd is holiday
+            day = date(2022, 5, d)
+            dt = datetime.combine(day, time(14, 30), tz)
             dts.append(dt)
             answers.append(answer+lag)
 
@@ -441,19 +309,17 @@ class Test_Yfc_Backend(unittest.TestCase):
                 raise
 
 
-
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
 
         yfct.SetExchangeTzName(self.usa_exchange, self.usa_market_tz_name)
 
         intervals = ["30m", "1h", "1d"]
-        td_1d = timedelta(days=1)
-        start_d = date.today() -td_1d
+        start_d = date.today() -self.td1d
         start_d = start_d - timedelta(days=start_d.weekday())
         while not yfct.ExchangeOpenOnDay(self.usa_exchange, start_d):
-            start_d -= td_1d
-        end_d = start_d +td_1d
+            start_d -= self.td1d
+        end_d = start_d +self.td1d
         for interval in intervals:
             df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
             self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
@@ -465,7 +331,6 @@ class Test_Yfc_Backend(unittest.TestCase):
         end_d = start_d+timedelta(days=5)
         df = self.usa_dat.history(start=start_d, end=end_d, interval=interval)
         self.assertTrue(isinstance(df.index, pd.DatetimeIndex))
-
 
     def test_detect_stock_listing1(self):
         # HLTH listed on 24/25 SEP 2021
@@ -483,7 +348,6 @@ class Test_Yfc_Backend(unittest.TestCase):
         except:
             raise Exception("history() failed, indicates problem with detecting/handling listing-date")
 
-
     def test_detect_stock_listing2(self):
         # HLTH listed on 24/25 SEP 2021
         # Stress-test listing-date detection:
@@ -500,7 +364,6 @@ class Test_Yfc_Backend(unittest.TestCase):
         except:
             raise Exception("history() failed, indicates problem with detecting/handling listing-date")
 
-
     def test_history_bug_pnl(self):
         # Ticker PNL.L missing 90minutes of trading on morning of 2022-07-18, 
         # and Yahoo not returning NaN rows in place. So YFC needs to insert NaN rows
@@ -511,20 +374,19 @@ class Test_Yfc_Backend(unittest.TestCase):
         tz=ZoneInfo(tz_name)
         dat = yfc.Ticker(tkr, session=self.session)
 
-        dt0 = datetime(2022,7,18, 8,0,tzinfo=tz)
-        dt1 = datetime(2022,7,18, 9,0,tzinfo=tz)
+        dt0 = datetime(2022, 7, 18, 8, 0, tzinfo=tz)
+        dt1 = datetime(2022, 7, 18, 9, 0, tzinfo=tz)
 
-        start = datetime(2022,7,18,8,0,tzinfo=tz)
-        end   = datetime(2022,7,18,10,0,tzinfo=tz)
+        start = datetime(2022, 7, 18, 8, 0, tzinfo=tz)
+        end   = datetime(2022, 7, 18, 10, 0, tzinfo=tz)
         df = dat.history(start=start, end=end, interval="1h", keepna=True)
         self.assertTrue(df.index[0]==dt0)
         self.assertTrue(df.index[1]==dt1)
 
-        end = datetime(2022,7,18,16,0,tzinfo=tz)
+        end = datetime(2022, 7, 18, 16, 0, tzinfo=tz)
         df = dat.history(start=start, end=end, interval="1h", keepna=True)
         self.assertTrue(df.index[0]==dt0)
         self.assertTrue(df.index[1]==dt1)
-
 
     def test_GetCDF0(self):
         tkr = "I3E.L"
@@ -536,53 +398,53 @@ class Test_Yfc_Backend(unittest.TestCase):
 
         df_rows = []
 
-        dt = datetime.combine(date(2022,10,14), time(0), tz)
+        dt = datetime.combine(date(2022, 10, 14), time(0), tz)
         prices = [23.2, 23.2, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,10,13), time(0), tz)
+        dt = datetime.combine(date(2022, 10, 13), time(0), tz)
         prices = [23.55, 23.55, 0.1425]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,10,12), time(0), tz)
+        dt = datetime.combine(date(2022, 10, 12), time(0), tz)
         prices = [24.15, 24.01, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,10,11), time(0), tz)
+        dt = datetime.combine(date(2022, 10, 11), time(0), tz)
         prices = [24.2, 24.06, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
 
-        dt = datetime.combine(date(2022,9,16), time(0), tz)
+        dt = datetime.combine(date(2022, 9, 16), time(0), tz)
         prices = [23.4, 23.26, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,9,15), time(0), tz)
+        dt = datetime.combine(date(2022, 9, 15), time(0), tz)
         prices = [24.5, 24.36, 0.1425]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,9,14), time(0), tz)
+        dt = datetime.combine(date(2022, 9, 14), time(0), tz)
         prices = [24.7, 24.41, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,9,13), time(0), tz)
+        dt = datetime.combine(date(2022, 9, 13), time(0), tz)
         prices = [24.35, 24.07, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
 
-        dt = datetime.combine(date(2022,8,12), time(0), tz)
+        dt = datetime.combine(date(2022, 8, 12), time(0), tz)
         prices = [29.95, 29.6, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,8,11), time(0), tz)
+        dt = datetime.combine(date(2022, 8, 11), time(0), tz)
         prices = [29.7, 29.35, 0.1425]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,8,10), time(0), tz)
+        dt = datetime.combine(date(2022, 8, 10), time(0), tz)
         prices = [29.3, 28.82, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)
-        dt = datetime.combine(date(2022,8,9), time(0), tz)
+        dt = datetime.combine(date(2022, 8, 9), time(0), tz)
         prices = [29.15, 28.67, 0]
         r = pd.Series(data=prices, index=columns, name=dt)
         df_rows.append(r)

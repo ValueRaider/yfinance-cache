@@ -3,6 +3,7 @@ import unittest
 from pprint import pprint
 
 class Test_Base(unittest.TestCase):
+# class Test_Base:
     def verify_df(self, df, answer, rtol=None, different=False):
         if (df is None or df.shape[0]==0) and (answer is None or answer.shape[0]==0):
             return

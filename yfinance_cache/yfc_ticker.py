@@ -14,6 +14,7 @@ import os
 
 # TODO: Ticker: add method to delete ticker from cache
 
+
 class Ticker:
     def __init__(self, ticker, session=None):
         self.ticker = ticker.upper()
@@ -60,9 +61,6 @@ class Ticker:
 
         self._debug = False
         # self._debug = True
-        self._trace = False
-        # self._trace = True
-        self._trace_depth = 0
 
     def history(self,
                 interval="1d",
@@ -82,13 +80,12 @@ class Ticker:
         debug_yfc = self._debug
         # debug_yfc = True
 
-        log_msg = "YFC: history(tkr={}, interval={}, period={}, start={}, end={}, max_age={}, adjust_splits={}, adjust_divs={})".format(self.ticker, interval, period, start, end, max_age, adjust_splits, adjust_divs)
-        if debug_yfc:
-            print("")
-            print(log_msg)
-        elif self._trace:
-            self._trace_depth += 1
-            print(" "*self._trace_depth + log_msg)
+        if start is not None or end is not None:
+            log_msg = f"Ticker::history(tkr={self.ticker} interval={interval} start={start} end={end} max_age={max_age} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
+        else:
+            log_msg = f"Ticker::history(tkr={self.ticker} interval={interval} period={period} max_age={max_age} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
+        if yfcu.tc is not None:
+            yfcu.tc.Enter(log_msg)
 
         td_1d = datetime.timedelta(days=1)
         exchange = self.fast_info['exchange']
@@ -201,7 +198,11 @@ class Ticker:
         else:
             h = hist.get(start, end, period=None, max_age=max_age, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
-            raise Exception("history() is exiting without price data")
+            if start is not None or end is not None:
+                msg = f"YFC: history() exiting without price data (tkr={self.ticker} start={start} end={end} interval={yfcd.intervalToString[interval]})"
+            else:
+                msg = f"YFC: history() exiting without price data (tkr={self.ticker} period={period} interval={yfcd.intervalToString[interval]})"
+            raise Exception(msg)
 
         # t2_sync = perf_counter()
 
@@ -252,7 +253,7 @@ class Ticker:
                     h[c] = np.round(h[c].to_numpy(), rnd)
 
             if debug_yfc:
-                print("YFC: history() returning")
+                print("- h:")
                 cols = [c for c in ["Close", "Dividends", "Volume", "CDF", "CSF"] if c in h.columns]
                 print(h[cols])
                 if "Dividends" in h.columns:
@@ -261,9 +262,8 @@ class Ticker:
                         print("- dividends:")
                         print(h.loc[f, cols])
                 print("")
-            elif self._trace:
-                print(" "*self._trace_depth + "YFC: history() returning")
-                self._trace_depth -= 1
+            if yfcu.tc is not None:
+                yfcu.tc.Exit("Ticker::history() returning")
 
         # t4_adjust = perf_counter()
         # t_setup = t1_setup - t0
@@ -277,7 +277,7 @@ class Ticker:
         # t_cache *= 100/t_sum
         # t_filter *= 100/t_sum
         # t_adjust *= 100/t_sum
-        # print("TIME %:        setup={:.1f}%  sync={:.1f}%  filter={:.1f}%  adjust={:.1f}%".format(t_setup, t_sync, t_filter, t_adjust))
+        # print("TIME %:        setup={:.1f}%  sync={:.1f}%  filter={:.1f}%  adjust={:.1f}%".format(t_setup, t_sync, t_filter, t_adju
 
         return h
 
@@ -289,17 +289,15 @@ class Ticker:
 
         return self._histories_manager.GetHistory(interval)._getCachedPrices()
 
-
     def verify_cached_prices(self, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         interval = yfcd.Interval.Days1
         cache_key = "history-"+yfcd.intervalToString[interval]
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verify_cached_prices(tkr={self.ticker}, debug_interval={debug_interval})"
-        if self._trace:
-            self._trace_depth += 1
-            print(" "*self._trace_depth + log_msg)
+        log_msg = f"Ticker::verify_cached_prices(tkr={self.ticker} correct={correct} quiet={quiet} debug={debug} debug_interval={debug_interval})"
+        if yfcu.tc is not None:
+            yfcu.tc.Enter(log_msg)
 
         if self._histories_manager is None:
             exchange = self.fast_info['exchange']
@@ -312,25 +310,29 @@ class Ticker:
             debug = True
         # First verify 1d
         dt0 = self._histories_manager.GetHistory(interval)._getCachedPrices().index[0]
+        self.history(start=dt0.date(), quiet=quiet)  # ensure have all dividends
         v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
         if debug_interval == yfcd.Interval.Days1:
-            if self._trace:
-                print(" "*self._trace_depth + f"YFC: _verify_cached_prices() returning {v}")
-                self._trace_depth -= 1
+            if yfcu.tc is not None:
+                yfcu.tc.Exit("Ticker::verify_cached_prices() returning {v}")
+            return v
+        if not v and debug:
             return v
         if correct:
-            # self.history(start=dt0.date())
             self.history(start=dt0.date(), quiet=quiet)
         #
         # repeat verification, because 'fetch backporting' may be buggy
         v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
+        if not v and debug:
+            return v
         if not v and correct:
             # Rows were removed so re-fetch. Only do for 1d data
-            # self.history(start=dt0.date())
             self.history(start=dt0.date(), quiet=quiet)
         #
         # verification should now pass, no exception
         v = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
+        if not v and debug:
+            return v
         if not v:
             raise Exception(f"{self.ticker}: 1d failing to fetch & verify")
 
@@ -352,28 +354,15 @@ class Ticker:
             # print(f"- {istr}")
             vi = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
 
-            # Try a fetch and ensure re-verify. Ideally wouldn't do this, but it is finding bugs.
-            try:
-                if istr.endswith('m'):
-                    # self.history(interval=interval, period="1wk")
-                    self.history(interval=interval, period="1wk", quiet=quiet)
-                else:
-                    # self.history(interval=interval, period="1mo")
-                    self.history(interval=interval, period="1mo", quiet=quiet)
-                vi = self._verify_cached_prices_interval(interval, correct, discard_old, quiet, debug)
-            except yfcd.NoPriceDataInRangeException as e:
-                pass
-            
             v = v and vi
 
-        if self._trace:
-            print(" "*self._trace_depth + f"YFC: _verify_cached_prices() returning {v}")
-            self._trace_depth -= 1
+        if yfcu.tc is not None:
+            yfcu.tc.Exit("Ticker::verify_cached_prices() returning {v}")
 
         return v
 
     def _verify_cached_prices_interval(self, interval, correct=False, discard_old=False, quiet=True, debug=False):
-        # TODO: iterate over all intervals, but only once I'm sure verify is 100% solid. 
+        # TODO: iterate over all intervals, but only once I'm sure verify is 100% solid.
         #       - I remember needing 1d verified first => re-fetch after correction before verifying other intervals?
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
@@ -385,10 +374,9 @@ class Ticker:
         if not yfcm.IsDatumCached(self.ticker, cache_key):
             return True
 
-        log_msg = f"YFC: _verify_cached_prices_interval(tkr={self.ticker}, interval={istr}, debug={debug})"
-        if self._trace:
-            self._trace_depth += 1
-            print(" "*self._trace_depth + log_msg)
+        log_msg = f"Ticker::_verify_cached_prices_interval(tkr={self.ticker}, interval={istr}, quiet={quiet}, debug={debug})"
+        if yfcu.tc is not None:
+            yfcu.tc.Enter(log_msg)
 
         if self._histories_manager is None:
             exchange = self.fast_info['exchange']
@@ -397,10 +385,8 @@ class Ticker:
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(correct, discard_old, quiet, debug)
 
-        if self._trace:
-            print(" "*self._trace_depth + f"YFC: _verify_cached_prices_interval() returning {v}")
-            self._trace_depth -= 1
-
+        if yfcu.tc is not None:
+            yfcu.tc.Exit(f"Ticker::_verify_cached_prices_interval() returning {v}")
         return v
 
     def _process_user_dt(self, dt):
@@ -723,7 +709,7 @@ def verify_cached_tickers_prices(session=None, correct=True, resume_from_tkr=Non
         debug_interval = yfcd.intervalStrToEnum[debug_interval]
 
     d = yfcm.GetCacheDirpath()
-    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and not '_' in x]
+    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and '_' not in x]
     # tkrs = tkrs[:5]
     # tkrs = tkrs[:20]
     # tkrs = tkrs[tkrs.index("DDOG"):]
@@ -754,31 +740,21 @@ def verify_cached_tickers_prices(session=None, correct=True, resume_from_tkr=Non
         else:
             print(f"{tkr} : {i+1}/{len(tkrs)}")
 
-        # dat = Ticker(tkr)
         dat = Ticker(tkr, session=session)
 
-        # if debug_tkr is not None:
-        #     v = dat._verify_cached_prices(correct=correct, discard_old=correct, quiet=False, debug=debug, debug_interval=debug_interval)
-        #     quit()
-
-        # print(">>> FIRST PASS")
         try:
             v = dat.verify_cached_prices(correct=correct, discard_old=correct, quiet=True, debug=debug, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
-            print(str(e) + f" - is it delisted? Aborting verification so you can investigate.")
+            print(str(e) + " - is it delisted? Aborting verification so you can investigate.")
             return
         except Exception as e:
-            print("FIRST PASS FAILED: " + str(e))
             if not debug:
-                print("re-running with debug=True")
                 v = dat.verify_cached_prices(correct=correct, discard_old=correct, quiet=False, debug=True, debug_interval=debug_interval)
             quit()
         if debug:
             return
-        # sleep(0.5)
-        # sleep(1)
-        # Second pass is important, because some cached data may have been div-adjusted without 
-        # record of that dividend. Well the first verify will re-apply that dividend, so 
+        # Second pass is important, because some cached data may have been div-adjusted without
+        # record of that dividend. Well the first verify will re-apply that dividend, so
         # potential for new mismatches to correct.
         v = dat.verify_cached_prices(correct=correct, discard_old=False, quiet=True, debug=debug, debug_interval=debug_interval)
         # sleep(0.5)
@@ -787,6 +763,6 @@ def verify_cached_tickers_prices(session=None, correct=True, resume_from_tkr=Non
         if not v:
             if correct:
                 v = dat.verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
+            else:
+                v = dat.verify_cached_prices(correct=False, discard_old=False, quiet=False, debug=False, debug_interval=debug_interval)
             raise Exception(f"{tkr}: verify failing")
-
-

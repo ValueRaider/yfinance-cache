@@ -34,5 +34,39 @@ class TestTimeUtils(unittest.TestCase):
             print(dt2)
             raise
 
+    def test_DateIntervalIndex_getIndexer(self):
+        mondays = [date(2022, 5, d) for d in [2, 9, 16, 23, 30]]
+        satdays = [m + timedelta(days=5) for m in mondays]
+        dii = yfcd.DateIntervalIndex.from_arrays(mondays, satdays, closed="left")
+
+        week0_days = [date(2022, 5, 1)]
+        week1_days = [date(2022, 5, d) for d in range(2, 7)]
+        week2_days = [d + timedelta(days=7) for d in week1_days]
+        week3_days = [d + timedelta(days=7) for d in week2_days]
+        week4_days = [d + timedelta(days=7) for d in week3_days]
+        week5_days = [d + timedelta(days=7) for d in week4_days]
+        week6_days = [d + timedelta(days=7) for d in week5_days]
+
+        idx = dii.get_indexer(week0_days)
+        self.assertEqual(idx, [-1])  # pass
+
+        idx = dii.get_indexer(week1_days)
+        self.assertEqual(list(idx), [0]*len(week1_days))
+
+        idx = dii.get_indexer(week2_days)
+        self.assertEqual(list(idx), [1]*len(week2_days))
+
+        idx = dii.get_indexer(week3_days)
+        self.assertEqual(list(idx), [2]*len(week3_days))
+
+        idx = dii.get_indexer(week4_days)
+        self.assertEqual(list(idx), [3]*len(week4_days))
+
+        idx = dii.get_indexer(week5_days)
+        self.assertEqual(list(idx), [4]*len(week5_days))
+
+        idx = dii.get_indexer(week6_days)
+        self.assertEqual(list(idx), [-1]*len(week6_days))
+
 if __name__ == '__main__':
     unittest.main()

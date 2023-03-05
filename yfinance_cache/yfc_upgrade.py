@@ -71,7 +71,7 @@ def _sanitise_prices():
 
 
 def _reset_calendar_cache():
-    # Calendar cache was broken because wasn't updating 'sessions_nanos', 
+    # Calendar cache was broken because wasn't updating 'sessions_nanos',
     # so have to wipe it.
 
     d = yfcm.GetCacheDirpath()
@@ -96,7 +96,7 @@ def _reset_calendar_cache():
         cal_fp = os.path.join(tkrd, "cal.pkl")
         if os.path.isfile(cal_fp):
             os.remove(cal_fp)
-    
+
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
@@ -148,7 +148,7 @@ def _prune_incomplete_daily_intervals():
                 with open(tkrd+"/info.pkl", 'rb') as f:
                     info = pickle.load(f)["data"]
 
-                # Scan for any daily/weekly intervals marked final but not 
+                # Scan for any daily/weekly intervals marked final but not
                 # updated after midnight
                 if itd >= datetime.timedelta(days=1):
                     tz_exchange = ZoneInfo(info["exchangeTimezoneName"])
@@ -162,7 +162,7 @@ def _prune_incomplete_daily_intervals():
                         else:
                             h = h.loc[:h.index[idx-1]]
                         h_modified = True
-                
+
                     if h_modified:
                         tkrs_repaired.add(tkr)
                         if h is None:
@@ -199,7 +199,7 @@ def _separate_events_from_prices():
         return
 
     msg = "IMPORTANT: Old version of yfinance_cache had bug in handling dividends & stock splits."\
-         f" Fix requires restructuring YFC cache. If you want to backup cache folder first, it's at: {d}"\
+          f" Fix requires restructuring YFC cache. If you want to backup cache folder first, it's at: {d}"\
           "\nProceed? Can't go back."
     r = click.confirm(msg, default=False)
     if not r:
@@ -364,7 +364,6 @@ def _fix_dividend_adjust():
 
             continue
 
-
         # First, recalculate dividend-adjustment factor:
         prices_fp = os.path.join(tkrd, "history-1d.pkl")
         with open(prices_fp, 'rb') as f:
@@ -384,7 +383,6 @@ def _fix_dividend_adjust():
         with open(divs_fp, 'wb') as f:
             pickle.dump(divsPklData, f, 4)
 
-
         # Next, copy it into 1D price table to recalc CDF:
         divs_df["_date"] = divs_df.index.date
         prices_1d_df["_date"] = prices_1d_df.index.date
@@ -398,7 +396,6 @@ def _fix_dividend_adjust():
         pricesPklData["data"] = prices_1d_df
         with open(prices_fp, 'wb') as f:
             pickle.dump(pricesPklData, f, 4)
-
 
         # Next, copy into all other prices tables:
         prices_1d_df["_date"] = prices_1d_df.index.date
@@ -460,18 +457,43 @@ def _fix_listing_date():
         return
 
     for tkr in os.listdir(d):
+        if tkr.startswith("EXCHANGE-") or tkr.startswith('_'):
+            # Not a security
+            continue
+
         tkrd = os.path.join(d, tkr)
 
-        # First, recalculate dividend adjustment
+        istr = yfcd.intervalToString[yfcd.Interval.Days1]
+        prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+        if not os.path.isfile(prices_fp):
+            # No data to prune
+            continue
+
         lst_fp = os.path.join(tkrd, "listing_date.json")
         if os.path.isfile(lst_fp):
             dat = yf.Ticker(tkr)
             df = dat.history(period="1d")
+            if "firstTradeDate" not in dat.history_metadata:
+                continue
             listing_date = dat.history_metadata["firstTradeDate"]
             yfcm.StoreCacheDatum(tkr, "listing_date", listing_date.date())
+
+            for interval in yfcd.Interval:
+                istr = yfcd.intervalToString[interval]
+                prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+                if not os.path.isfile(prices_fp):
+                    continue
+                with open(prices_fp, 'rb') as f:
+                    prices_pkl = pickle.load(f)
+                df = prices_pkl["data"]
+                if df.index[0] < listing_date:
+                    print("Pruning " + prices_fp)
+                    df = df.loc[listing_date:]
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
         pass
-

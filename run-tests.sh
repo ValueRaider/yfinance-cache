@@ -4,9 +4,6 @@ _main() (
 	EXCHANGES=(usa nze asx tlv)
 	PERIODS=(h d w)
 
-	export PYTHONPATH="$HOME"/ReposForks/exchange_calendars.dev:"$PYTHONPATH"
-	export PYTHONPATH="$HOME"/ReposExternal/yfinance.dev:"$PYTHONPATH"
-	
 	rm "$HOME"/.cache/yfinance.cache
 
 	set -e

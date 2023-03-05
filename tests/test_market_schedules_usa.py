@@ -1,19 +1,21 @@
 import unittest
 
 from .context import yfc_time as yfct
-from .context import yfc_dat as yfcd
 
-from datetime import datetime,date,time,timedelta
+import pandas as pd
+
+from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
-## 2022 calendar:
-## X* = day X is USA public holiday that closed NYSE
-##  -- February --
-##  Mo   Tu   We   Th   Fr   Sa   Su
-##  7    8    9    10   11   12   13
-##  14   15   16   17   18   19   20
-##  21*  22   23   24   25   26   27
-##  28
+# 2022 calendar:
+# X* = day X is USA public holiday that closed NYSE
+#  -- February --
+#  Mo   Tu   We   Th   Fr   Sa   Su
+#  7    8    9    10   11   12   13
+#  14   15   16   17   18   19   20
+#  21*  22   23   24   25   26   27
+#  28
+
 
 class Test_Market_Schedules_USA(unittest.TestCase):
 
@@ -23,11 +25,14 @@ class Test_Market_Schedules_USA(unittest.TestCase):
         self.market_tz = ZoneInfo(self.tz)
         yfct.SetExchangeTzName(self.exchange, self.tz)
 
+        self.market_open = time(9, 30)
+        self.market_close = time(16)
+
+        self.td7d = timedelta(days=7)
 
     def test_ExchangeOpenOnDay(self):
-        # Weekdays
-        for d in [14, 15, 16, 17, 18]:
-            dt = date(year=2022, month=2, day=d)
+        for d in range(14, 19):  # Weekdays
+            dt = date(2022, 2, d)
             response = yfct.ExchangeOpenOnDay(self.exchange, dt)
             answer = True
             try:
@@ -38,9 +43,9 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 print("answer = {0}".format(answer))
                 raise
 
-        ## Weekend
-        for d in [19, 20]:
-            dt = date(year=2022, month=2, day=d)
+        # Weekend
+        for d in [19, 20]:  # weekend
+            dt = date(2022, 2, d)
             response = yfct.ExchangeOpenOnDay(self.exchange, dt)
             answer = False
             try:
@@ -51,8 +56,7 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 print("answer = {0}".format(answer))
                 raise
 
-        ## Thanksgiving Day
-        dt = date(year=2022, month=11, day=24)
+        dt = date(2022, 11, 24)  # Thanksgiving Day
         response = yfct.ExchangeOpenOnDay(self.exchange, dt)
         answer = False
         try:
@@ -67,36 +71,173 @@ class Test_Market_Schedules_USA(unittest.TestCase):
         tz2 = yfct.GetExchangeTzName("NMS")
         self.assertEqual(tz2, "America/New_York")
 
-
     def test_GetExchangeWeekSchedule(self):
-        start_d = date(2022, 2, 7)
-        end_d = date(2022, 2, 28)
+        args = {"exchange": self.exchange}
 
-        answer = [ [date(2022,2,7), date(2022,2,14)], 
-                   [date(2022,2,14), date(2022,2,21)], 
-                   [date(2022,2,21), date(2022,2,28)]]
-        response = yfct.GetExchangeWeekSchedule(self.exchange, start_d, end_d, weeklyUseYahooDef=True)
-        self.assertEqual(response, answer)
+        # Test simple case - 3 full weeks
+        args["start"] = date(2022, 2, 7)  # Monday
+        args["end"] = date(2022, 2, 28)  # Monday + 3 weeks
+        week_starts = [datetime.combine(date(2022, 2, d), time(0), self.market_tz) for d in [7, 14, 21]]  # Mondays
+        week_ends = [d + self.td7d for d in week_starts]
+        opens = [datetime.combine(date(2022, 2, d), self.market_open, self.market_tz) for d in [7, 14, 22]]  # Monday opens - 21st holiday
+        closes = [datetime.combine(date(2022, 2, d), self.market_close, self.market_tz) for d in [11, 18, 25]]  # Friday closes
+        answer = pd.DataFrame(data={"open": opens, "close": closes}, index=pd.IntervalIndex.from_arrays(week_starts, week_ends, closed="left"))
+        for ignoreHolidays in [False, True]:
+            for ignoreWeekends in [False, True]:
+                args["ignoreHolidays"] = ignoreHolidays
+                args["ignoreWeekends"] = ignoreWeekends
+                response = yfct.GetExchangeWeekSchedule(**args)
+                try:
+                    self.assertTrue(response.index.equals(answer.index))
+                except:
+                    print("- response.index:") ; print(response.index)
+                    print("- answer.index:") ; print(answer.index)
+                    raise
+                try:
+                    self.assertTrue(response.equals(answer))
+                except:
+                    print("- response:") ; print(response)
+                    print("- answer:") ; print(answer)
+                    raise
 
-        answer = [ [date(2022,2,7), date(2022,2,12)],
-                   [date(2022,2,14), date(2022,2,19)], 
-                   [date(2022,2,22), date(2022,2,26)]]
-        response = yfct.GetExchangeWeekSchedule(self.exchange, start_d, end_d, weeklyUseYahooDef=False)
-        self.assertEqual(response, answer)
+        # Test mid-week behaviour
+        args["start"] = date(2022, 2, 9)  # Wednesday
+        args["end"] = date(2022, 2, 21)  # next next Monday
+        week_starts = [datetime.combine(date(2022, 2, 14), time(0), self.market_tz)]  # next Monday
+        week_ends = [d + self.td7d for d in week_starts]
+        opens = [datetime.combine(date(2022, 2, 14), self.market_open, self.market_tz)]  # Monday open
+        closes = [datetime.combine(date(2022, 2, 18), self.market_close, self.market_tz)]  # Friday close
+        answer = pd.DataFrame(data={"open": opens, "close": closes}, index=pd.IntervalIndex.from_arrays(week_starts, week_ends, closed="left"))
+        for ignoreWeekends in [False, True]:
+            for ignoreHolidays in [False, True]:
+                args["ignoreWeekends"] = ignoreWeekends
+                args["ignoreHolidays"] = ignoreHolidays
+                response = yfct.GetExchangeWeekSchedule(**args)
+                try:
+                    self.assertTrue(response.index.equals(answer.index))
+                except:
+                    print("- response.index:") ; print(response.index)
+                    print("- answer.index:") ; print(answer.index)
+                    raise
+                try:
+                    self.assertTrue(response.equals(answer))
+                except:
+                    print("- response:") ; print(response)
+                    print("- answer:") ; print(answer)
+                    raise
+        args["start"] = date(2022, 2, 7)  # Monday
+        args["end"] = date(2022, 2, 14)  # next Wednesday
+        week_starts = [datetime.combine(date(2022, 2, 7), time(0), self.market_tz)]  # Monday
+        week_ends = [d + self.td7d for d in week_starts]
+        opens = [datetime.combine(date(2022, 2, 7), self.market_open, self.market_tz)]  # Monday open
+        closes = [datetime.combine(date(2022, 2, 11), self.market_close, self.market_tz)]  # Friday close
+        answer = pd.DataFrame(data={"open": opens, "close": closes}, index=pd.IntervalIndex.from_arrays(week_starts, week_ends, closed="left"))
+        for ignoreWeekends in [False, True]:
+            for ignoreHolidays in [False, True]:
+                args["ignoreWeekends"] = ignoreWeekends
+                args["ignoreHolidays"] = ignoreHolidays
+                response = yfct.GetExchangeWeekSchedule(**args)
+                try:
+                    self.assertTrue(response.index.equals(answer.index))
+                except:
+                    print("- response.index:") ; print(response.index)
+                    print("- answer.index:") ; print(answer.index)
+                    raise
+                try:
+                    self.assertTrue(response.equals(answer))
+                except:
+                    print("- response:") ; print(response)
+                    print("- answer:") ; print(answer)
+                    raise
+
+        # Test weekend behaviour
+        args["start"] = date(2022, 2, 7)  # Monday
+        args["end"] = date(2022, 2, 13)  # Sunday
+        args["ignoreWeekends"] = True
+        week_starts = [datetime.combine(date(2022, 2, 7), time(0), self.market_tz)]  # Monday
+        week_ends = [d + self.td7d for d in week_starts]
+        opens = [datetime.combine(date(2022, 2, 7), self.market_open, self.market_tz)]  # Monday open
+        closes = [datetime.combine(date(2022, 2, 11), self.market_close, self.market_tz)]  # Friday close
+        answer = pd.DataFrame(data={"open": opens, "close": closes}, index=pd.IntervalIndex.from_arrays(week_starts, week_ends, closed="left"))
+        for ignoreHolidays in [False, True]:
+            args["ignoreHolidays"] = ignoreHolidays
+            response = yfct.GetExchangeWeekSchedule(**args)
+            try:
+                self.assertTrue(response.index.equals(answer.index))
+            except:
+                print("- response.index:") ; print(response.index)
+                print("- answer.index:") ; print(answer.index)
+                raise
+            try:
+                self.assertTrue(response.equals(answer))
+            except:
+                print("- response:") ; print(response)
+                print("- answer:") ; print(answer)
+                raise
+        args["ignoreWeekends"] = False
+        answer = None
+        for ignoreHolidays in [False, True]:
+            args["ignoreHolidays"] = ignoreHolidays
+            response = yfct.GetExchangeWeekSchedule(**args)
+            try:
+                self.assertEqual(response, answer)
+            except:
+                print("- response:") ; print(response)
+                print("- answer:") ; print(answer)
+                raise
+
+        # Test Monday holiday behaviour
+        args["start"] = date(2022, 2, 22)  # Monday 21st holiday
+        args["end"] = date(2022, 2, 28)  # Monday
+        args["ignoreHolidays"] = True
+        week_starts = [datetime.combine(date(2022, 2, 21), time(0), self.market_tz)]  # Monday
+        week_ends = [d + self.td7d for d in week_starts]
+        opens = [datetime.combine(date(2022, 2, 22), self.market_open, self.market_tz)]  # Tuesday open - Monday is holiday
+        closes = [datetime.combine(date(2022, 2, 25), self.market_close, self.market_tz)]  # Friday close
+        answer = pd.DataFrame(data={"open": opens, "close": closes}, index=pd.IntervalIndex.from_arrays(week_starts, week_ends, closed="left"))
+        for ignoreWeekends in [False, True]:
+            args["ignoreWeekends"] = ignoreWeekends
+            response = yfct.GetExchangeWeekSchedule(**args)
+            try:
+                self.assertTrue(response.index.equals(answer.index))
+            except:
+                print("- response.index:") ; print(response.index)
+                print("- answer.index:") ; print(answer.index)
+                raise
+            try:
+                self.assertTrue(response.equals(answer))
+            except:
+                print("- response:") ; print(response)
+                print("- answer:") ; print(answer)
+                raise
+        args["ignoreHolidays"] = False
+        answer = None
+        for ignoreWeekends in [False, True]:
+            args["ignoreWeekends"] = ignoreWeekends
+            response = yfct.GetExchangeWeekSchedule(**args)
+            try:
+                self.assertEqual(response, answer)
+            except:
+                print("- response:") ; print(response)
+                print("- answer:") ; print(answer)
+                raise
+
+        # Test weekend + Friday holiday behaviour
+        # Can't test because doesn't happen in February
 
     def test_IsTimestampInActiveSession_marketTz(self):
         hours = [] ; answers = []
-        hours.append( 9) ; answers.append(False)
+        hours.append(9) ; answers.append(False)
         hours.append(10) ; answers.append(True)
         hours.append(16) ; answers.append(False)
         hours.append(17) ; answers.append(False)
 
-        for d in [14,15,16,17,18]:
+        for d in range(14, 19):
             for i in range(len(hours)):
                 h = hours[i]
                 answer = answers[i]
 
-                dt = datetime(year=2022, month=2, day=d, hour=h, tzinfo=self.market_tz)
+                dt = datetime.combine(date(2022, 2, d), time(h), self.market_tz)
                 response = yfct.IsTimestampInActiveSession(self.exchange, dt)
                 try:
                     self.assertEqual(response, answer)
@@ -107,8 +248,8 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                     raise
 
         # Weekend:
-        for d in [19,20]:
-            dt = datetime(year=2022, month=2, day=d, hour=11, tzinfo=self.market_tz)
+        for d in [19, 20]:
+            dt = datetime.combine(date(2022, 2, d), time(11), self.market_tz)
             response = yfct.IsTimestampInActiveSession(self.exchange, dt)
             answer = False
             try:
@@ -121,19 +262,19 @@ class Test_Market_Schedules_USA(unittest.TestCase):
 
     def test_IsTimestampInActiveSession_utcTz(self):
         hours = [] ; answers = []
-        hours.append(14) ; answers.append(False) # Before open
+        hours.append(14) ; answers.append(False)  # Before open
         hours.append(15) ; answers.append(True)  # During session
-        hours.append(21) ; answers.append(False) # Right on close
-        hours.append(22) ; answers.append(False) # After close
+        hours.append(21) ; answers.append(False)  # Right on close
+        hours.append(22) ; answers.append(False)  # After close
 
         utc_tz = ZoneInfo("UTC")
 
-        for d in [14,15,16,17,18]:
+        for d in range(14, 19):
             for i in range(len(hours)):
                 h = hours[i]
                 answer = answers[i]
 
-                dt = datetime(year=2022, month=2, day=d, hour=h, tzinfo=utc_tz)
+                dt = datetime.combine(date(2022, 2, d), time(h), utc_tz)
                 response = yfct.IsTimestampInActiveSession(self.exchange, dt)
                 try:
                     self.assertEqual(response, answer)
@@ -144,8 +285,8 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                     raise
 
         # Weekend:
-        for d in [19,20]:
-            dt = datetime(year=2022, month=2, day=d, hour=10, tzinfo=utc_tz)
+        for d in [19, 20]:
+            dt = datetime.combine(date(2022, 2, d), time(10), utc_tz)
             response = yfct.IsTimestampInActiveSession(self.exchange, dt)
             answer = False
             try:
@@ -156,14 +297,15 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 print("answer = {0}".format(answer))
                 raise
 
-
     def test_GetTimestampCurrentSession(self):
-        for d in [14,15,16,17,18]:
+        for d in range(14, 19):
+            d = date(2022, 2, d)
+
             # During session
-            dt = datetime(year=2022, month=2, day=d, hour=10, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(10), self.market_tz)
             response = yfct.GetTimestampCurrentSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -180,7 +322,7 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # Before session
-            dt = datetime(year=2022, month=2, day=d, hour=8, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(8), self.market_tz)
             response = yfct.GetTimestampCurrentSession(self.exchange, dt)
             answer = None
             try:
@@ -192,7 +334,7 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # After session
-            dt = datetime(year=2022, month=2, day=d, hour=20, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(20), self.market_tz)
             response = yfct.GetTimestampCurrentSession(self.exchange, dt)
             answer = None
             try:
@@ -204,17 +346,19 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
     def test_GetTimestampMostRecentSession(self):
-        for d in [14,15,16,17,18]:
-            if d==14:
+        for d in range(14, 19):
+            if d == 14:
                 last_d = 11
             else:
                 last_d = d-1
+            d = date(2022, 2, d)
+            last_d = date(2022, 2, last_d)
 
             # Before open
-            dt = datetime(year=2022, month=2, day=d, hour=7, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(7), self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=last_d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=last_d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(last_d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(last_d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -231,10 +375,10 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # During session
-            dt = datetime(year=2022, month=2, day=d, hour=10, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(10), self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -251,10 +395,10 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # After session
-            dt = datetime(year=2022, month=2, day=d, hour=20, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(20), self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -271,11 +415,11 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
         # Weekend
-        for d in [19,20]:
-            dt = datetime(year=2022, month=2, day=d, hour=10, tzinfo=self.market_tz)
+        for d in [19, 20]:
+            dt = datetime.combine(date(2022, 2, d), time(10), self.market_tz)
             response = yfct.GetTimestampMostRecentSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=18, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=18, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(date(2022, 2, 18), time(9, 30), self.market_tz)
+            answer_close = datetime.combine(date(2022, 2, 18), time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -292,12 +436,19 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
     def test_GetTimestampNextSession(self):
-        for d in [14,15,16,17,18]:
+        for d in range(14, 19):
+            if d == 18:
+                next_d = 22
+            else:
+                next_d = d+1
+            d = date(2022, 2, d)
+            next_d = date(2022, 2, next_d)
+
             # Before open
-            dt = datetime(year=2022, month=2, day=d, hour=7, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(7), self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -313,16 +464,11 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 print("answer = {0}".format(answer_close))
                 raise
 
-            if d == 18:
-                next_d = 22
-            else:
-                next_d = d+1
-
             # During session
-            dt = datetime(year=2022, month=2, day=d, hour=10, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(10), self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=next_d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=next_d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(next_d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(next_d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -339,10 +485,10 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # After session
-            dt = datetime(year=2022, month=2, day=d, hour=20, tzinfo=self.market_tz)
+            dt = datetime.combine(d, time(20), self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
-            answer_open  = datetime(year=2022, month=2, day=next_d, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=next_d, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(next_d, time(9, 30), self.market_tz)
+            answer_close = datetime.combine(next_d, time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:
@@ -359,11 +505,11 @@ class Test_Market_Schedules_USA(unittest.TestCase):
                 raise
 
             # On Weekend
-            dt = datetime(year=2022, month=2, day=13, hour=20, tzinfo=self.market_tz)
+            dt = datetime.combine(date(2022, 2, 13), time(20), self.market_tz)
             response = yfct.GetTimestampNextSession(self.exchange, dt)
             # Monday 17th is holiday
-            answer_open  = datetime(year=2022, month=2, day=14, hour=9, minute=30, tzinfo=self.market_tz)
-            answer_close = datetime(year=2022, month=2, day=14, hour=16, minute=0, tzinfo=self.market_tz)
+            answer_open = datetime.combine(date(2022, 2, 14), time(9, 30), self.market_tz)
+            answer_close = datetime.combine(date(2022, 2, 14), time(16, 0), self.market_tz)
             try:
                 self.assertEqual(response["market_open"], answer_open)
             except:

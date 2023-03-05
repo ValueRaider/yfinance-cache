@@ -35,8 +35,8 @@ class TraceLogger:
         self._trace_depth -= 2
         self.Print(log_msg)
 
-tc = None
-# tc = TraceLogger()
+tc = yfcu.tc
+
 
 class HistoriesManager:
     # Intended as single to class to ensure:
@@ -100,7 +100,6 @@ class EventsHistory:
         else:
             self.splits = None
 
-
     def GetDivs(self, start, end=None):
         yfcu.TypeCheckDateStrict(start, "start")
         if end is not None:
@@ -125,7 +124,6 @@ class EventsHistory:
         else:
             return slc.copy()
 
-
     def GetDivsFetchedSince(self, dt):
         yfcu.TypeCheckDatetime(dt, "dt")
 
@@ -145,7 +143,6 @@ class EventsHistory:
             log_msg += f" {len(result)}"
 
         return result
-
 
     def GetSplits(self, start, end=None):
         yfcu.TypeCheckDateStrict(start, "start")
@@ -170,7 +167,6 @@ class EventsHistory:
 
         return result
 
-
     def GetSplitsFetchedSince(self, dt):
         yfcu.TypeCheckDatetime(dt, "dt")
 
@@ -185,14 +181,13 @@ class EventsHistory:
 
         return result
 
-
     def UpdateSplits(self, splits_df):
         if tc is not None:
             n = splits_df.shape[0]
             if n <= 2:
-                tc.Enter(f"UpdateSplits({splits_df.index.date})")
+                tc.Enter(f"PM: UpdateSplits({splits_df.index.date})")
             else:
-                tc.Enter(f"UpdateSplits(n={n})")
+                tc.Enter(f"PM: UpdateSplits(n={n})")
 
         debug = False
         # debug = True
@@ -236,14 +231,13 @@ class EventsHistory:
         if tc is not None:
             tc.Exit("UpdateSplits() returning")
 
-
     def UpdateDividends(self, divs_df):
         if tc is not None:
             n = divs_df.shape[0]
             if n <= 2:
-                tc.Enter(f"UpdateDividends({divs_df.index.date})")
+                tc.Enter(f"PM: UpdateDividends({divs_df.index.date})")
             else:
-                tc.Enter(f"UpdateDividends(n={n})")
+                tc.Enter(f"PM: UpdateDividends(n={n})")
 
         debug = False
         # debug = True
@@ -339,7 +333,7 @@ class PriceHistory:
         self.cache_key = "history-"+self.istr
         self.h = self._getCachedPrices()
 
-        # A place to temporarily store new dividends, until prices have 
+        # A place to temporarily store new dividends, until prices have
         # been repaired, then they can be sent to EventsHistory
         self._newDivs = None
 
@@ -351,7 +345,6 @@ class PriceHistory:
         # self._record_stack_trace = False
         self._stack_trace = []
         self._infinite_recursion_detected = False
-
 
     def _getCachedPrices(self):
         h = None
@@ -383,7 +376,6 @@ class PriceHistory:
 
         return h
 
-
     def _updatedCachedPrices(self, df):
         yfcu.TypeCheckDataFrame(df, "df")
 
@@ -398,7 +390,6 @@ class PriceHistory:
         yfcm.StoreCacheDatum(self.ticker, self.cache_key, df)
 
         self.h = df
-
 
     def get(self, start=None, end=None, period=None, max_age=None, repair=True, prepost=False, adjust_splits=False, adjust_divs=False, quiet=False):
         if start is None and end is None and period is None:
@@ -475,7 +466,7 @@ class PriceHistory:
             if self.h is None:
                 pstr = yfcd.periodToString[period]
             else:
-                start_d, end_d = yfct.MapPeriodToDates(self.exchange, period)
+                start_d, end_d = yfct.MapPeriodToDates(self.exchange, period, self.interval)
                 period = None
                 if self.interday:
                     start = start_d
@@ -541,7 +532,7 @@ class PriceHistory:
         if self.h is not None:
             if self.h.empty:
                 self.h = None
-                
+
         if self.h is not None:
             n = self.h.shape[0]
             if self.interday:
@@ -661,21 +652,21 @@ class PriceHistory:
             if self.contiguous:
                 if self.h is None or self.h.empty:
                     if self.interday:
-                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start_d, end_d, self.interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start_d, end_d, self.interval, [], minDistanceThreshold=5)
                     else:
-                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, end, self.interval, [], weeklyUseYahooDef=True, minDistanceThreshold=5)
+                        ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, end, self.interval, [], minDistanceThreshold=5)
                 else:
                     # Ensure that daily data always up-to-date to now
                     # Update: only necessary to be up-to-date to now if a fetch happens
                     dt_start = yfct.ConvertToDatetime(self.h.index[0], tz=tz_exchange)
                     dt_end = yfct.ConvertToDatetime(self.h.index[-1], tz=tz_exchange)
-                    h_start = yfct.GetTimestampCurrentInterval(self.exchange, dt_start, self.interval, ignore_breaks=True, weeklyUseYahooDef=True)["interval_open"]
-                    h_end = yfct.GetTimestampCurrentInterval(self.exchange, dt_end, self.interval, ignore_breaks=True, weeklyUseYahooDef=True)["interval_close"]
+                    h_start = yfct.GetTimestampCurrentInterval(self.exchange, dt_start, self.interval, ignore_breaks=True)["interval_open"]
+                    h_end = yfct.GetTimestampCurrentInterval(self.exchange, dt_end, self.interval, ignore_breaks=True)["interval_close"]
 
                     rangePre_to_fetch = None
                     if start < h_start:
                         try:
-                            rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, h_start, self.interval, None, ignore_breaks=True, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                            rangePre_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, h_start, self.interval, None, ignore_breaks=True, minDistanceThreshold=5)
                         except yfcd.NoIntervalsInRangeException:
                             rangePre_to_fetch = None
                     if rangePre_to_fetch is not None:
@@ -691,7 +682,7 @@ class PriceHistory:
                             target_end_d = end
                         if h_end < target_end_d:
                             try:
-                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_d, self.interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_d, self.interval, None, minDistanceThreshold=5)
                             except yfcd.NoIntervalsInRangeException:
                                 rangePost_to_fetch = None
                     else:
@@ -705,7 +696,7 @@ class PriceHistory:
                             target_end_dt = sched["close"].iloc[0]+timedelta(hours=2)
                         if h_end < target_end_dt:
                             try:
-                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_dt, self.interval, None, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                                rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_dt, self.interval, None, minDistanceThreshold=5)
                             except yfcd.NoIntervalsInRangeException:
                                 rangePost_to_fetch = None
                     # if not yfct.IsTimestampInActiveSession(self.exchange, dt_now):
@@ -739,7 +730,7 @@ class PriceHistory:
                     if rangePost_to_fetch is not None:
                         ranges_to_fetch.append(rangePost_to_fetch)
             else:
-                h_intervals = yfct.GetTimestampCurrentInterval_batch(self.exchange, h_interval_dts, self.interval, ignore_breaks=True, weeklyUseYahooDef=True)
+                h_intervals = yfct.GetTimestampCurrentInterval_batch(self.exchange, h_interval_dts, self.interval, ignore_breaks=True)
                 if h_intervals is None:
                     h_intervals = pd.DataFrame(data={"interval_open": [], "interval_close": []})
                 else:
@@ -764,7 +755,7 @@ class PriceHistory:
                     h_interval_opens = h_intervals["interval_open"].to_numpy()
 
                 try:
-                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, end, self.interval, h_interval_opens, ignore_breaks=True, weeklyUseYahooDef=True, minDistanceThreshold=5)
+                    ranges_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, start, end, self.interval, h_interval_opens, ignore_breaks=True, minDistanceThreshold=5)
                     if ranges_to_fetch is None:
                         ranges_to_fetch = []
                 except yfcd.NoIntervalsInRangeException:
@@ -915,7 +906,6 @@ class PriceHistory:
 
         return h_copy
 
-
     def _fetchAndAddRanges_contiguous(self, pstr, ranges_to_fetch, prepost, debug, quiet=False):
         if pstr is not None:
             yfcu.TypeCheckStr(pstr, "pstr")
@@ -1049,7 +1039,7 @@ class PriceHistory:
             #     h2_post = self._repairZeroPrices(h2_post)
             #     h2_post = self._repairUnitMixups(h2_post)
 
-            # TODO: Instead of updating events from here (daily prices fetch), 
+            # TODO: Instead of updating events from here (daily prices fetch),
             #       add a fetch method to EventsHistory class that can update itself.
             #       Maybe also allow EventsHistory to send new prices to PriceHistory
             # TODO: Problem: dividends need correct close
@@ -1069,10 +1059,8 @@ class PriceHistory:
                 if not h2_post_splits.empty:
                     self.manager.GetHistory("Events").UpdateSplits(h2_post_splits)
 
-
             # Backport new events across entire h table
             self._applyNewEvents()
-
 
             if h2_post is not None and not isinstance(h2_post.index, pd.DatetimeIndex):
                 raise Exception("h2_post.index not DatetimeIndex")
@@ -1081,7 +1069,6 @@ class PriceHistory:
                 raise Exception("Adj Close in h2_post")
             self.h = pd.concat([self.h, h2_post], sort=True)
             self.h.index = pd.to_datetime(self.h.index, utc=True).tz_convert(tz_exchange)
-
 
         if h2_pre is not None:
             if debug_yfc:
@@ -1101,7 +1088,6 @@ class PriceHistory:
             self.h = pd.concat([self.h, h2_pre], sort=True)
             self.h.index = pd.to_datetime(self.h.index, utc=True).tz_convert(tz_exchange)
 
-
         self.h = self.h.sort_index()
         self._updatedCachedPrices(self.h)
 
@@ -1112,7 +1098,6 @@ class PriceHistory:
             print("- h:")
             print(self.h)
             print(log_msg)
-
 
     def _fetchAndAddRanges_sparse(self, pstr, ranges_to_fetch, prepost, debug, quiet=False):
         if pstr is not None:
@@ -1234,25 +1219,18 @@ class PriceHistory:
         elif debug_yfc:
             print(log_msg)
 
-
     def _verifyCachedPrices(self, correct=False, discard_old=False, quiet=True, debug=False):
         yfcu.TypeCheckBool(correct, "correct")
 
         if self.h is None or self.h.empty:
             return True
 
-        log_msg = f"_verifyCachedPrices-{self.istr}(correct={correct}, debug={debug})"
         if tc is not None:
-            tc.Enter(log_msg)
-        # elif debug:
-        #     print(log_msg)
+            tc.Enter(f"PM::_verifyCachedPrices-{self.istr}(correct={correct}, debug={debug})")
 
         def _verifyCachedPrices_exitClean(result):
-            log_msg = f"_verifyCachedPrices-{self.istr}() returning {result}"
             if tc is not None:
-                tc.Exit(log_msg)
-            # elif debug:
-            #     print(log_msg)
+                tc.Exit(f"PM::_verifyCachedPrices-{self.istr}() returning {result}")
 
         # New code: hopefully this will correct bad CDF in 1wk etc
         self._applyNewEvents()
@@ -1264,20 +1242,16 @@ class PriceHistory:
         f_diff_all = pd.Series(np.full(h.shape[0], False), h.index)
         n = h.shape[0]
 
-
         # Ignore non-final data because will differ to Yahoo
         h = h[h["Final?"].to_numpy()]
-
 
         # Apply stock-split adjustment to match YF
         for c in ["Open", "Close", "Low", "High", "Dividends"]:
             h[c] = h[c].to_numpy() * h["CSF"].to_numpy()
         h["Volume"] = h["Volume"].to_numpy() / h["CSF"].to_numpy()
 
-
         td_1d = pd.Timedelta("1D")
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-
+        dt_now = pd.Timestamp.utcnow()
 
         def _aggregate_yfdf_daily(df):
             df2 = df.copy()
@@ -1310,10 +1284,9 @@ class PriceHistory:
             df2.index = pd.to_datetime(df2.index).tz_localize(df.index.tz)
             return df2
 
-
         # For intraday data older than Yahoo limit, compare aggregated against 1d
         if self.intraday:
-            dt_now_local = pd.Timestamp(dt_now).tz_convert(self.tzName)
+            dt_now_local = dt_now.tz_convert(self.tzName)
             if self.interval == yfcd.Interval.Hours1:
                 max_lookback_days = 365*2
             elif self.istr in ["90m", "30m", "15m", "5m", "2m"]:
@@ -1468,7 +1441,7 @@ class PriceHistory:
 
             # if self.exchange == "ASX" and self.istr in ["1m", "2m", "5m"]:
             #     # ASX market closes at 4pm with auction around 4:11pm,
-            #     # but sometimes Yahoo thinks tiny volume of trades occurred 
+            #     # but sometimes Yahoo thinks tiny volume of trades occurred
             #     # inbetween. Wrong!
             #     # Fix = merge with previous interval
             #     f = df_yf.index.time == time(16)
@@ -1487,7 +1460,6 @@ class PriceHistory:
                 ss_rcp = 1.0 / ss
                 csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
                 df_yf["Volume"] = df_yf["Volume"].to_numpy() / csf
-
 
             if self.interval != yfcd.Interval.Days1 and correct:
                 # Copy over any missing dividends
@@ -1553,7 +1525,6 @@ class PriceHistory:
             _verifyCachedPrices_exitClean(True)
             return True
 
-        # h = self.h
         h = h_new
         if correct:
             drop_dts = f_diff_all.index[f_diff_all]
@@ -1630,7 +1601,6 @@ class PriceHistory:
         _verifyCachedPrices_exitClean(False)
         return False
 
-
     def _fetchYfHistory(self, pstr, start, end, prepost, debug, verify_intervals=True, disable_yfc_metadata=False):
         if start is None and end is None and pstr is None:
             raise ValueError("Must provide value for one of: 'start', 'end', 'pstr'")
@@ -1646,7 +1616,7 @@ class PriceHistory:
         debug_yfc = False
         # debug_yfc = True
 
-        log_msg = f"_fetchYfHistory-{self.istr}(pstr={pstr} , {start}->{end}, prepost={prepost})"
+        log_msg = f"PM::_fetchYfHistory-{self.istr}(pstr={pstr} , {start}->{end}, prepost={prepost})"
         if tc is not None:
             tc.Enter(log_msg)
         elif debug_yfc:
@@ -1828,7 +1798,7 @@ class PriceHistory:
                     fetch_end = r["fetch end"]
                     dfr = self._fetchYfHistory_dateRange(fetch_start, fetch_end, prepost, debug)
                     # Discard padding days:
-                    dfr = dfr.loc[r["core start"] : r["core end"] - timedelta(milliseconds=1)]
+                    dfr = dfr.loc[r["core start"]: r["core end"] - timedelta(milliseconds=1)]
                     if debug_yfc:
                         print("- dfr after discarding padding days:")
                         print(dfr[[c for c in ["Open", "Low", "High", "Close", "Dividends", "Volume"] if c in dfr.columns]])
@@ -1838,7 +1808,6 @@ class PriceHistory:
                         df = pd.concat([df, dfr], sort=True)
                     if df.index.duplicated().any():
                         raise Exception("df contains duplicated dates")
-
 
         fetch_dt_utc = datetime.utcnow()
 
@@ -1868,7 +1837,7 @@ class PriceHistory:
                         listing_day = df.index[0]
                     else:
                         if pstr is not None:
-                            fetch_start, fetch_end_d = yfct.MapPeriodToDates(self.exchange, yfcd.periodStrToEnum[pstr])
+                            fetch_start, fetch_end_d = yfct.MapPeriodToDates(self.exchange, yfcd.periodStrToEnum[pstr], self.interval)
                         tol = yfcd.listing_date_check_tols[self.interval]
                         if fetch_start is not None:
                             fetch_start_d = fetch_start.date() if isinstance(fetch_start, datetime) else fetch_start
@@ -1899,7 +1868,7 @@ class PriceHistory:
                                 msg = "- requested date range was before listing date"
                                 tc.Print(msg) if tc is not None else print(msg)
                             return None
-                if found_listing_day and not start is None:
+                if found_listing_day and start is not None:
                     # Apply to fetch start
                     if isinstance(start, datetime):
                         listing_date = datetime.combine(listing_day, time(0), self.tz)
@@ -2045,7 +2014,7 @@ class PriceHistory:
                     df = df[~f_in_break]
                     n = df.shape[0]
             #
-            intervals = yfct.GetTimestampCurrentInterval_batch(self.exchange, yfIntervalStarts, self.interval, ignore_breaks=True, weeklyUseYahooDef=True)
+            intervals = yfct.GetTimestampCurrentInterval_batch(self.exchange, yfIntervalStarts, self.interval, discardTimes=self.interday, ignore_breaks=True)
 
             f_na = intervals["interval_open"].isna().to_numpy()
             if verify_intervals and f_na.any():
@@ -2216,7 +2185,6 @@ class PriceHistory:
                     print(warning_msg)
                     print(df_na)
                     msg = "Accept into cache anyway?"
-                    # if self.exchange in ["ASX"]:
                     if False:
                         accept = True
                     else:
@@ -2224,20 +2192,15 @@ class PriceHistory:
                     if accept:
                         for idx in np.where(f_na)[0]:
                             dt = intervals.index[idx]
-                            # print(f"- idx={idx} dt={dt}")
                             intervals.loc[dt, "interval_open"] = df.index[idx]
                             intervals.loc[dt, "interval_close"] = df.index[idx] + self.itd
-                            # print(intervals.loc[dt])
-                        # print(intervals)
                     else:
                         raise Exception("Problem with dates returned by Yahoo, see above")
 
         df = df.copy()
 
         if not disable_yfc_metadata:
-            # lastDataDts = yfct.CalcIntervalLastDataDt_batch(self.exchange, yfIntervalStarts, self.interval)
             lastDataDts = yfct.CalcIntervalLastDataDt_batch(self.exchange, intervals["interval_open"].to_numpy(), self.interval)
-            # lastDataDts = yfct.CalcIntervalLastDataDt_batch(self.exchange, intervals["interval_open"].to_numpy(), self.interval, ignore_breaks=True)
             if f_na.any():
                 # Hacky solution to handle xcal having incorrect schedule, for valid Yahoo data
                 lastDataDts[f_na] = intervals.index[f_na] + self.itd
@@ -2254,8 +2217,7 @@ class PriceHistory:
 
             df["C-Check?"] = False
 
-        # log_msg = "_fetchYfHistory() returning"
-        log_msg = f"_fetchYfHistory() returning DF {df.index[0]} -> {df.index[-1]}"
+        log_msg = f"PM::_fetchYfHistory() returning DF {df.index[0]} -> {df.index[-1]}"
         if tc is not None:
             tc.Exit(log_msg)
         elif debug_yfc:
@@ -2271,7 +2233,7 @@ class PriceHistory:
         debug_yfc = False
         # debug_yfc = True
 
-        log_msg = f"_fetchYfHistory_period-{self.istr}(pstr={pstr} , prepost={prepost})"
+        log_msg = f"PM::_fetchYfHistory_period-{self.istr}(pstr={pstr} , prepost={prepost})"
         if tc is not None:
             tc.Enter(log_msg)
         elif debug_yfc:
@@ -2297,7 +2259,7 @@ class PriceHistory:
 
         df = self.dat.history(**history_args)
 
-        log_msg = f"_fetchYfHistory_period() returning DF {df.index[0]} -> {df.index[-1]}"
+        log_msg = f"PM::_fetchYfHistory_period() returning DF {df.index[0]} -> {df.index[-1]}"
         if tc is not None:
             tc.Exit(log_msg)
         elif debug_yfc:
@@ -2314,7 +2276,7 @@ class PriceHistory:
         debug_yfc = False
         # debug_yfc = True
 
-        log_msg = f"_fetchYfHistory_dateRange-{self.istr}(start={start} , end={end} , prepost={prepost})"
+        log_msg = f"PM::_fetchYfHistory_dateRange-{self.istr}(start={start} , end={end} , prepost={prepost})"
         if tc is not None:
             tc.Enter(log_msg)
         elif debug_yfc:
@@ -2422,17 +2384,15 @@ class PriceHistory:
             df = None
 
         if df is None:
-            log_msg = "_fetchYfHistory_dateRange() returning None"
+            log_msg = "PM::_fetchYfHistory_dateRange() returning None"
         else:
-            log_msg = f"_fetchYfHistory_dateRange() returning DF {df.index[0]} -> {df.index[-1]}"
+            log_msg = f"PM::_fetchYfHistory_dateRange() returning DF {df.index[0]} -> {df.index[-1]}"
         if tc is not None:
             tc.Exit(log_msg)
         elif debug_yfc:
             print(log_msg)
 
         return df
-
-
 
     def _reconstruct_intervals_batch(self, df, tag=-1):
         if not isinstance(df, pd.DataFrame):
@@ -2448,7 +2408,7 @@ class PriceHistory:
         price_cols = [c for c in ["Open", "High", "Low", "Close", "Adj Close"] if c in df]
         data_cols = price_cols + ["Volume"]
 
-        log_msg = f"_reconstruct_intervals_batch-{self.istr}(dt0={df.index[0]})"
+        log_msg = f"PM::_reconstruct_intervals_batch-{self.istr}(dt0={df.index[0]})"
         if tc is not None:
             tc.Enter(log_msg)
 
@@ -2495,7 +2455,7 @@ class PriceHistory:
             msg = f"WARNING: Have not implemented repair for '{self.interval}' interval. Contact developers"
             # raise Exception(msg)
             tc.Print(msg) if tc is not None else print(msg)
-            log_msg = "_reconstruct_intervals_batch() returning"
+            log_msg = "PM::_reconstruct_intervals_batch() returning"
             if tc is not None:
                 tc.Exit(log_msg)
             return df
@@ -2771,7 +2731,7 @@ class PriceHistory:
                 # AdjClose=("Adj Close", "last"),
                 Low=("Low", "min"),
                 High=("High", "max"),
-                Volume=("Volume", "sum"))  #,
+                Volume=("Volume", "sum"))
                 # CSF=("CSF", "first"),
                 # CDF=("CDF", "first"))#.rename(columns={"AdjClose": "Adj Close"})
             if grp_col in ["Week Start", "Day Start"]:
@@ -2840,7 +2800,7 @@ class PriceHistory:
 
             for idx in bad_dts:
                 if idx not in df_new.index:
-                    # Yahoo didn't return finer-grain data for this interval, 
+                    # Yahoo didn't return finer-grain data for this interval,
                     # so probably no trading happened.
                     # print("no fine data")
                     continue
@@ -2901,12 +2861,11 @@ class PriceHistory:
         #     print("- df_v2:")
         #     print(df_v2)
 
-        log_msg = "_reconstruct_intervals_batch() returning"
+        log_msg = "PM::_reconstruct_intervals_batch() returning"
         if tc is not None:
             tc.Exit(log_msg)
 
         return df_v2
-
 
     def _repairUnitMixups(self, df, silent=False):
         yfcu.TypeCheckDataFrame(df, "df")
@@ -2921,8 +2880,8 @@ class PriceHistory:
             # Need multiple rows to confidently identify outliers
             return df
 
-        log_msg_enter = f"_repairUnitMixups-{self.istr}()"
-        log_msg_exit = f"_repairUnitMixups-{self.istr}() returning"
+        log_msg_enter = f"PM::_repairUnitMixups-{self.istr}()"
+        log_msg_exit = f"PM::_repairUnitMixups-{self.istr}() returning"
         if tc is not None:
             tc.Enter(log_msg_enter)
 
@@ -3029,7 +2988,6 @@ class PriceHistory:
 
         return df2
 
-
     def _repairZeroPrices(self, df, silent=False):
         yfcu.TypeCheckDataFrame(df, "df")
 
@@ -3042,8 +3000,8 @@ class PriceHistory:
             # Need multiple rows to confidently identify outliers
             return df
 
-        log_msg_enter = f"_repairZeroPrices-{self.istr}(date_range={df.index[0]}->{df.index[-1]+self.itd})"
-        log_msg_exit = f"_repairZeroPrices-{self.istr}() returning"
+        log_msg_enter = f"PM::_repairZeroPrices-{self.istr}(date_range={df.index[0]}->{df.index[-1]+self.itd})"
+        log_msg_exit = f"PM::_repairZeroPrices-{self.istr}() returning"
         if tc is not None:
             tc.Enter(log_msg_enter)
 
@@ -3106,7 +3064,6 @@ class PriceHistory:
 
         return df2
 
-
     def _reverseYahooAdjust(self, df):
         yfcu.TypeCheckDataFrame(df, "df")
 
@@ -3127,7 +3084,7 @@ class PriceHistory:
         debug = False
         # debug = True
 
-        log_msg = f"_reverseYahooAdjust-{self.istr}, {df.index[0]}->{df.index[-1]}"
+        log_msg = f"PM::_reverseYahooAdjust-{self.istr}, {df.index[0]}->{df.index[-1]}"
         if tc is not None:
             tc.Enter(log_msg)
         elif debug:
@@ -3181,22 +3138,15 @@ class PriceHistory:
                 csf_post = yfcu.GetCSF0(df_daily_post)
             expectedRatio = 1.0 / csf_post
 
-            # Merge 'df' with daily data to compare and infer adjustment
-            # df_aggByDay = df.copy()
-            # df_aggByDay["_date"] = df_aggByDay.index.date
-            # df_aggByDay = df_aggByDay.groupby("_date").agg(
+            # # Merge 'df' with daily data to compare and infer adjustment
+            # df_grp = df.copy()
+            # df_grp["_date"] = df_grp.index.date
+            # df_grp = df_grp.groupby("_date")
+            # df_aggByDay = df_grp.agg(
             #     Low=("Low", "min"),
             #     High=("High", "max"),
             #     Open=("Open", "first"),
             #     Close=("Close", "last"))
-            df_grp = df.copy()
-            df_grp["_date"] = df_grp.index.date
-            df_grp = df_grp.groupby("_date")
-            df_aggByDay = df_grp.agg(
-                Low=("Low", "min"),
-                High=("High", "max"),
-                Open=("Open", "first"),
-                Close=("Close", "last"))
 
             # Cross-check inferred split-adjustment vs expected
             # - update: disable, because only fails due to insufficient data
@@ -3357,7 +3307,7 @@ class PriceHistory:
                 print(df.loc[f, ["Open", "Low", "High", "Close", "Dividends", "Volume", "CSF", "CDF"]])
             print("")
 
-        log_msg = f"_reverseYahooAdjust-{self.istr}() returning"
+        log_msg = f"PM::_reverseYahooAdjust-{self.istr}() returning"
         if tc is not None:
             tc.Exit(log_msg)
         elif debug:
@@ -3368,7 +3318,6 @@ class PriceHistory:
 
         return df
 
-
     def _applyNewEvents(self):
         if self.h is None or self.h.empty:
             return
@@ -3377,7 +3326,7 @@ class PriceHistory:
         # debug = True
 
         if debug and tc is not None:
-            tc.Enter(f"_applyNewEvents()-{self.istr}")
+            tc.Enter(f"PM::_applyNewEvents()-{self.istr}")
 
         h_modified = False
 
@@ -3439,4 +3388,4 @@ class PriceHistory:
             self._updatedCachedPrices(self.h)
 
         if debug and tc is not None:
-            tc.Exit("_applyNewEvents() returning")
+            tc.Exit("PM::_applyNewEvents() returning")
