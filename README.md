@@ -24,9 +24,9 @@ hist = msft.history(period="max")
 
 #### Refreshing cache
 ```python
-msft.history(interval="1d", max_age="1h", ...)
+msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
 ```
-`max_age` controls when to yodate cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. Refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
+`max_age` controls when to yodate cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. If `trigger_at_market_close`=True then refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
 
 #### Adjusting price
 Price can be adjusted for stock splits, dividends, or both.
@@ -39,6 +39,8 @@ Cached prices can be compared against latest Yahoo Finance data, and correct dif
 ```python
 # Verify prices of one ticker symbol
 msft.verify_cached_prices(
+	rtol=0.0001,  # relative tolerance for differences
+	vol_rtol=0.005,  # relative tolerance specifically for Volume
 	correct=False,  # delete incorrect cached data?
 	discard_old=False,  # if cached data too old to check (e.g. 30m), assume incorrect and delete?
 	quiet=True,  # enable to print nothing, disable to print summary detail of why cached data wrong
@@ -48,8 +50,10 @@ msft.verify_cached_prices(
 # Verify prices of entire cache, ticker symbols processed alphabetically. Recommend using `requests_cache` session.
 yfc.verify_cached_tickers_prices(
 	session=None,  # recommend you provide a requests_cache here
+	rtol=0.0001,
+	vol_rtol=0.005,
 	correct=False,
-	resume_from_tkr=None,  # in case you aborted verification, can jump ahead
+	resume_from_tkr=None,  # in case you aborted verification, can jump ahead to this ticker symbol. Append '+1' to start AFTER the ticker
 	debug_tkr=None,  # only verify this ticker symbol
 	debug_interval=None)
 ```
