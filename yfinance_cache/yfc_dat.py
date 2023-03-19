@@ -156,6 +156,17 @@ periodToString[Period.Years10] = "10y"
 periodToString[Period.Ytd] = "ytd"
 periodToString[Period.Max] = "max"
 periodStrToEnum = {v: k for k, v in periodToString.items()}
+periodToTimedelta = {}
+periodToTimedelta[Period.Days1] = timedelta(days=1)
+periodToTimedelta[Period.Days5] = timedelta(days=5)
+periodToTimedelta[Period.Week] = timedelta(days=7)
+periodToTimedelta[Period.Months1] = relativedelta(months=1)
+periodToTimedelta[Period.Months3] = relativedelta(months=3)
+periodToTimedelta[Period.Months6] = relativedelta(months=6)
+periodToTimedelta[Period.Years1] = relativedelta(years=1)
+periodToTimedelta[Period.Years2] = relativedelta(years=2)
+periodToTimedelta[Period.Years5] = relativedelta(years=5)
+periodToTimedelta[Period.Years10] = relativedelta(years=10)
 
 
 class Interval(Enum):
@@ -217,10 +228,12 @@ exchangeToXcalExchange["CNQ"] = exchangeToXcalExchange["TOR"]  # CSE. TSX compet
 exchangeToXcalExchange["LSE"] = "XLON"  # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
 exchangeToXcalExchange["AMS"] = "XAMS"  # Amsterdam
+exchangeToXcalExchange["ATH"] = "ASEX"  # Athens
 exchangeToXcalExchange["BRU"] = "XBRU"  # Brussels
 exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
-exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
+exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
+exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
 exchangeToXcalExchange["HEL"] = "XHEL"  # Helsinki
 exchangeToXcalExchange["ISE"] = "XDUB"  # Ireland
 exchangeToXcalExchange["MCE"] = "XMAD"  # Madrid
@@ -235,6 +248,8 @@ exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg
 exchangeToXcalExchange["SAO"] = "BVMF"  # Sao Paulo
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
+exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
+exchangeToXcalExchange["SES"] = "XSES"  # Singapore
 exchangeToXcalExchange["HKG"] = "XHKG"  # Hong Kong
 exchangeToXcalExchange["ASX"] = "ASX"   # Australia
 exchangeToXcalExchange["NZE"] = "XNZE"  # New Zealand
@@ -260,9 +275,11 @@ exchangeToYfLag["CNQ"] = exchangeToYfLag["TOR"]
 exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
+exchangeToYfLag["ATH"] = timedelta(minutes=15)
 exchangeToYfLag["BRU"] = timedelta(minutes=15)
 exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
+exchangeToYfLag["FRA"] = timedelta(minutes=15)
 exchangeToYfLag["GER"] = timedelta(minutes=15)
 exchangeToYfLag["HEL"] = timedelta(0)
 exchangeToYfLag["ISE"] = timedelta(minutes=15)
@@ -278,6 +295,8 @@ exchangeToYfLag["JNB"] = timedelta(minutes=15)
 exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
+exchangeToYfLag["KSC"] = timedelta(minutes=20)
+exchangeToYfLag["SES"] = timedelta(minutes=20)
 exchangeToYfLag["HKG"] = timedelta(minutes=15)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)
 exchangeToYfLag["NZE"] = timedelta(minutes=20)

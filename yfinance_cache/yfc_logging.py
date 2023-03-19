@@ -1,0 +1,92 @@
+import logging
+import os
+
+from . import yfc_cache_manager as yfcm
+
+
+yfc_logging_mode = False
+
+def EnableLogging():
+    global yfc_logging_mode
+    yfc_logging_mode = True
+
+def DisableLogging():
+    global yfc_logging_mode
+    yfc_logging_mode = False
+
+def IsLoggingEnabled():
+    global yfc_logging_mode
+    return yfc_logging_mode
+
+loggers = {}
+def GetLogger(tkr):
+    if tkr in loggers:
+        return loggers[tkr]
+
+    log_fp = os.path.join(yfcm.GetCacheDirpath(), tkr, "events.log")
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    log_file_handler = logging.FileHandler(log_fp, mode='a')
+    log_file_handler.setFormatter(formatter)
+    # screen_handler = logging.StreamHandler(stream=sys.stdout)
+    # screen_handler.setFormatter(formatter)
+    logger = logging.getLogger(tkr)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(log_file_handler)
+    # self.logger.addHandler(screen_handler)
+
+    loggers[tkr] = logger
+    return logger
+
+
+yfc_trace_mode = False
+
+def EnableTracing():
+    global yfc_trace_mode
+    yfc_trace_mode = True
+
+def DisableTracing():
+    global yfc_trace_mode
+    yfc_trace_mode = False
+
+def IsTracingEnabled():
+    global yfc_trace_mode
+    return yfc_trace_mode
+
+class Tracer:
+    def __init__(self):
+        self._trace_depth = 0
+
+    def Print(self, log_msg):
+        if not IsTracingEnabled():
+            return
+        print(" "*self._trace_depth*2 + log_msg)
+
+    def Enter(self, log_msg):
+        if not IsTracingEnabled():
+            return
+        self.Print(log_msg)
+        self._trace_depth += 1
+
+        if self._trace_depth > 20:
+            raise Exception("infinite recursion detected")
+
+    def Exit(self, log_msg):
+        if not IsTracingEnabled():
+            return
+        self._trace_depth -= 1
+        self.Print(log_msg)
+
+tc = Tracer()
+
+def TraceEnter(log_msg):
+    global tc
+    tc.Enter(log_msg)
+
+def TracePrint(log_msg):
+    global tc
+    tc.Print(log_msg)
+
+def TraceExit(log_msg):
+    global tc
+    tc.Exit(log_msg)

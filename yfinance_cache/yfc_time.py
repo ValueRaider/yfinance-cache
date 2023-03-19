@@ -241,7 +241,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     else:
         sched = None
 
-    if (sched is None) or sched.shape[0] == 0:
+    if sched is None or sched.empty:
         df = None
     else:
         cols = ["open", "close"]
@@ -285,7 +285,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     cols = [c for c in ["open", "close", "auction"] if c in schedDbMetadata[exchange]["columns"]]
     query = "SELECT indexpd, {} FROM {} WHERE indexpd >= '{}' AND indexpd < '{}' ;".format(", ".join(cols), exchange, start_dt, end_dt)
     sched = pd.read_sql(query, db_mem, parse_dates=["indexpd", "open", "close"])
-    if (sched is None) or sched.shape[0] == 0:
+    if sched is None or sched.empty:
         return None
     sched.index = pd.DatetimeIndex(sched["indexpd"])  # .tz_localize(tz_name)
     sched = sched.drop("indexpd", axis=1)
@@ -436,6 +436,12 @@ def GetExchangeWeekSchedule(exchange, start, end, ignoreHolidays, ignoreWeekends
 
 
 def MapPeriodToDates(exchange, period, interval):
+    debug = False
+    # debug = True
+
+    if debug:
+        print(f"MapPeriodToDates(exchange={exchange}, period={period}, interval={interval})")
+
     tz_name = GetExchangeTzName(exchange)
     tz_exchange = ZoneInfo(tz_name)
 
@@ -452,23 +458,42 @@ def MapPeriodToDates(exchange, period, interval):
         x = opens.get_indexer([dt_now_sub_lag], method="bfill")[0]  # If not exact match, search forward
         sched = sched.iloc[:x]
     last_open_day = sched["open"][-1].date()
-    end = datetime.combine(last_open_day+td_1d, time(0), tz_exchange)
-    end_d = end.date()
+    if debug:
+        print(f"- last_open_day={last_open_day} d_now={d_now}")
+    end_d = last_open_day + td_1d
     if period == yfcd.Period.Max:
-        start = datetime.combine(date(yfcd.yf_min_year, 1, 1), time(0), tz_exchange)
+        start_d = date(yfcd.yf_min_year, 1, 1)
+    elif period == yfcd.Period.Ytd:
+        start_d = date(d_now.year, 1, 1)
     else:
-        start = DtSubtractPeriod(end, period)
+        if yfcd.intervalToTimedelta[interval] <= timedelta(days=1):
+            start_d = DtSubtractPeriod(end_d, period)
+            while not ExchangeOpenOnDay(exchange, start_d):
+                start_d += td_1d
 
-    if yfcd.intervalToTimedelta[interval] <= timedelta(days=1):
-        while not ExchangeOpenOnDay(exchange, start.date()):
-            start += td_1d
+            end_d = last_open_day+td_1d
 
-    start_d = start.date()
+        elif interval == yfcd.Interval.Week:
+            if last_open_day.weekday() < 4:
+                # last week in-progress so ignore from counting, but include in date range
+                last_full_week_start = d_now - timedelta(days=7+d_now.weekday())
+            else:
+                last_full_week_start = d_now - timedelta(days=d_now.weekday())
+            if debug:
+                print("- last_full_week_start =", last_full_week_start)
+
+            start_d = last_full_week_start + timedelta(days=7) - yfcd.periodToTimedelta[period]
+
+        else:
+            raise Exception("codepath not implemented")
+
+    if debug:
+        print(f"MapPeriodToDates() returning {start_d}->{end_d}")
 
     return start_d, end_d
 
 
-def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=None, week7days=True, ignore_breaks=False):
+def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=None, week7days=True, ignore_breaks=False, exclude_future=True):
     yfcu.TypeCheckStr(exchange, "exchange")
     if start >= end:
         raise Exception("start={} must be < end={}".format(start, end))
@@ -495,6 +520,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
         print("GetExchangeScheduleIntervals()", locals())
         print("- types: start={} end={}".format(type(start), type(end)))
 
+    dt_now = pd.Timestamp.utcnow()
     tz = ZoneInfo(GetExchangeTzName(exchange))
     td_1d = timedelta(days=1)
     if not isinstance(start, datetime):
@@ -548,6 +574,8 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
             return None
         # Transfer IntervalIndex to DataFrame so can modify
         intervals_df = pd.DataFrame(data={"interval_open": ti.left.tz_convert(tz), "interval_close": ti.right.tz_convert(tz)})
+        if exclude_future:
+            intervals_df = intervals_df[intervals_df["interval_open"] <= dt_now]
         if "auction" in cal.schedule.columns:
             sched = GetExchangeSchedule(exchange, start_d, end_d)
             sched.index = sched.index.date
@@ -627,8 +655,12 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
 
     elif interval == yfcd.Interval.Days1:
         s = GetExchangeSchedule(exchange, start_d, end_d)
-        if s is None or s.shape[0] == 0:
+        if s is None or s.empty:
             return None
+        if exclude_future:
+            s = s[s["open"] <= dt_now]
+            if s.empty:
+                return None
         if debug:
             print("- sched:")
             print(s)
@@ -644,10 +676,14 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
         if week7days:
             week_sched = GetExchangeWeekSchedule(exchange, start, end, ignoreHolidays=False, ignoreWeekends=False)
             if week_sched is not None:
+                if exclude_future:
+                    week_sched = week_sched[week_sched["open"] <= dt_now]
                 intervals = yfcd.DateIntervalIndex.from_arrays(week_sched.index.left.date, week_sched.index.right.date, closed="left")
         else:
-            week_sched = GetExchangeWeekSchedule(exchange, start, end, ignoreHolidays=True, ignoreWeekends=True, forceStartMonday=False)
+            week_sched = GetExchangeWeekSchedule(exchange, start, end, ignoreHolidays=True, ignoreWeekends=True, forceStartMonday=True)
             if week_sched is not None:
+                if exclude_future:
+                    week_sched = week_sched[week_sched["open"] <= dt_now]
                 if discardTimes:
                     intervals = yfcd.DateIntervalIndex.from_arrays(week_sched["open"].dt.date, week_sched["close"].dt.date+td_1d, closed="left")
                 else:
@@ -666,7 +702,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
             intervals = None
 
     if debug:
-        print(f"GetExchangeScheduleIntervals() returning {type(intervals)}")
+        print(f"GetExchangeScheduleIntervals() returning {type(intervals)} {intervals.left[0]} -> {intervals.right[-1]}")
     return intervals
 
 
@@ -1123,7 +1159,7 @@ def GetTimestampNextInterval(exchange, ts, interval, discardTimes=None, week7day
 
     next_interval_close = None
     itd = yfcd.intervalToTimedelta[interval]
-    if (c is None) or not IsTimestampInActiveSession(exchange, c["interval_close"]):
+    if c is None or not IsTimestampInActiveSession(exchange, c["interval_close"]):
         next_sesh = GetTimestampNextSession(exchange, ts)
         if debug:
             print("- next_sesh = {}".format(next_sesh))
@@ -1240,7 +1276,7 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
             weekSchedStart = (ts - wd + timedelta(days=7)).date
             weekSchedEnd = weekSchedStart + timedelta(days=7)
         else:
-            week_sched = GetExchangeScheduleIntervals(exchange, interval, t0, tl, discardTimes, week7days)
+            week_sched = GetExchangeScheduleIntervals(exchange, interval, t0, tl, discardTimes, week7days, exclude_future=False)
             if debug:
                 print("- week_sched:", type(week_sched))
                 for x in week_sched:
@@ -1324,7 +1360,7 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
         t0 = ts[0]
         tl = ts[len(ts)-1]
         # tis = GetExchangeScheduleIntervals(exchange, interval, t0-itd, tl+timedelta(days=14), discardTimes=False, week7days, ignore_breaks=ignore_breaks)
-        tis = GetExchangeScheduleIntervals(exchange, interval, t0-itd, tl+timedelta(days=14), ignore_breaks=ignore_breaks)
+        tis = GetExchangeScheduleIntervals(exchange, interval, t0-itd, tl+timedelta(days=14), ignore_breaks=ignore_breaks, exclude_future=False)
         tz_tis = tis[0].left.tzinfo
         if ts[0].tzinfo != tz_tis:
             ts = [t.astimezone(tz_tis) for t in ts]
@@ -1413,6 +1449,8 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
     else:
         yf_lag = GetExchangeDataDelay(exchange)
 
+    yf_lag += timedelta(minutes=15)  # allow 15m extra for Yahoo to update
+
     if intervalSched is None or intervalSched.empty:
         # Exchange closed so data cannot update/expire
         lastDataDt = irange["interval_close"]
@@ -1470,6 +1508,8 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
         yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
     else:
         yf_lag = GetExchangeDataDelay(exchange)
+
+    yf_lag += timedelta(minutes=15)  # allow 15m extra for Yahoo to update
 
     tz = ZoneInfo(GetExchangeTzName(exchange))
     i_td = yfcd.intervalToTimedelta[interval]
@@ -1533,16 +1573,20 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     if debug:
         print("- intervals:")
         print(intervals)
-    mopens = intervals["market_open"]
+    iopens = intervals["market_open"]
     if debug:
-        print("- mopens:", type(mopens[0]))
-        print(mopens)
+        print("- iopens:", type(iopens[0]))
+        print(iopens)
+    icloses = intervals["market_close"]
+    if debug:
+        print("- icloses:", type(icloses[0]))
+        print(icloses)
 
     # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
     i_td = yfcd.intervalToTimedelta[interval]
     if i_td >= timedelta(days=1):
         # lastDataDt = start of next interval, even if next day (or later)
-        next_intervals = GetTimestampNextInterval_batch(exchange, mopens.to_numpy(), interval, discardTimes=False, week7days=False, ignore_breaks=ignore_breaks)
+        next_intervals = GetTimestampNextInterval_batch(exchange, icloses.to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
         if debug:
             print("- next_intervals:")
             print(next_intervals)
@@ -1705,13 +1749,12 @@ def IdentifyMissingIntervals(exchange, start, end, interval, knownIntervalStarts
     # debug = True
 
     if debug:
-        print("IdentifyMissingIntervals()")
-        print("- start={}, end={}".format(start, end))
+        print(f"IdentifyMissingIntervals-{yfcd.intervalToString[interval]}(start={start} end={end})")
         print("- knownIntervalStarts:")
         pprint(knownIntervalStarts)
 
-    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, week7days=week7days, ignore_breaks=ignore_breaks)
-    if (intervals is None) or (intervals.shape[0] == 0):
+    intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, week7days=week7days, ignore_breaks=ignore_breaks, exclude_future=True)
+    if intervals is None or intervals.empty:
         raise yfcd.NoIntervalsInRangeException(interval, start, end)
     if debug:
         print("- intervals:")
@@ -1771,10 +1814,10 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
         pprint(knownIntervalStarts)
 
     intervals = GetExchangeScheduleIntervals(exchange, interval, start, end, ignore_breaks=ignore_breaks)
-    if intervals is None or intervals.shape[0] == 0:
+    if intervals is None or intervals.empty:
         raise yfcd.NoIntervalsInRangeException(interval, start, end)
     if debug:
-        print("- intervals:")
+        print("- intervals:", type(intervals))
         for i in intervals:
             print(i)
 
@@ -1857,30 +1900,12 @@ def DtSubtractPeriod(dt, period):
         else:
             return date(dt.year, 1, 1)
 
-    if period == yfcd.Period.Days1:
-        rd = relativedelta(days=1)
-    elif period == yfcd.Period.Days5:
-        rd = relativedelta(days=5)
-    elif period == yfcd.Period.Week:
-        rd = relativedelta(days=7)
-    elif period == yfcd.Period.Months1:
-        rd = relativedelta(months=1)
-    elif period == yfcd.Period.Months3:
-        rd = relativedelta(months=3)
-    elif period == yfcd.Period.Months6:
-        rd = relativedelta(months=6)
-    elif period == yfcd.Period.Years1:
-        rd = relativedelta(years=1)
-    elif period == yfcd.Period.Years2:
-        rd = relativedelta(years=2)
-    elif period == yfcd.Period.Years5:
-        rd = relativedelta(years=5)
-    elif period == yfcd.Period.Years10:
-        rd = relativedelta(years=10)
-    else:
-        raise Exception("Unknown period value '{}'".format(period))
+    elif period == yfcd.Period.Max:
+        raise Exception("Codepath not implemented")
 
-    return dt - rd
+    else:
+        ptd = yfcd.periodToTimedelta[period]
+        return dt - ptd
 
 
 def GetSystemTz():

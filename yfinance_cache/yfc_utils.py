@@ -32,7 +32,7 @@ def TypeCheckDateEasy(var, varName):
         if var.tzinfo is None:
             raise TypeError(f"'{varName}' if datetime must be timezone-aware".format(varName))
         elif not isinstance(var.tzinfo, ZoneInfo):
-            raise TypeError(f"'{varName}' tzinfo must be ZoneInfo".format(varName))
+            raise TypeError(f"'{varName}' tzinfo must be ZoneInfo not {type(var.tzinfo)}")
 def TypeCheckDateStrict(var, varName):
     if isinstance(var, pd.Timestamp):
         # While Pandas missing support for 'zoneinfo' must deny
@@ -45,7 +45,7 @@ def TypeCheckDatetime(var, varName):
     if var.tzinfo is None:
         raise TypeError(f"'{varName}' if datetime must be timezone-aware".format(varName))
     elif not isinstance(var.tzinfo, ZoneInfo):
-        raise TypeError(f"'{varName}' tzinfo must be ZoneInfo".format(varName))
+        raise TypeError(f"'{varName}' tzinfo must be ZoneInfo not {type(var.tzinfo)}")
 def TypeCheckYear(var, varName):
     if not isinstance(var, int):
         raise Exception("'{}' must be int not {}".format(varName, type(var)))
@@ -85,25 +85,6 @@ def TypeCheckDataFrame(var, varName):
 def TypeCheckDatetimeIndex(var, varName):
     if not isinstance(var, pd.DatetimeIndex):
         raise TypeError(f"'{varName}' must be pd.DatetimeIndex not {type(var)}")
-
-
-class TraceLogger:
-    def __init__(self):
-        self._trace_depth = 0
-
-    def Print(self, log_msg):
-        print(" "*self._trace_depth + log_msg)
-
-    def Enter(self, log_msg):
-        self.Print(log_msg)
-        self._trace_depth += 2
-
-    def Exit(self, log_msg):
-        self._trace_depth -= 2
-        self.Print(log_msg)
-
-tc = None
-# tc = TraceLogger()
 
 
 def JsonEncodeValue(value):
@@ -308,13 +289,14 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
     return groups
 
 
-def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False, debug=False):
+def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False, debug=False):
     if df_yf.empty:
         raise Exception("VerifyPricesDf() has been given empty df_yf")
 
     f_diff_all = pd.Series(np.full(h.shape[0], False), h.index)
 
     interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+    istr = yfcd.intervalToString[interval]
 
 
     # Test: no NaNs in dividends & stock splits
@@ -381,7 +363,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False,
     # Verify dividends
     # - first compare dates
     c = "Dividends"
-    h_divs = h.loc[h[c] != 0.0, c].copy().dropna()
+    h_divs = h.loc[h[c] != 0.0, [c, "FetchDate"]].copy().dropna()
     yf_divs = df_yf.loc[df_yf[c] != 0.0, c]
     dts_missing_from_cache = yf_divs.index[~yf_divs.index.isin(h_divs.index)]
     dts_missing_from_yf = h_divs.index[~h_divs.index.isin(yf_divs.index)]
@@ -399,22 +381,24 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False,
     # - now compare values
     h_divs = h_divs[h_divs.index.isin(yf_divs.index)]
     yf_divs = yf_divs[yf_divs.index.isin(h_divs.index)]
-    f_close = np.isclose(h_divs.to_numpy(), yf_divs.to_numpy(), rtol=rtol)
+    f_close = np.isclose(h_divs[c].to_numpy(), yf_divs.to_numpy(), rtol=rtol)
     f_close = pd.Series(f_close, h_divs.index)
     f_diff = ~f_close
     if f_diff.any():
         n_diff = np.sum(f_diff)
         print(f"{n_diff}/{n} differences in column {c}")
-        df_diffs = pd.DataFrame(h_divs[f_diff]).join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_Yahoo")
+        df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_Yahoo")
         df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
         df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(1).astype(str) + '%'
+        if not quiet:
+            print(df_diffs)
         f_diff_all = f_diff_all | f_diff
         divs_bad = True
 
     # Verify stock splits
     # - first compare dates
     c = "Stock Splits"
-    h_ss = h.loc[h[c] != 0.0, c].copy().dropna()
+    h_ss = h.loc[h[c] != 0.0, [c, "FetchDate"]].copy().dropna()
     yf_ss = df_yf.loc[df_yf[c] != 0.0, c]
     dts_missing_from_cache = yf_ss.index[~yf_ss.index.isin(h_ss.index)]
     dts_missing_from_yf = h_ss.index[~h_ss.index.isin(yf_ss.index)]
@@ -450,7 +434,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False,
             df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
 
             f_diff_n = sum(f_diff)
-            print(f"- {f_diff_n}/{n} sig. diffs in column {c} with rtol={rtol}")
+            msg = f"WARNING: {istr}: {f_diff_n}/{n} sig. diffs in column {c} with rtol={rtol}"
+            print(msg)
             print(df_diffs)
 
     # Verify volumes match
@@ -470,7 +455,13 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False,
         if debug:
             _print_sig_diffs(h, df_yf, "Volume", vol_rtol)
         elif not quiet:
-            print(f"WARNING: {np.sum(f_diff_vol)}/{n} differences in 'Volume'")
+            msg = f"WARNING: {istr}: {np.sum(f_diff_vol)}/{n} differences in 'Volume'"
+            # If very few date(times), append to string
+            if not interday and np.sum(f_diff_vol) == 1:
+                msg += f" @ {h.index[f_diff_vol]}"
+            elif interday and np.sum(f_diff_vol) < 2:
+                msg += f" @ {h.index.date[f_diff_vol]}"
+            print(msg)
         f_diff_all = f_diff_all | f_diff_vol
 
     for c in ["Open", "Close", "High", "Low"]:
@@ -481,7 +472,13 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.003, quiet=False,
             if debug:
                 _print_sig_diffs(h, df_yf, c, rtol)
             elif not quiet:
-                print(f"WARNING: {np.sum(f_diff_vol)}/{n} differences in '{c}'")
+                msg = f"WARNING: {istr}: {np.sum(f_diff_vol)}/{n} differences in '{c}'"
+                # If very few date(times), append to string
+                if not interday and np.sum(f_diff_vol) == 1:
+                    msg += f" @ {h.index[f_diff_vol]}"
+                elif interday and np.sum(f_diff_vol) < 2:
+                    msg += f" @ {h.index.date[f_diff_vol]}"
+                print(msg)
             f_diff_all = f_diff_all | f_diff_c
 
     if not divs_bad:

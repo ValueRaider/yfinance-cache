@@ -12,7 +12,8 @@ from . import yfc_cache_manager as yfcm
 # from . import yfc_utils as yfcu
 # from . import yfc_time as yfct
 from . import yfc_dat as yfcd
-# from . import yfc_ticker as yfc
+from . import yfc_ticker as yfc
+from . import yfc_prices_manager as yfcp
 
 import yfinance as yf
 
@@ -198,6 +199,12 @@ def _separate_events_from_prices():
             pass
         return
 
+    tkrs = os.listdir(d)
+    if len(tkrs) == 1 and tkrs[0] == "_YFC_":
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
     msg = "IMPORTANT: Old version of yfinance_cache had bug in handling dividends & stock splits."\
           f" Fix requires restructuring YFC cache. If you want to backup cache folder first, it's at: {d}"\
           "\nProceed? Can't go back."
@@ -209,7 +216,6 @@ def _separate_events_from_prices():
     print("")
     print("After upgrade, you can run yfc.verify_cached_tickers_prices() (or Ticker.verify_cached_prices()) to compared cached prices against Yahoo Finance and discard incorrect data.")
 
-    tkrs = os.listdir(d)
     for tkr in tkrs:
         tkrd = os.path.join(d, tkr)
 
@@ -497,3 +503,111 @@ def _fix_listing_date():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
         pass
+
+
+def _upgrade_divs_splits_supersede():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-upgraded-div-split-supersede")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    for tkr in os.listdir(d):
+        if tkr.startswith("EXCHANGE-") or tkr.startswith('_'):
+            # Not a security
+            continue
+
+        tkrd = os.path.join(d, tkr)
+
+        divs_fp = os.path.join(tkrd, "dividends.pkl")
+        if os.path.isfile(divs_fp):
+            with open(divs_fp, 'rb') as f:
+                divsPklData = pickle.load(f)
+            divs_df = divsPklData["data"]
+
+            if "Supersede?" in divs_df.columns:
+                divs_df = divs_df.drop("Supersede?", axis=1)
+            divs_df["Superseded back adj."] = 0.0
+            divs_df["Superseded div FetchDate"] = pd.NaT
+
+            divsPklData["data"] = divs_df
+            with open(divs_fp, 'wb') as f:
+                pickle.dump(divsPklData, f, 4)
+
+        splits_fp = os.path.join(tkrd, "splits.pkl")
+        if os.path.isfile(splits_fp):
+            with open(splits_fp, 'rb') as f:
+                splitsPklData = pickle.load(f)
+            splits_df = splitsPklData["data"]
+
+            if "Supersede?" in splits_df.columns:
+                splits_df = splits_df.drop("Supersede?", axis=1)
+            splits_df["Superseded split"] = 0.0
+            splits_df["Superseded split FetchDate"] = pd.NaT
+
+            splitsPklData["data"] = splits_df
+            with open(splits_fp, 'wb') as f:
+                pickle.dump(splitsPklData, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+
+
+# def _fix_lost_divs():
+#     d = yfcm.GetCacheDirpath()
+#     yfc_dp = os.path.join(d, "_YFC_")
+#     state_fp = os.path.join(yfc_dp, "have-fixed-lost-divs")
+#     if os.path.isfile(state_fp):
+#         return
+
+#     if not os.path.isdir(d):
+#         if not os.path.isdir(yfc_dp):
+#             os.makedirs(yfc_dp)
+#         with open(state_fp, 'w') as f:
+#             pass
+#         return
+
+#     for tkr in os.listdir(d):
+#         if tkr.startswith("EXCHANGE-") or tkr.startswith('_'):
+#             # Not a security
+#             continue
+#         tkrd = os.path.join(d, tkr)
+
+#         prices_fp = os.path.join(tkrd, "history-1d.pkl")
+#         if not os.path.isfile(prices_fp):
+#             continue
+
+#         with open(prices_fp, 'rb') as f:
+#             prices_pkl = pickle.load(f)
+#         df = prices_pkl["data"]
+#         divs = df.loc[df["Dividends"]!=0, ["Dividends", "FetchDate"]]
+#         if divs.empty:
+#             continue
+
+#         divs["Close day before"] = np.nan
+#         for dt in divs.index:
+#             if dt >= df.index[1]:
+#                 idx = df.index.get_loc(dt)
+#                 close_day_before = df["Close"].iloc[idx-1]
+#             else:
+#                 close_day_before = df["Close"].iloc[0]
+#             divs.loc[dt, "Close day before"] = close_day_before
+
+#         # histories_manager = yfcp.HistoriesManager(tkr, exchange, tz_name, self.session, proxy)
+#         dat = yfc.Ticker(tkr)
+#         dat._getCachedPrices(yfcd.Interval.Days1)  # initialises history manager
+#         dat._histories_manager.GetHistory("Events").UpdateDividends(divs)
+
+#     if not os.path.isdir(yfc_dp):
+#         os.makedirs(yfc_dp)
+#     with open(state_fp, 'w') as f:
+#         pass
