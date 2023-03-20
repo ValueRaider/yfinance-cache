@@ -479,6 +479,8 @@ def MapPeriodToDates(exchange, period, interval):
                 last_full_week_start = d_now - timedelta(days=7+d_now.weekday())
             else:
                 last_full_week_start = d_now - timedelta(days=d_now.weekday())
+            if last_full_week_start > last_open_day:
+                last_full_week_start -= timedelta(days=7)
             if debug:
                 print("- last_full_week_start =", last_full_week_start)
 
