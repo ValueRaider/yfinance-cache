@@ -3,8 +3,6 @@ Caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of 
 
 Only price data fully implemented. Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
 
-Planning to intelligently cache financials too using Yahoo's earnings calendar to estimate next release (prototype code ready), but `yfinance` decryption issue blocks this.
-
 ## Interface
 Interaction almost identical to yfinance. Differences highlighted underneath code:
 
@@ -26,7 +24,7 @@ hist = msft.history(period="max")
 ```python
 msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
 ```
-`max_age` controls when to yodate cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. If `trigger_at_market_close`=True then refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
+`max_age` controls when to update cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. If `trigger_at_market_close=True` then refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
 
 #### Adjusting price
 Price can be adjusted for stock splits, dividends, or both.
