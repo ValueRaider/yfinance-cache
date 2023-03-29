@@ -60,6 +60,16 @@ With latest version the only genuine differences you should see are tiny Volume 
 
 If you see big differences in the OHLC price of recent intervals (last few days), probably Yahoo is wrong! Since fetching that price data on day / day after, Yahoo has messed up their data - at least this is my experience. Cross-check against TradingView or stock exchange website.
 
+## Performance
+
+For each ticker, YFC basically performs 2 tasks:
+
+1 - check if fetch needed
+
+2 - fetch data and integrate into cache
+
+Throughput on 1 thread decent CPU: task 1 @ ~60/sec, task 2 @ ~5/sec.
+
 ## Installation
 
 Available on PIP: `pip install yfinance_cache`
