@@ -1,7 +1,12 @@
 # yfinance-cache
-Caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests. This means only updating cache if (i) missing and (ii) new data expected.
+Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - this means only updating cache if (i) missing and (ii) new data expected.
 
 Only price data fully implemented. Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+
+Persistent cache stored in your user cache folder:
+- Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
+- Linux = /home/\<USER\>/.cache/py-yfinance-cache
+- MacOS = /Users/\<USER\>/Library/Caches/py-yfinance-cache
 
 ## Interface
 Interaction almost identical to yfinance. Differences highlighted underneath code:
