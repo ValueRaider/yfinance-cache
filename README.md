@@ -1,12 +1,18 @@
 # yfinance-cache
-Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - this means only updating cache if (i) missing and (ii) new data expected.
+Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache if missing and new data expected.
 
-Only price data fully implemented. Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+Only price data caching fully implemented. Everything else is cached once but never updated (unless you delete their files).
 
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
 - Linux = /home/\<USER\>/.cache/py-yfinance-cache
 - MacOS = /Users/\<USER\>/Library/Caches/py-yfinance-cache
+
+### Price cache
+
+How is my price caching different to other market price caches? Simple - they don't adjust cached data for new stock splits or dividends.
+
+Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
 
 ## Interface
 Interaction almost identical to yfinance. Differences highlighted underneath code:
@@ -20,7 +26,7 @@ msft = yfc.Ticker("MSFT")
 msft.info
 
 # get historical market data
-hist = msft.history(period="max")
+hist = msft.history(period="1d")
 ...
 # etc. See yfinance documentation for full API
 ```
