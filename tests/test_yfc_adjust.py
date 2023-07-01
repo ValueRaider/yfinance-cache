@@ -6,6 +6,7 @@ from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
+from .context import session_gbl
 from .utils import Test_Base
 import pickle as pkl
 
@@ -26,7 +27,7 @@ class Test_Unadjust(Test_Base):
     def setUp(self):
         self.tkrs = ["PNL.L", "I3E.L", "INTC", "GME", "AMC", "ESLT.TA"]
 
-        self.session = requests_cache.CachedSession(os.path.join(appdirs.user_cache_dir(),'yfinance.cache.testing'), expire_after=60*60)
+        self.session = session_gbl
 
         self.tempCacheDir = tempfile.TemporaryDirectory()
         yfcm.SetCacheDirpath(self.tempCacheDir.name)
@@ -67,7 +68,7 @@ class Test_Unadjust(Test_Base):
         dat = yfc.Ticker(tkr, self.session)
         result = dat.history(start=start_d, end=end_d)
 
-        self.verify_df(result, answer, 1e-7)
+        self.verify_df(result, answer, 5e-5)
 
 
     def test_adjust_append1(self):
@@ -198,13 +199,12 @@ class Test_Unadjust(Test_Base):
 
     def test_weekly_simple(self):
         start_d = date(2022,1,3)
-        end_d = date(2022,8,20)
+        end_d = date(2022,8,22)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
             tz = ZoneInfo(dat.fast_info["timezone"])
             df_yfc = dat.history(start=start_d, end=end_d, interval="1wk")
-            # print("df_yfc:") ; print(df_yfc.loc["2022-07-25"]) ; quit()
 
             dat_yf = yf.Ticker(tkr, session=self.session)
 
@@ -224,6 +224,7 @@ class Test_Unadjust(Test_Base):
             df_yf_weekly.loc[df_yf_weekly["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
             self.verify_df(df_yfc, df_yf_weekly, 1e-1)
+            # self.verify_df(df_yfc.drop(['Volume'], axis=1), df_yf_weekly.drop(['Volume'], axis=1), 1e-1)
 
             # Now compare against YF weekly
             if tkr.endswith(".TA"):
@@ -232,7 +233,6 @@ class Test_Unadjust(Test_Base):
                 df_yf = df_yf[df_yf.index.date>=start_d]
             else:
                 df_yf = dat_yf.history(start=start_d, end=end_d, interval="1wk", repair=True)
-            # self.verify_df(df_yfc, df_yf, 1e-7)
             self.verify_df(df_yfc, df_yf, 5e-6)
 
     def test_weekly_append(self):

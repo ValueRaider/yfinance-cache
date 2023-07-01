@@ -16,6 +16,7 @@ import dateutil
 from zoneinfo import ZoneInfo
 from pprint import pprint
 import click
+import logging
 
 
 # TODOs:
@@ -40,6 +41,11 @@ class HistoriesManager:
         self.proxy = proxy
 
         self.logger = None
+
+    def __del__(self):
+        if self.logger is not None:
+            # Fix OS error "Too many open files"
+            self.logger.handlers[0].close()
 
     def GetHistory(self, key):
         permitted_keys = set(yfcd.intervalToString.keys()) | {"Events"}
@@ -251,6 +257,7 @@ class EventsHistory:
 
             # Prepare 'divs_df' for append
             divs_df["Back Adj."] = np.nan
+            divs_df["Superseded div"] = 0.0
             divs_df["Superseded back adj."] = 0.0
             divs_df["Superseded div FetchDate"] = pd.NaT
             for dt in divs_df.index:
@@ -269,6 +276,7 @@ class EventsHistory:
                             yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                         continue
                     else:
+                        divs_df.loc[dt, "Superseded div"] = self.divs.loc[dt, "Dividends"]
                         divs_df.loc[dt, "Superseded back adj."] = self.divs.loc[dt, "Back Adj."]
                         divs_df.loc[dt, "Superseded div FetchDate"] = self.divs.loc[dt, "FetchDate"]
                         self.divs = self.divs.drop(dt)
@@ -288,14 +296,14 @@ class EventsHistory:
                     raise Exception(f"Back Adj. is NaN")
                 if debug:
                     fetch_dt = divs_df.loc[dt, "FetchDate"]
-                    msg = f"new dividend: {new_div} @ {dt.date()} adj={adj:.5f} close_before={close_before:.4f} fetch={fetch_dt.strftime('%Y-%m-%d %X')}"
+                    msg = f"new dividend: {new_div} @ {dt.date()} adj={adj:.5f} close_before={close_before:.4f} fetch={fetch_dt.strftime('%Y-%m-%d %H:%M:%S%z')}"
                     yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                 divs_df.loc[dt, "Back Adj."] = adj
 
             divs_df = divs_df.drop("Close day before", axis=1)
             # divs_df = divs_df.drop("Close today", axis=1)
 
-            cols = ["Dividends", "Back Adj.", "FetchDate", "Superseded back adj.", "Superseded div FetchDate"]
+            cols = ["Dividends", "Back Adj.", "FetchDate", "Superseded div", "Superseded back adj.", "Superseded div FetchDate"]
             if not divs_df.empty:
                 divs_pretty = divs_df["Dividends"]
                 divs_pretty.index = divs_pretty.index.date.astype(str)
@@ -343,7 +351,7 @@ class PriceHistory:
         # Load from cache
         self.cache_key = "history-"+self.istr
         self.h = self._getCachedPrices()
-        self._applyNewEvents()
+        self._reviewNewDivs()
 
         # A place to temporarily store new dividends, until prices have
         # been repaired, then they can be sent to EventsHistory
@@ -401,6 +409,22 @@ class PriceHistory:
         yfcm.StoreCacheDatum(self.ticker, self.cache_key, df)
 
         self.h = df
+
+    def _reviewNewDivs(self):
+        if self.interval != yfcd.Interval.Days1:
+            return
+
+        cached_new_divs = yfcm.ReadCacheDatum(self.ticker, "new_divs")
+        if cached_new_divs is not None:
+            if yfcm.ReadCacheMetadata(self.ticker, "new_divs", "locked") is not None:
+                # This is bad, means YFC was killed before 'new_divs' could be processed.
+                # Means potentially future new dividends have not been processed
+                h_divs = self.h.loc[self.h["Dividends"]!=0, ["Dividends", "FetchDate"]]
+                h_divs_since = h_divs[h_divs.index > cached_new_divs.index.max()]
+                if not h_divs_since.empty:
+                    cached_new_divs = pd.concat([cached_new_divs, h_divs_since])
+                    yfcm.StoreCacheDatum(self.ticker, "new_divs", cached_new_divs)
+                yfcm.WriteCacheMetadata(self.ticker, "new_divs", "locked", None)
 
     def get(self, start=None, end=None, period=None, max_age=None, trigger_at_market_close=False, repair=True, prepost=False, adjust_splits=False, adjust_divs=False, quiet=False):
         if start is None and end is None and period is None:
@@ -466,6 +490,8 @@ class PriceHistory:
             yfcl.TraceEnter(log_msg)
         elif debug_yfc:
             print(log_msg)
+
+        self._applyNewEvents()
 
         try:
             yf_lag = yfcd.exchangeToYfLag[self.exchange]
@@ -551,6 +577,7 @@ class PriceHistory:
             else:
                 h_interval_dts = np.array([yfct.ConvertToDatetime(dt, tz=tz_exchange) for dt in self.h.index])
             h_interval_dts = np.array(h_interval_dts)
+            td_7d = timedelta(days=7)
             # if self.interval == yfcd.Interval.Days1:
             if self.contiguous:
                 # Daily data is always contiguous so only need to check last row
@@ -558,11 +585,16 @@ class PriceHistory:
                 fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"].iloc[-1], tz=tz_exchange)
                 f_final = self.h["Final?"].to_numpy()
                 f_nfinal = ~f_final
+                # - also treat repaired data as non-final, if fetched near to interval timepoint
+                #   because Yahoo might now have correct data
+                f_repair = (self.h["Repaired?"].to_numpy() & (self.h["FetchDate"] < (self.h.index + self.itd + td_7d)).to_numpy())
+                f_nfinal = f_nfinal | f_repair
                 if f_nfinal.any():
                     idx0 = np.where(f_nfinal)[0][0]
+                    repaired = f_repair[idx0]
                     h_interval_dt = h_interval_dts[idx0]
                     fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"][idx0], tz=tz_exchange)
-                    expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, self.exchange, self.interval, yf_lag=yf_lag, triggerExpiryOnClose=trigger_at_market_close)
+                    expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, repaired, max_age, self.exchange, self.interval, yf_lag=yf_lag, triggerExpiryOnClose=trigger_at_market_close)
                     if expired:
                         self.h = self.h.iloc[:idx0]
                         h_interval_dts = h_interval_dts[:idx0]
@@ -570,10 +602,18 @@ class PriceHistory:
             else:
                 expired = np.array([False]*n)
                 f_final = self.h["Final?"].to_numpy()
-                for idx in np.where(~f_final)[0]:
+                f_nfinal = ~f_final
+                # - also treat repaired data as non-final, if fetched near to interval timepoint
+                #   because Yahoo might now have correct data
+                #   TODO: test!
+                f_repair = (self.h["Repaired?"].to_numpy() & (self.h["FetchDate"] < (self.h.index + self.itd + td_7d)).to_numpy())
+                f_nfinal = f_nfinal | f_repair
+                for idx in np.where(f_nfinal)[0]:
+                    # repaired = False
+                    repaired = f_repair[idx]
                     h_interval_dt = h_interval_dts[idx]
                     fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"][idx], tz=tz_exchange)
-                    expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, max_age, self.exchange, self.interval, yf_lag=yf_lag, triggerExpiryOnClose=trigger_at_market_close)
+                    expired[idx] = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, repaired, max_age, self.exchange, self.interval, yf_lag=yf_lag, triggerExpiryOnClose=trigger_at_market_close)
                 if expired.any():
                     self.h = self.h.drop(self.h.index[expired])
                     h_interval_dts = h_interval_dts[~expired]
@@ -589,7 +629,6 @@ class PriceHistory:
                 if h is None:
                     raise Exception(f"{self.ticker}: Failed to fetch period={period}")
             else:
-                # if self.interval == yfcd.Interval.Days1:
                 if self.contiguous:
                     # Ensure daily always up-to-now
                     h = self._fetchYfHistory(pstr, start, tomorrow, prepost, debug_yf)
@@ -597,11 +636,8 @@ class PriceHistory:
                     h = self._fetchYfHistory(pstr, start, end, prepost, debug_yf)
                 if h is None:
                     raise Exception(f"{self.ticker}: Failed to fetch date range {start}->{end}")
-            # h_modified = True
 
             # Adjust
-            # if not self.interval == yfcd.Interval.Days1:
-            #     self.manager.GetHistory(yfcd.Interval.Days1).get(start=self.h.index[-1].date()+td_1d)  # doubt needed
             h = self._reverseYahooAdjust(h)
 
             if self.interval == yfcd.Interval.Days1:
@@ -631,7 +667,6 @@ class PriceHistory:
             # Performance TODO: tag rows as fully contiguous to avoid searching for gaps
 
             # Calculate ranges_to_fetch
-            # if self.interval == yfcd.Interval.Days1:
             if self.contiguous:
                 if self.h is None or self.h.empty:
                     if self.interday:
@@ -690,27 +725,6 @@ class PriceHistory:
                                     rangePost_to_fetch = yfct.IdentifyMissingIntervalRanges(self.exchange, h_end, target_end_dt, self.interval, None, minDistanceThreshold=5)
                                 except yfcd.NoIntervalsInRangeException:
                                     rangePost_to_fetch = None
-                    # if not yfct.IsTimestampInActiveSession(self.exchange, dt_now):
-                    # if rangePost_to_fetch is not None:
-                    #     print("rangePost_to_fetch:")
-                    #     for r in rangePost_to_fetch:
-                    #         print("- ", r)
-                    #     day_sched = yfct.GetExchangeSchedule(self.exchange, d_now_exchange, tomorrow_d)
-                    #     print(f"d_now_exchange={d_now_exchange}, tomorrow_d={tomorrow_d}")
-                    #     print("day_sched:")
-                    #     print(day_sched)
-                    #     if dt_now < day_sched["open"].iloc[0]:
-                    #         for i in range(len(rangePost_to_fetch)-1, -1, -1):
-                    #             r = rangePost_to_fetch[i]
-                    #             if self.interday:
-                    #                 # if r[1] == (dt_now.astimezone(tz_exchange).date()+td_1d):
-                    #                 if r[1] == tomorrow_d:
-                    #                     # r[1] -= td_1d
-                    #                     rangePost_to_fetch[i] = (r[0], r[1] - td_1d)
-                    #                     if r[1] == r[0]:
-                    #                         del rangePost_to_fetch[i]
-                    #         if len(rangePost_to_fetch) == 0:
-                    #             rangePost_to_fetch = None
                     ranges_to_fetch = []
                     if rangePost_to_fetch is not None:
                         if len(rangePost_to_fetch) > 1:
@@ -731,15 +745,6 @@ class PriceHistory:
                         # Need to tolerate
                         h_intervals.loc[f_na, "interval_open"] = h_interval_dts[f_na]
                         h_intervals.loc[f_na, "interval_close"] = h_interval_dts[f_na]+self.itd
-                # f_na = h_intervals["interval_open"].isna().to_numpy()
-                # if f_na.any():
-                #     print(self.h[f_na])
-                #     raise Exception("Bad rows found in prices table")
-                #     if debug_yfc:
-                #         print("- found bad rows, deleting:")
-                #         print(self.h[f_na])
-                #     self.h = self.h[~f_na].copy()
-                #     h_intervals = h_intervals[~f_na]
                 if (not h_intervals.empty) and isinstance(h_intervals["interval_open"][0], datetime):
                     h_interval_opens = [x.to_pydatetime().astimezone(tz_exchange) for x in h_intervals["interval_open"]]
                 else:
@@ -778,8 +783,9 @@ class PriceHistory:
                 else:
                     # Check if range ends in future, if yes then adjust to tomorrow max
                     y = r[1]
-                    if isinstance(y, (datetime, pd.Timestamp)) and y > dt_now:
-                        ranges_to_fetch[i][1] = min(dt_now.ceil(), y)
+                    if isinstance(y, (datetime, pd.Timestamp)):
+                        if y > dt_now:
+                            ranges_to_fetch[i][1] = min(dt_now.ceil(), y)
                     elif y > d_now_exchange:
                         sched = yfct.GetExchangeSchedule(self.exchange, d_now_exchange, y + td_1d)
                         if sched is not None:
@@ -867,10 +873,10 @@ class PriceHistory:
                                 close_day_before = self.h["Close"].iloc[idx-i]
                                 if not np.isnan(close_day_before):
                                     break
-                        if np.isnan(close_day_before):
-                            print(f"- idx={idx} dt={dt}")
-                            print(self.h.iloc[idx-2:idx+3][["Close", "FetchDate"]])
-                            raise Exception("'close_day_before' is NaN")
+                            if np.isnan(close_day_before):
+                                print(f"- idx={idx} dt={dt}")
+                                print(self.h.iloc[idx-2:idx+3][["Close", "FetchDate"]])
+                                raise Exception("'close_day_before' is NaN")
                     divs_df.loc[dt, "Close day before"] = close_day_before
                 self.manager.GetHistory("Events").UpdateDividends(divs_df)
                 self._applyNewEvents()
@@ -889,7 +895,7 @@ class PriceHistory:
         if adjust_splits:
             for c in ["Open", "High", "Low", "Close", "Dividends"]:
                 h_copy[c] *= h_copy["CSF"]
-            h_copy["Volume"] /= h_copy["CSF"]
+            h_copy["Volume"] = (h_copy["Volume"]/h_copy["CSF"]).round(0).astype('int')
             h_copy = h_copy.drop("CSF", axis=1)
         if adjust_divs:
             for c in ["Open", "High", "Low", "Close"]:
@@ -1023,6 +1029,8 @@ class PriceHistory:
         listing_date = yfcm.ReadCacheDatum(self.ticker, "listing_date")
         if listing_date is None:
             listing_date = self.dat.history_metadata["firstTradeDate"]
+            if isinstance(listing_date, int):
+                listing_date = pd.to_datetime(listing_date, unit='s', utc=True).tz_convert(tz_exchange)
             yfcm.StoreCacheDatum(self.ticker, "listing_date", listing_date.date())
 
         if h2_post is not None:
@@ -1236,9 +1244,15 @@ class PriceHistory:
 
     def _verifyCachedPrices(self, rtol=0.0001, vol_rtol=0.004, correct=False, discard_old=False, quiet=True, debug=False):
         yfcu.TypeCheckBool(correct, "correct")
+        yfcu.TypeCheckBool(discard_old, "discard_old")
+        yfcu.TypeCheckBool(quiet, "quiet")
+        yfcu.TypeCheckBool(debug, "debug")
 
         if self.h is None or self.h.empty:
             return True
+
+        if debug:
+            quiet = False
 
         yfcl.TraceEnter(f"PM::_verifyCachedPrices-{self.istr}(correct={correct}, debug={debug})")
 
@@ -1259,7 +1273,7 @@ class PriceHistory:
         # Apply stock-split adjustment to match YF
         for c in ["Open", "Close", "Low", "High", "Dividends"]:
             h[c] = h[c].to_numpy() * h["CSF"].to_numpy()
-        h["Volume"] = h["Volume"].to_numpy() / h["CSF"].to_numpy()
+        h["Volume"] = (h["Volume"].to_numpy() / h["CSF"].to_numpy()).round().astype('int')
 
         td_1d = pd.Timedelta("1D")
         dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
@@ -1374,6 +1388,8 @@ class PriceHistory:
                             msg = f"requesting YF fetch: {self.istr} {fetch_start_batch} -> {fetch_end_batch}"
                             yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                         df_yf_batch = self.dat.history(interval=self.istr, start=fetch_start_batch, end=fetch_end_batch, auto_adjust=False, repair=repair, keepna=True)
+                        if not "Repaired?" in df_yf_batch.columns:
+                            df_yf_batch["Repaired?"] = False
                         if df_yf is None:
                             df_yf = df_yf_batch
                         else:
@@ -1390,11 +1406,15 @@ class PriceHistory:
                         yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                     # df_yf = self.dat.history(interval=self.istr, start=fetch_start, end=fetch_end, auto_adjust=False, repair=repair)
                     df_yf = self.dat.history(interval=self.istr, start=fetch_start, end=fetch_end, auto_adjust=False, repair=repair, keepna=True)
+                    if not "Repaired?" in df_yf.columns:
+                        df_yf["Repaired?"] = False
                     df_yf = df_yf.loc[start_dt:]
                     df_yf = df_yf[df_yf.index < end_dt]
 
                 # Yahoo doesn't div-adjust intraday
                 df_yf_1d = self.dat.history(interval="1d", start=df_yf.index[0].date(), end=df_yf.index[-1].date()+td_1d, auto_adjust=False)
+                if not "Repaired?" in df_yf_1d.columns:
+                    df_yf_1d["Repaired?"] = False
                 df_yf["_indexBackup"] = df_yf.index
                 df_yf["_date"] = df_yf.index.date
                 df_yf_1d["_date"] = df_yf_1d.index.date
@@ -1413,6 +1433,8 @@ class PriceHistory:
                     yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                 # df_yf = self.dat.history(interval=self.istr, start=fetch_start, end=fetch_end, auto_adjust=False, repair=repair)
                 df_yf = self.dat.history(interval=self.istr, start=fetch_start, end=fetch_end, auto_adjust=False, repair=repair, keepna=True)
+                if not "Repaired?" in df_yf.columns:
+                    df_yf["Repaired?"] = False
                 # if not "Dividends" in df_yf:
                 if df_yf.empty:
                     raise Exception(f"{self.ticker}: YF fetch failed for {self.istr} {fetch_start} -> {fetch_end}")
@@ -1450,26 +1472,14 @@ class PriceHistory:
                     while n < 3:
                         fetch_start -= timedelta(days=2)
                         df_yf = self.dat.history(interval=self.istr, start=fetch_start, end=fetch_end, auto_adjust=False, repair=repair)
+                        if not "Repaired?" in df_yf.columns:
+                            df_yf["Repaired?"] = False
                         n += 1
                         if df_yf.index[0].weekday() == 0:
                             break
                     if not df_yf.index[0].weekday() == 0:
                         raise Exception("Failed to get Monday-aligned weekly data from YF")
                     df_yf = df_yf.loc[h.index[0]:]
-
-            # if self.exchange == "ASX" and self.istr in ["1m", "2m", "5m"]:
-            #     # ASX market closes at 4pm with auction around 4:11pm,
-            #     # but sometimes Yahoo thinks tiny volume of trades occurred
-            #     # inbetween. Wrong!
-            #     # Fix = merge with previous interval
-            #     f = df_yf.index.time == time(16)
-            #     if f.any():
-            #         indices = sorted(list(np.where(f)[0]))
-            #         for i in indices:
-            #             df_yf.loc[df_yf.index[i-1], "Volume"] += df_yf["Volume"].iloc[i]
-            #             df_yf.loc[df_yf.index[i-1], "Close"] = df_yf["Close"].iloc[i]
-            #         df_yf = df_yf.drop(df_yf.index[indices])
-            # Update: I think Yahoo right because TradingView confirms
 
             if not self.interday:
                 # Volume not split-adjusted
@@ -1576,7 +1586,11 @@ class PriceHistory:
             if debug:
                 n = np.sum(f_diff_all)
                 if n < 5:
-                    msg = f"differences found but not correcting: {f_diff_all.index[f_diff_all]}"
+                    msg = "differences found but not correcting: "
+                    if self.interday:
+                        msg += "f{f_diff_all.index[f_diff_all].date}"
+                    else:
+                        msg += "f{f_diff_all.index[f_diff_all]}"
                 else:
                     msg = f"{np.sum(f_diff_all)} differences found but not correcting"
                 yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
@@ -1681,10 +1695,17 @@ class PriceHistory:
                     # Ensure aligned to week start:
                     fetch_start -= timedelta(days=fetch_start.weekday())
 
+            td_1d = timedelta(days=1)
+            td_14d = timedelta(days=14)
             if self.interval == yfcd.Interval.Days1:
+                # Add padding days to ensure Yahoo returns correct Volume
+                s = yfct.GetExchangeSchedule(self.exchange, fetch_start - td_14d, fetch_end + td_14d)
+                fetch_start_pad = s.iloc[s.index.get_indexer([str(fetch_start)], method="ffill")[0]-1].name.date()
+
                 first_fetch_failed = False
                 try:
-                    df = self._fetchYfHistory_dateRange(fetch_start, fetch_end, prepost, debug)
+                    df = self._fetchYfHistory_dateRange(fetch_start_pad, fetch_end, prepost, debug)
+                    df = df.loc[str(fetch_start):].copy()
                 except yfcd.NoPriceDataInRangeException as e:
                     first_fetch_failed = True
                     ex = e
@@ -1733,18 +1754,22 @@ class PriceHistory:
                         pass
 
             elif self.interday:
-                df = self._fetchYfHistory_dateRange(fetch_start, fetch_end, prepost, debug)
+                # Add padding days to ensure Yahoo returns correct Volume
+                s = yfct.GetExchangeSchedule(self.exchange, fetch_start - 2*self.itd, fetch_end + 2*self.itd)
+                fetch_start_pad = s.iloc[s.index.get_indexer([str(fetch_start)], method="ffill")[0]-1].name.date()
+                fetch_end_pad   = s.iloc[s.index.get_indexer([str(fetch_end)], method="bfill")[0]+1].name.date()
+
+                df = self._fetchYfHistory_dateRange(fetch_start_pad, fetch_end_pad, prepost, debug)
+                df = df.loc[str(fetch_start) : str(fetch_end-td_1d)].copy()
 
             else:
                 # Intraday
                 fetch_ranges = [(fetch_start, fetch_end)]
                 if self.intraday:
+                    # Add padding days to ensure Yahoo returns correct Volume
                     maxRange = yfcd.yfMaxFetchRange[self.interval]
                     if maxRange is not None:
-                        td_1d = timedelta(days=1)
-                        td_14d = timedelta(days=14)
                         s = yfct.GetExchangeSchedule(self.exchange, start_dt.date() - td_14d, end_dt.date() + td_14d)
-                        s_orig = s
                         s = s.iloc[s.index.get_indexer([str(start_dt.date())], method="ffill")[0]-1:]
                         s = s.iloc[:s.index.get_indexer([str(end_dt.date())], method="bfill")[0]+1+1]
                         lag = yfcd.exchangeToYfLag[self.exchange]
@@ -1887,10 +1912,10 @@ class PriceHistory:
                 if debug_yfc:
                     n = intervals_missing_df.shape[0]
                     if n <= 3:
-                        msg = f"- YF data missing {n} intervals: {intervals_missing_df['open'].to_numpy()}"
+                        msg = f"YF data missing {n} intervals: {intervals_missing_df['open'].to_numpy()}"
                     else:
-                        msg = f"- YF data missing {n} intervals"
-                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
+                        msg = f"YF data missing {n} intervals"
+                    yfcl.TracePrint('- ' + msg) if yfcl.IsTracingEnabled() else print('- ' + msg)
 
                 cutoff_d = date.today() - timedelta(days=14)
                 dt_now_local = dt_now.astimezone(self.tz)
@@ -1931,16 +1956,20 @@ class PriceHistory:
                             missing_intervals_to_add = np.append(missing_intervals_to_add, intervals_missing_df_recent["open"].to_numpy())
 
                 if missing_intervals_to_add is not None:
+                    n = missing_intervals_to_add.shape[0]
+                    if n <= 3:
+                        msg = f"insertings NaNs for {n} missing intervals: {missing_intervals_to_add}"
+                    else:
+                        msg = f"insertings NaNs for {n} missing intervals"
                     if debug_yfc:
-                        n = missing_intervals_to_add.shape[0]
-                        if n <= 3:
-                            msg = f"- insertings NaNs for {n} missing intervals: {missing_intervals_to_add}"
-                        else:
-                            msg = f"- insertings NaNs for {n} missing intervals"
-                        yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
+                        yfcl.TracePrint('- ' + msg) if yfcl.IsTracingEnabled() else print('- ' + msg)
+                    else:
+                        self.manager.LogEvent("info", "PriceManager", msg)
 
                     nm = missing_intervals_to_add.shape[0]
                     df_missing = pd.DataFrame(data={k: [np.nan]*nm for k in yfcd.yf_data_cols}, index=missing_intervals_to_add)
+                    if "Repaired?" in df.columns:
+                        df_missing["Repaired?"] = False
                     df_missing.index = pd.to_datetime(df_missing.index)
                     if self.interday:
                         df_missing.index = df_missing.index.tz_localize(tz_exchange)
@@ -1961,8 +1990,8 @@ class PriceHistory:
 
         fetch_dt = fetch_dt_utc.replace(tzinfo=ZoneInfo("UTC"))
 
+        # Remove any out-of-range data:
         if (n > 0) and (pstr is None):
-            # Remove any out-of-range data:
             # NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
             if end is not None:
                 if self.interday:
@@ -1979,10 +2008,10 @@ class PriceHistory:
                     df = df[df.index >= start_dt]
                 n = df.shape[0]
 
+        # Verify that all datetimes match up with actual intervals:
         if n == 0:
             raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
         else:
-            # Verify that all datetimes match up with actual intervals:
             if self.interday:
                 f = df.index.time != time(0)
                 if f.any():
@@ -2182,8 +2211,12 @@ class PriceHistory:
                     if accept:
                         for idx in np.where(f_na)[0]:
                             dt = intervals.index[idx]
-                            intervals.loc[dt, "interval_open"] = df.index[idx]
-                            intervals.loc[dt, "interval_close"] = df.index[idx] + self.itd
+                            if interday:
+                                intervals.loc[dt, "interval_open"] = df.index[idx].date()
+                                intervals.loc[dt, "interval_close"] = df.index[idx].date() + self.itd
+                            else:
+                                intervals.loc[dt, "interval_open"] = df.index[idx]
+                                intervals.loc[dt, "interval_close"] = df.index[idx] + self.itd
                     else:
                         raise Exception("Problem with dates returned by Yahoo, see above")
 
@@ -2199,6 +2232,9 @@ class PriceHistory:
                     # For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
                     if self.exchange in ["JNB"]:
                         lastDataDts[f_na] += timedelta(minutes=15)
+                else:
+                    # Add ~10 hours to ensure hit next market open
+                    lastDataDts[f_na] += timedelta(hours=10)
             data_final = fetch_dt >= lastDataDts
             df["Final?"] = data_final
 
@@ -2213,50 +2249,7 @@ class PriceHistory:
         elif debug_yfc:
             print(log_msg)
 
-        self.manager.LogEvent("info", "PriceManager", f"fetched from YF: {self.istr} {df.index[0]} -> {df.index[-1]}")
-
-        return df
-
-    def _fetchYfHistory_period(self, pstr, prepost, debug):
-        raise Exception("I am retiring _fetchYfHistory_period()")
-        yfcu.TypeCheckStr(pstr, "pstr")
-        yfcu.TypeCheckBool(prepost, "prepost")
-        yfcu.TypeCheckBool(debug, "debug")
-
-        debug_yfc = False
-        # debug_yfc = True
-
-        log_msg = f"PM::_fetchYfHistory_period-{self.istr}(pstr={pstr} , prepost={prepost})"
-        if yfcl.IsTracingEnabled():
-            yfcl.TraceEnter(log_msg)
-        elif debug_yfc:
-            print("")
-            print(log_msg)
-
-        history_args = {"period": pstr,
-                        "interval": self.istr,
-                        "prepost": prepost,
-                        "actions": True,  # Always fetch
-                        "keepna": True,
-                        "repair": "silent",
-                        "auto_adjust": False,  # store raw data, adjust myself
-                        "back_adjust": False,  # store raw data, adjust myself
-                        "proxy": self.proxy,
-                        "rounding": False,  # store raw data, round myself
-                        "raise_errors": True,
-                        "debug": debug}
-
-        if debug_yfc:
-            msg = f"- {self.ticker}: fetching {pstr} period"
-            yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
-
-        df = self.dat.history(**history_args)
-
-        log_msg = f"PM::_fetchYfHistory_period() returning DF {df.index[0]} -> {df.index[-1]}"
-        if yfcl.IsTracingEnabled():
-            yfcl.TraceExit(log_msg)
-        elif debug_yfc:
-            print(log_msg)
+        self.manager.LogEvent("info", "PriceManager", f"processed YF response = {self.istr} {df.index[0]} -> {df.index[-1]}")
 
         return df
 
@@ -2282,10 +2275,6 @@ class PriceHistory:
             fetch_start_dt = datetime.combine(fetch_start, time(0), self.tz)
         else:
             fetch_start_dt = fetch_start
-        # if not isinstance(fetch_end, (datetime, pd.Timestamp)):
-        #     fetch_end_dt = datetime.combine(fetch_end, time(0), self.tz)
-        # else:
-        #     fetch_end_dt = fetch_end
 
         history_args = {"period": None,
                         "interval": self.istr,
@@ -2298,8 +2287,10 @@ class PriceHistory:
                         "back_adjust": False,  # store raw data, adjust myself
                         "proxy": self.proxy,
                         "rounding": False,  # store raw data, round myself
-                        "raise_errors": True,
-                        "debug": debug}
+                        "raise_errors": True}
+        if debug:
+            yf_logger = logging.getLogger('yfinance')
+            yf_logger.setLevel(logging.DEBUG)  # verbose: print errors & debug info
 
         if debug_yfc:
             if (not isinstance(fetch_start, datetime)) or fetch_start.time() == time(0):
@@ -2314,11 +2305,15 @@ class PriceHistory:
             yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
 
         first_fetch_failed = False
+        df = None
         try:
             if debug_yfc:
                 msg = f"- fetch_start={fetch_start} ; fetch_end={fetch_end}"
                 yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
             df = self.dat.history(**history_args)
+            df = df.sort_index()
+            if not "Repaired?" in df.columns:
+                df["Repaired?"] = False
             if debug_yfc:
                 if df is None:
                     msg = "- YF returned None"
@@ -2332,21 +2327,25 @@ class PriceHistory:
         except Exception as e:
             first_fetch_failed = True
             if "Data doesn't exist for startDate" in str(e):
-                ex = yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
-                raise ex
+                raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
             elif "No data found for this date range" in str(e):
-                ex = yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
-                raise ex
+                raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
+            elif "No price data found, symbol may be delisted" in str(e):
+                raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
             else:
                 print("df:")
                 print(df)
                 raise e
 
         if not first_fetch_failed and fetch_start is not None:
+            log_msg = f"requested from YF: {self.istr} {history_args['start']} -> {history_args['end']}"
+            log_msg += f", received: {df.index[0]} -> {df.index[-1]}"
+            self.manager.LogEvent("info", "PriceManager", log_msg)
+
             df = df.loc[fetch_start_dt:]
             if df.empty:
                 first_fetch_failed = True
-                ex = yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
+                raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
 
         # Check that weekly aligned to Monday. If not, shift start date back and re-fetch
         if self.interval == yfcd.Interval.Week and (not df.empty) and (df.index[0].weekday() != 0):
@@ -2360,7 +2359,13 @@ class PriceHistory:
                     msg = "- weekly data not aligned to Monday, re-fetching from {}".format(fetch_start2)
                     yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
                 df = self.dat.history(**history_args)
+                if not "Repaired?" in df.columns:
+                    df["Repaired?"] = False
                 if self.interval == yfcd.Interval.Week and (df.index[0].weekday() == 0):
+                    log_msg = f"requested from YF: {self.istr} {history_args['start']} -> {history_args['end']}"
+                    log_msg += f", received: {df.index[0]} -> {df.index[-1]}"
+                    self.manager.LogEvent("info", "PriceManager", log_msg)
+
                     if isinstance(start, datetime):
                         start_dt = start
                     else:
@@ -2484,6 +2489,8 @@ class PriceHistory:
             return df
 
         df_v2 = df.copy()
+        if not "Repaired?" in df_v2.columns:
+            df_v2["Repaired?"] = False
         df_good = df[~df[price_cols].isna().any(axis=1)]
         f_tag = df_v2[price_cols].to_numpy() == tag
 
@@ -2610,6 +2617,12 @@ class PriceHistory:
                     if reconstruct_detected:
                         self._infinite_recursion_detected = True
                 self._stack_trace.append(fn_tuple)
+
+            if self.interday:
+                log_msg = f"repairing {self.istr} block {g[0].date()} -> {g[-1].date()+timedelta(days=1)}"
+            else:
+                log_msg = f"repairing {self.istr} block {g[0]} -> {g[-1]}"
+            self.manager.LogEvent("info", "PriceManager", log_msg)
 
             # Infinite loop potential here via repair:
             # - request fine-grained data e.g. 1H
@@ -2820,6 +2833,7 @@ class PriceHistory:
                     # df_v2.loc[idx, "CSF"] = df_new_row["CSF"]
                 if "Volume" in bad_fields:
                     df_v2.loc[idx, "Volume"] = df_new_row["Volume"]
+                df_v2.loc[idx, "Repaired?"] = True
                 n_fixed += 1
 
             # Restore un-repaired bad values
@@ -2829,12 +2843,7 @@ class PriceHistory:
                 f = f_failed[:, j]
                 if f.any():
                     c = price_cols[j]
-                    # for i in np.where(f)[0]:
-                    #     idx = df_block.index[i]
-                    #     df_v2.loc[idx, c] = df.loc[idx, c]
                     df_v2.loc[f, c] = df.loc[f, c]
-            # if f_failed.any():
-            #     raise Exception("here")
 
             if self._record_stack_trace:
                 # Pop stack trace
@@ -2845,10 +2854,6 @@ class PriceHistory:
                         print("  "*i + str(self._stack_trace[i]))
                     raise Exception("Failing to correctly push/pop stack trace (see above)")
                 self._stack_trace.pop(len(self._stack_trace) - 1)
-
-        # if debug:
-        #     print("- df_v2:")
-        #     print(df_v2)
 
         log_msg = "PM::_reconstruct_intervals_batch() returning"
         yfcl.TraceExit(log_msg)
@@ -3028,8 +3033,11 @@ class PriceHistory:
             raise
         n_after = (df2[data_cols].to_numpy() == tag).sum()
         n_fixed = n_before - n_after
+        msg = f"Fixed {n_fixed}/{n_before} price=0.0 errors in {self.istr} price data"
         if not silent and n_fixed > 0:
-            print(f"{self.ticker}: fixed {n_fixed}/{n_before} price=0.0 errors in {self.istr} price data")
+            print(f"{self.ticker}: " + msg)
+        else:
+            self.manager.LogEvent("info", "PriceManager", msg)
 
         # Restore original values where repair failed (i.e. remove tag values)
         f = df2[data_cols].to_numpy() == tag
@@ -3267,6 +3275,9 @@ class PriceHistory:
         else:
             df["Volume"] *= csf
 
+        if df["Volume"].dtype != 'int64':
+            df["Volume"] = df["Volume"].round(0).astype('int')
+
         # Drop 'Adj Close', replace with scaling factors:
         df = df.drop("Adj Close", axis=1)
         df["CSF"] = csf
@@ -3304,9 +3315,11 @@ class PriceHistory:
         debug = False
         # debug = True
 
-        yfcl.TraceEnter(f"PM::_applyNewEvents()-{self.istr}")
-
         h_modified = False
+
+        log_msg = f"PM::_applyNewEvents()-{self.istr}"
+        if yfcl.IsTracingEnabled():
+            yfcl.TraceEnter(log_msg)
 
         # Backport new splits across entire h table
         lastSplitAdjustDt_min = self.h["LastSplitAdjustDt"].min()
@@ -3316,20 +3329,41 @@ class PriceHistory:
             if f_sup.any():
                 for dt in splits_since.index[f_sup]:
                     split = splits_since.loc[dt]
-                    f = self.h["LastSplitAdjustDt"] == split["Superseded split FetchDate"]
+                    diff = (self.h["LastSplitAdjustDt"] - split["Superseded split FetchDate"]).abs()
+                    f = diff < pd.Timedelta("15s")
                     if not f.any():
                         if self.interval != yfcd.Interval.Days1:
                             # Probably ok, assuming superseded split was never applied to this price data
                             continue
-                        elif debug:
+                        print(split)
+                        raise Exception(f"For superseded split above, failed to identify rows to undo. Problem?")
+                    else:
+                        # Next check: expect cached CSF != 1.0
+                        f1 = self.h.loc[f, "CSF"] == 1.0
+                        if f1.any():
                             print(split)
-                            raise Exception(f"For superseded split above, failed to identify rows to undo. Problem?")
-                    self.h.loc[f, "CSF"] *= split["Superseded back adj."]
-                    if debug:
-                        print(f"Undone superseded split @ {dt}:")
-                        print(self.h.loc[f, ["CSF", "FetchDate", "LastSplitAdjustDt"]])
-                        print("")
+                            raise Exception(f"For superseded split above, attempting to undo split-adjust from rows where CSF=1. Investigate.")
 
+                        log_msg = f"{self.istr}: Reversing split [dt={dt.date()} {split['Superseded split']} fetch={split['Superseded split FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
+                        indices = np.where(f)[0]
+                        log_msg += f" from intervals "
+                        if self.interday:
+                            log_msg += f"{self.h.index[indices[0]].date()} -> {self.h.index[indices[-1]].date()} (inc)"
+                        else:
+                            log_msg += f"{self.h.index[indices[0]]} -> {self.h.index[indices[-1]]}"
+                        h_lastRow = self.h.loc[self.h.index[indices[-1]]]
+                        log_msg += f". Last CSF = {h_lastRow['CSF']:.5f} @ {h_lastRow['LastSplitAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
+                        self.manager.LogEvent("info", "PriceManager", log_msg)
+                        if yfcl.IsTracingEnabled():
+                            yfcl.TracePrint(log_msg)
+                        elif debug:
+                            print(f"Undone superseded split @ {dt}:")
+                            print(self.h.loc[f, ["CSF", "FetchDate", "LastSplitAdjustDt"]])
+                            print("")
+
+                        self.h.loc[f, "CSF"] *= split["Stock Splits"]
+
+            LastSplitAdjustDt_new = self.h["LastSplitAdjustDt"].copy()
             for dt in splits_since.index:
                 split = splits_since.loc[dt]
                 f1 = self.h.index < dt
@@ -3344,12 +3378,30 @@ class PriceHistory:
                     else:
                         msg += f"{self.h.index[indices[0]]} -> {self.h.index[indices[-1]]}"
                     msg += f" last CSF = {self.h['CSF'].iloc[indices[-1]]:.5f}"
-                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
+                    if yfcl.IsTracingEnabled():
+                        yfcl.TracePrint(msg)
+                    elif debug:
+                        print(f"{self.ticker}: " + msg)
+                    log_msg = f"{self.istr}: Applying split [dt={dt.date()} {split['Stock Splits']} fetch={split['FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
+                    indices = np.where(f)[0]
+                    log_msg += f" across intervals "
+                    if self.interday:
+                        log_msg += f"{self.h.index[indices[0]].date()} -> {self.h.index[indices[-1]].date()} (inc)"
+                    else:
+                        log_msg += f"{self.h.index[indices[0]]} -> {self.h.index[indices[-1]]}"
+                    h_lastRow = self.h.loc[self.h.index[indices[-1]]]
+                    log_msg += f". Last CSF = {h_lastRow['CSF']:.5f} @ {h_lastRow['LastSplitAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
+                    self.manager.LogEvent("info", "PriceManager", log_msg)
+                    if yfcl.IsTracingEnabled():
+                        yfcl.TracePrint(log_msg)
+                    elif debug:
+                        print(f"{self.ticker}: "+log_msg)
 
                     if isinstance(self.h["CSF"].iloc[0], (int, np.int64)):
                         self.h["CSF"] = self.h["CSF"].astype(float)
                     self.h.loc[f, "CSF"] /= split["Stock Splits"]
-                    self.h.loc[f, "LastSplitAdjustDt"] = np.maximum(self.h.loc[f, "LastSplitAdjustDt"], split["FetchDate"])
+                    LastSplitAdjustDt_new[f] = np.maximum(LastSplitAdjustDt_new[f], split["FetchDate"])
+            self.h["LastSplitAdjustDt"] = LastSplitAdjustDt_new
 
             h_modified = True
 
@@ -3365,27 +3417,48 @@ class PriceHistory:
             if f_sup.any():
                 for dt in divs_since.index[f_sup]:
                     div = divs_since.loc[dt]
-                    f = self.h["LastDivAdjustDt"] == div["Superseded div FetchDate"]
+                    diff = (self.h["LastDivAdjustDt"] - div["Superseded div FetchDate"]).abs()
+                    f = (diff < pd.Timedelta("15s")).to_numpy()
                     if not f.any():
                         if self.interval != yfcd.Interval.Days1:
                             # Probably ok, assuming superseded div was never applied to this price data
                             continue
-                        elif debug:
+                        print(div)
+                        raise Exception(f"{self.ticker}: {self.istr}: For superseded div above, failed to identify rows to undo. Problem?")
+                    else:
+                        # Next check: expect cached CDF < 1.0:
+                        f1 = self.h.loc[f, "CDF"] == 1.0
+                        if f1.any():
                             print(div)
-                            raise Exception(f"For superseded div above, failed to identify rows to undo. Problem?")
-                    self.h.loc[f, "CDF"] /= div["Superseded back adj."]
-                    if debug:
-                        print(f"Undone superseded dividend @ {dt}:")
-                        print(self.h.loc[f, ["CDF", "FetchDate", "LastDivAdjustDt"]])
-                        print("")
+                            raise Exception(f"{self.ticker}: {self.istr}: For superseded div above, attempting to undo div-adjust from rows where CDF=1. Investigate.")
 
+                        log_msg = f"{self.istr}: Reversing div [dt={dt.date()} {div['Superseded div']} adj={div['Superseded back adj.']:.5f} fetch={div['Superseded div FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
+                        indices = np.where(f)[0]
+                        log_msg += f" from intervals "
+                        if self.interday:
+                            log_msg += f"{self.h.index[indices[0]].date()} -> {self.h.index[indices[-1]].date()} (inc)"
+                        else:
+                            log_msg += f"{self.h.index[indices[0]]} -> {self.h.index[indices[-1]]}"
+                        h_lastRow = self.h.loc[self.h.index[indices[-1]]]
+                        log_msg += f". Last CDF = {h_lastRow['CDF']:.5f} @ {h_lastRow['LastDivAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
+                        self.manager.LogEvent("info", "PriceManager", log_msg)
+                        if yfcl.IsTracingEnabled():
+                            yfcl.TracePrint(log_msg)
+                        elif debug:
+                            print(f"Undone superseded dividend @ {dt}:")
+                            print(self.h.loc[f, ["CDF", "FetchDate", "LastDivAdjustDt"]])
+                            print("")
+
+                        self.h.loc[f, "CDF"] /= div["Superseded back adj."]
+
+            LastDivAdjustDt_new = self.h["LastDivAdjustDt"].copy()
             for dt in divs_since.index:
                 div = divs_since.loc[dt]
                 f1 = self.h.index < dt
                 f2 = self.h["LastDivAdjustDt"] < div["FetchDate"]
                 f = f1 & f2
                 if f.any():
-                    log_msg = f"{self.istr}: Applying div [dt={dt.date()} {div['Dividends']} adj={div['Back Adj.']:.5f} fetch={div['FetchDate']}]"
+                    log_msg = f"{self.istr}: Applying div [dt={dt.date()} {div['Dividends']} adj={div['Back Adj.']:.5f} fetch={div['FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
                     indices = np.where(f)[0]
                     log_msg += f" across intervals "
                     if self.interday:
@@ -3393,16 +3466,22 @@ class PriceHistory:
                     else:
                         log_msg += f"{self.h.index[indices[0]]} -> {self.h.index[indices[-1]]}"
                     h_lastRow = self.h.loc[self.h.index[indices[-1]]]
-                    log_msg += f". Last CDF = {h_lastRow['CDF']:.5f} @ {h_lastRow['LastDivAdjustDt']}"
+                    log_msg += f". Last CDF = {h_lastRow['CDF']:.5f} @ {h_lastRow['LastDivAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
                     self.manager.LogEvent("info", "PriceManager", log_msg)
-                    yfcl.TracePrint(log_msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: "+log_msg)
+                    if yfcl.IsTracingEnabled():
+                        yfcl.TracePrint(log_msg)
+                    elif debug:
+                        print(f"{self.ticker}: "+log_msg)
 
                     self.h.loc[f, "CDF"] *= div["Back Adj."]
-                    self.h.loc[f, "LastDivAdjustDt"] = np.maximum(self.h.loc[f, "LastDivAdjustDt"], div["FetchDate"])
+                    LastDivAdjustDt_new[f] = np.maximum(LastDivAdjustDt_new[f], div["FetchDate"])
+            self.h["LastDivAdjustDt"] = LastDivAdjustDt_new
 
             h_modified = True
 
         if h_modified:
             self._updatedCachedPrices(self.h)
 
-        yfcl.TraceExit("PM::_applyNewEvents() returning")
+        log_msg = "PM::_applyNewEvents() returning"
+        if yfcl.IsTracingEnabled():
+            yfcl.TraceExit(log_msg)

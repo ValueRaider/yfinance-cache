@@ -33,7 +33,7 @@ def GetLogger(tkr):
     logger = logging.getLogger(tkr)
     logger.setLevel(logging.DEBUG)
     logger.addHandler(log_file_handler)
-    # self.logger.addHandler(screen_handler)
+    logger.propagate = False
 
     loggers[tkr] = logger
     return logger

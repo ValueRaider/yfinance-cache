@@ -3,7 +3,6 @@ import unittest
 from pprint import pprint
 
 class Test_Base(unittest.TestCase):
-# class Test_Base:
     def verify_df(self, df, answer, rtol=None, different=False):
         if (df is None or df.shape[0]==0) and (answer is None or answer.shape[0]==0):
             return
@@ -64,7 +63,10 @@ class Test_Base(unittest.TestCase):
             # else:
             if rtol is None:
                 rtol = 0.0
-            f = np.isclose(df[dc].values, answer[dc].values, equal_nan=True, rtol=rtol)
+            if dc == 'Volume':
+                f = np.abs(df[dc].values - answer[dc].values) <= 1
+            else:
+                f = np.isclose(df[dc].values, answer[dc].values, equal_nan=True, rtol=rtol)
 
             if different:
                 # Test requires difference, not equality

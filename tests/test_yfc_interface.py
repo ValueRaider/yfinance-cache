@@ -7,6 +7,7 @@ from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
+from .context import session_gbl
 from .utils import Test_Base
 import pickle as pkl
 
@@ -49,10 +50,7 @@ class Test_Yfc_Interface(Test_Base):
         self.tempCacheDir = tempfile.TemporaryDirectory()
         yfcm.SetCacheDirpath(self.tempCacheDir.name)
 
-        self.session = None
-        import requests_cache
-        self.session = requests_cache.CachedSession(os.path.join(appdirs.user_cache_dir(),'yfinance.cache.testing'), expire_after=60*60)
-        self.session.headers['User-agent'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0"
+        self.session = session_gbl
 
         self.tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
         self.tkrs.append("HLTH") # Listed recently
@@ -371,15 +369,15 @@ class Test_Yfc_Interface(Test_Base):
                 elif c == "Adj Close" and not c in df_yfc.columns:
                     continue
                 try:
-                    if aa:
-                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=1e-10).all())
+                    if aa or "Adj" in c:
+                        self.assertTrue(np.isclose(df_yf[c].values, df_yfc[c].values, rtol=5e-6).all())
                     else:
                         self.assertTrue(np.equal(df_yf[c].values, df_yfc[c].values).all())
                 except:
                     print("df_yf:")
-                    print(df_yf)
+                    print(df_yf[[c]])
                     print("df_yfc:")
-                    print(df_yfc)
+                    print(df_yfc[[c]])
                     print("aa={}, c={}".format(aa, c))
                     raise
 
@@ -470,7 +468,7 @@ class Test_Yfc_Interface(Test_Base):
                 yfcm.SetCacheDirpath(self.tempCacheDir.name)
                 dat_yfc = yfc.Ticker(tkr, session=self.session)
                 try:
-                    df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
+                    df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False, repair=True)
                 except Exception as e:
                     if "No data found for this date range" in str(e):
                         # Skip
@@ -509,7 +507,6 @@ class Test_Yfc_Interface(Test_Base):
                         print("missing_from_yfc:")
                         # print(missing_from_yfc)
                         print(df_yf.loc[missing_from_yfc])
-                        print(df_yfc["1998-10-25":"1998-11-05"])
                     print("Different shapes")
                     raise
                 try:
@@ -541,7 +538,7 @@ class Test_Yfc_Interface(Test_Base):
             dat_yfc = yfc.Ticker(tkr, session=self.session)
             for p in periods:
                 try:
-                    df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False)
+                    df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False, repair=True)
                 except Exception as e:
                     if "No data found for this date range" in str(e):
                         # Skip

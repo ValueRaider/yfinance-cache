@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import re
 from pprint import pprint
@@ -13,7 +14,7 @@ def TypeCheckStr(var, varName):
     if not isinstance(var, str):
         raise TypeError(f"'{varName}' must be str not {type(var)}")
 def TypeCheckBool(var, varName):
-    if not isinstance(var, bool):
+    if not isinstance(var, (bool, np.bool_)):
         raise TypeError(f"'{varName}' must be bool not {type(var)}")
 def TypeCheckFloat(var, varName):
     if not isinstance(var, (float, np.float32, np.float64)):
@@ -73,8 +74,8 @@ def TypeCheckIntervalDt(var, interval, varName, strict=True):
         raise TypeError(str(e) + " for interval "+yfcd.intervalToString[interval])
 
 def TypeCheckPeriod(var, varName):
-    if not isinstance(var, yfcd.Period):
-        raise TypeError(f"'{varName}' must be yfcd.Period not {type(var)}")
+    if not isinstance(var, yfcd.Period) and not isinstance(var, (timedelta, pd.Timedelta, relativedelta)):
+        raise TypeError(f"'{varName}' must be Timedelta or yfcd.Period not {type(var)}")
 
 def TypeCheckNpArray(var, varName):
     if not isinstance(var, np.ndarray):
@@ -386,10 +387,11 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     f_diff = ~f_close
     if f_diff.any():
         n_diff = np.sum(f_diff)
-        print(f"{n_diff}/{n} differences in column {c}")
-        df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_Yahoo")
-        df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
-        df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(1).astype(str) + '%'
+        if not quiet:
+            print(f"WARNING: {istr}: {n_diff}/{n} differences in column {c}")
+        df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_yf")
+        df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
+        df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(1).astype(str) + '%'
         if not quiet:
             print(df_diffs)
         f_diff_all = f_diff_all | f_diff
@@ -402,6 +404,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     yf_ss = df_yf.loc[df_yf[c] != 0.0, c]
     dts_missing_from_cache = yf_ss.index[~yf_ss.index.isin(h_ss.index)]
     dts_missing_from_yf = h_ss.index[~h_ss.index.isin(yf_ss.index)]
+    splits_bad = False
     if len(dts_missing_from_cache) > 0:
         if not quiet:
             print("WARNING: Stock splits missing from cache:")
@@ -411,28 +414,65 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     # - now compare values
     h_ss = h_ss[h_ss.index.isin(yf_ss.index)]
     yf_ss = yf_ss[yf_ss.index.isin(h_ss.index)]
-    f_close = np.isclose(h_ss.to_numpy(), yf_ss.to_numpy(), rtol=rtol)
-    f_diff = ~f_close
-    if f_diff.any():
-        n_diff = np.sum(f_diff)
-        if not quiet:
-            print(f"{n_diff}/{n} differences in column {c}")
-        df_diffs = pd.DataFrame(h_ss[f_diff]).join(yf_ss[f_diff], lsuffix="_cache", rsuffix="_Yahoo")
-        df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
-        df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
-        raise Exception("Need to test handling stock split mismatches - prune stock-split store?")
+    if not yf_ss.empty:
+        f_close = np.isclose(h_ss[c].to_numpy(), yf_ss.to_numpy(), rtol=rtol)
+        f_diff = ~f_close
+        if f_diff.any():
+            n_diff = np.sum(f_diff)
+            if not quiet:
+                print(f"WARNING: {istr}: {n_diff}/{n} differences in column {c}")
+            df_diffs = h_ss.join(yf_ss[f_diff], lsuffix="_cache", rsuffix="_yf")
+            df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
+            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(2).astype(str) + '%'
+            if not quiet:
+                print(df_diffs)
+            f_diff_all = f_diff_all | f_diff
+            splits_bad = True
 
     def _print_sig_diffs(df, df_yf, column, rtol):
         c = column
         f_close = np.isclose(df[c].to_numpy(), df_yf[c].to_numpy(), rtol=rtol)
         f_diff = ~f_close
         if f_diff.any():
-            df_diffs = df.loc[f_diff, ["FetchDate", c]].join(df_yf.loc[f_diff, [c]], lsuffix="_cache", rsuffix="_Yahoo")
+            # Use looser tolerance if different 'Repaired?' states
+            f_repair_mismatch = np.logical_xor(df["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+            if f_repair_mismatch.any():
+                if column == 'Volume':
+                    loose_tol = 0.5
+                else:
+                    loose_tol = 0.1
+                f_diff[f_repair_mismatch] = ~np.isclose(df[c].to_numpy()[f_repair_mismatch], df_yf[c].to_numpy()[f_repair_mismatch], rtol=loose_tol)
+
+        if f_diff.any():
+            cols = ["FetchDate"]
+            if "Adj" in column:
+                cols.append("LastDivAdjustDt")
+            cols.append("Repaired?")
+            cols.append(c)
+            # yahoo_cols = [c]
+            yahoo_cols = [c, "Repaired?"]
+            df_diffs = df.loc[f_diff, cols].join(df_yf.loc[f_diff, yahoo_cols], lsuffix="_cache", rsuffix="_yf")
             df_diffs.index = df_diffs.index.tz_convert(df.index[0].tz)
 
-            df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_Yahoo"]
-            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_Yahoo"]).round(2).astype(str) + '%'
+            df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
+            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(2).astype(str) + '%'
 
+            # Combine the 'Repaired?' columns
+            df_diffs["Repaired?"] = "cache="
+            f = df_diffs["Repaired?_cache"].to_numpy()
+            df_diffs.loc[f,"Repaired?"] += 'Y'
+            df_diffs.loc[~f,"Repaired?"] += 'N'
+            df_diffs["Repaired?"] += ' yf='
+            f = df_diffs["Repaired?_yf"].to_numpy()
+            df_diffs.loc[f,"Repaired?"] += 'Y'
+            df_diffs.loc[~f,"Repaired?"] += 'N'
+            df_diffs = df_diffs.drop(["Repaired?_cache", "Repaired?_yf"], axis=1)
+
+            df_diffs["FetchDate"] = df_diffs["FetchDate"].dt.tz_convert(df.index.tz)
+            df_diffs["FetchDate"] = df_diffs["FetchDate"].dt.strftime("%Y-%m-%d %H:%M:%S%z")
+            if "LastDivAdjustDt" in df_diffs.columns:
+                df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.tz_convert(df.index.tz)
+                df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.strftime("%Y-%m-%d %H:%M:%S%z")
             f_diff_n = sum(f_diff)
             msg = f"WARNING: {istr}: {f_diff_n}/{n} sig. diffs in column {c} with rtol={rtol}"
             print(msg)
@@ -447,10 +487,17 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
         # Ignore differences where YF volume = 0, because what has happened
         # is cached data contains repair but now too old for YF to repair
         if debug:
-            msg = f"ignoring {np.sum(f_yfZeroVol & ~f_close)} diffs where YF volume = 0"
+            msg = f"ignoring {np.sum(f_yfZeroVol)} diffs where YF volume = 0"
             print("- " + msg)
         f_close[f_yfZeroVol] = True
     f_diff_vol = ~f_close
+    if f_diff_vol.any():
+        # Use looser tolerance if different 'Repaired?' states
+        f_repair_mismatch = np.logical_xor(h["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+        if f_repair_mismatch.any():
+            # loose_tol = 0.5
+            loose_tol = 1.0
+            f_diff_vol[f_repair_mismatch] = ~np.isclose(h[c].to_numpy()[f_repair_mismatch], df_yf[c].to_numpy()[f_repair_mismatch], rtol=loose_tol)
     if f_diff_vol.any():
         if debug:
             _print_sig_diffs(h, df_yf, "Volume", vol_rtol)
@@ -464,31 +511,53 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             print(msg)
         f_diff_all = f_diff_all | f_diff_vol
 
+    f_diff_prices = pd.Series(np.full(h.shape[0], False), h.index)
     for c in ["Open", "Close", "High", "Low"]:
         f_close = np.isclose(h[c].to_numpy(), df_yf[c].to_numpy(), rtol)
         f_close = pd.Series(f_close, h.index)
         f_diff_c = ~f_close
         if f_diff_c.any():
+            # Use looser tolerance if different 'Repaired?' states
+            f_repair_mismatch = np.logical_xor(h["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+            if f_repair_mismatch.any():
+                loose_tol = 0.1
+                f_diff_c[f_repair_mismatch] = ~np.isclose(h[c].to_numpy()[f_repair_mismatch], df_yf[c].to_numpy()[f_repair_mismatch], rtol=loose_tol)
+        if f_diff_c.any():
             if debug:
                 _print_sig_diffs(h, df_yf, c, rtol)
             elif not quiet:
-                msg = f"WARNING: {istr}: {np.sum(f_diff_vol)}/{n} differences in '{c}'"
+                msg = f"WARNING: {istr}: {np.sum(f_diff_c)}/{n} differences in '{c}'"
                 # If very few date(times), append to string
-                if not interday and np.sum(f_diff_vol) == 1:
-                    msg += f" @ {h.index[f_diff_vol]}"
-                elif interday and np.sum(f_diff_vol) < 2:
-                    msg += f" @ {h.index.date[f_diff_vol]}"
+                if not interday and np.sum(f_diff_c) == 1:
+                    msg += f" @ {h.index[f_diff_c]}"
+                elif interday and np.sum(f_diff_c) < 2:
+                    msg += f" @ {h.index.date[f_diff_c]}"
                 print(msg)
-            f_diff_all = f_diff_all | f_diff_c
+            f_diff_prices = f_diff_prices | f_diff_c
+    prices_bad = f_diff_prices.any()
+    f_diff_all = f_diff_all | f_diff_prices
 
-    if not divs_bad:
-        f_diff_divs = pd.Series(np.full(h.shape[0], False), h_adj.index)
+    if not divs_bad and not splits_bad and not prices_bad:
+        f_diff_divs = pd.Series(np.full(h.shape[0], False), h.index)
         if interday:
             # Yahoo div-adjusts interday data, so check my div adjustment
+            # Use looser tolerance if different 'Repaired?' states
+            try:
+                f_repair_mismatch = np.logical_xor(h_adj["Repaired?"].to_numpy(), df_yf_adj["Repaired?"].to_numpy())
+            except:
+                print("- h_adj.shape:", h_adj.shape)
+                print("- df_yf_adj.shape:", df_yf_adj.shape)
+                print('h_adj["Repaired?"].dtype') ; print(h_adj["Repaired?"].dtype)
+                print('df_yf_adj["Repaired?"].dtype') ; print(df_yf_adj["Repaired?"].dtype)
+                raise
             for c in ["Open", "Close", "High", "Low"]:
                 c = "Adj "+c
                 f_close = np.isclose(h_adj[c].to_numpy(), df_yf_adj[c].to_numpy(), rtol=0.0005)
                 f_close = pd.Series(f_close, h.index)
+                if f_repair_mismatch.any():
+                    loose_tol = 0.1
+                    f_close2 = np.isclose(h_adj[c].to_numpy()[f_repair_mismatch], df_yf_adj[c].to_numpy()[f_repair_mismatch], rtol=loose_tol)
+                    f_close[f_repair_mismatch] = f_close2
                 f_diff_c = (~f_close) & (~f_diff_all)
                 f_diff_divs = f_diff_divs | f_diff_c
         f_diff_divs = f_diff_divs & ~f_diff_all

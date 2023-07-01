@@ -20,5 +20,11 @@ from .yfc_upgrade import _fix_listing_date, _upgrade_divs_splits_supersede
 _fix_listing_date()
 _upgrade_divs_splits_supersede()
 
-# __all__ = ['Ticker', 'Period', 'Interval']
+from .yfc_upgrade import _add_repaired_column
+_add_repaired_column()
 
+from .yfc_upgrade import _recalc_final_column
+_recalc_final_column()
+
+from .yfc_upgrade import _upgrade_divs_supersede_again
+_upgrade_divs_supersede_again()

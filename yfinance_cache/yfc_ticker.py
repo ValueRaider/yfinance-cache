@@ -10,6 +10,7 @@ from . import yfc_prices_manager as yfcp
 import numpy as np
 import pandas as pd
 import datetime
+from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import os
 import re
@@ -91,11 +92,14 @@ class Ticker:
         yfcl.TraceEnter(log_msg)
 
         td_1d = datetime.timedelta(days=1)
-        exchange = self.fast_info['exchange']
-        tz_name = self.fast_info["timezone"]
-        tz_exchange = ZoneInfo(self.fast_info["timezone"])
-        yfct.SetExchangeTzName(exchange, self.fast_info["timezone"])
-        dt_now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        exchange = self.info['exchange']
+        if "exchangeTimezoneName" in self.info:
+            tz_name = self.info["exchangeTimezoneName"]
+        else:
+            tz_name = self.info["timeZoneFullName"]
+        tz_exchange = ZoneInfo(tz_name)
+        yfct.SetExchangeTzName(exchange, tz_name)
+        dt_now = pd.Timestamp.utcnow()
 
         # Type checks
         if max_age is not None:
@@ -104,16 +108,24 @@ class Ticker:
                     max_age = re.sub("wk$", "w", max_age)
                 max_age = pd.Timedelta(max_age)
             if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
-                raise Exception("Argument 'max_age' must be Timedelta or valid string")
+                raise Exception("Argument 'max_age' must be Timedelta or equivalent string")
         if period is not None:
             if start is not None or end is not None:
                 raise Exception("Don't set both 'period' and 'start'/'end'' arguments")
             if isinstance(period, str):
-                if period not in yfcd.periodStrToEnum.keys():
-                    raise Exception("'period' if str must be one of: {}".format(yfcd.periodStrToEnum.keys()))
-                period = yfcd.periodStrToEnum[period]
-            if not isinstance(period, yfcd.Period):
-                raise Exception("'period' must be a yfcd.Period")
+                if period in ["max", "ytd"]:
+                    period = yfcd.periodStrToEnum[period]
+                else:
+                    if period.endswith("wk"):
+                        period = re.sub("wk$", "w", period)
+                    if period.endswith("y"):
+                        period = relativedelta(years=int(re.sub("y$", "", period)))
+                    elif period.endswith("mo"):
+                        period = relativedelta(months=int(re.sub("mo", "", period)))
+                    else:
+                        period = pd.Timedelta(period)
+            if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
+                raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(perio)}")
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
                 raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
@@ -122,14 +134,16 @@ class Ticker:
             raise Exception("'interval' must be yfcd.Interval")
 
         start_d = None ; end_d = None
+        start_dt = None ; end_dt = None
+        interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
         if start is not None:
-            start, start_d = self._process_user_dt(start)
-            if start > dt_now:
+            start_dt, start_d = self._process_user_dt(start)
+            if start_dt > dt_now:
                 return None
             if interval == yfcd.Interval.Week:
                 # Note: if start is on weekend then Yahoo can return weekly data starting
                 #       on Saturday. This breaks YFC, start must be Monday! So fix here:
-                if start is None:
+                if start_dt is None:
                     # Working with simple dates, easy
                     if start_d.weekday() in [5, 6]:
                         start_d += datetime.timedelta(days=7-start_d.weekday())
@@ -137,13 +151,19 @@ class Ticker:
                     wd = start_d.weekday()
                     if wd in [5, 6]:
                         start_d += datetime.timedelta(days=7-wd)
-                        start = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
+                        start_dt = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
 
         if end is not None:
-            end, end_d = self._process_user_dt(end)
+            end_dt, end_d = self._process_user_dt(end)
 
-        if start is not None and end is not None and start >= end:
+        if start_dt is not None and end_dt is not None and start_dt >= end_dt:
             raise ValueError("start must be < end")
+
+        if debug_yfc:
+            print("- start_dt={} , end_dt={}".format(start_dt, end_dt))
+
+        if (start_dt is not None) and start_dt == end_dt:
+            return None
 
         if max_age is None:
             if interval == yfcd.Interval.Days1:
@@ -156,23 +176,33 @@ class Ticker:
                 max_age = datetime.timedelta(days=45)
             else:
                 max_age = 0.5*yfcd.intervalToTimedelta[interval]
+            if start is not None:
+                max_age = min(max_age, dt_now-start_dt)
 
-        if debug_yfc:
-            print("- start={} , end={}".format(start, end))
+        if period is not None:
+            if isinstance(period, (datetime.timedelta, pd.Timedelta)):
+                if (dt_now - max_age) < (dt_now - period):
+                    raise Exception(f"max_age={max_age} must be less than period={period}")
+            elif period == yfcd.Period.Ytd:
+                dt_now_ex = dt_now.tz_convert(tz_exchange)
+                dt_year_start = pd.Timestamp(year=dt_now_ex.year, month=1, day=1).tz_localize(tz_exchange)
+                if (dt_now - max_age) < dt_year_start:
+                    raise Exception(f"max_age={max_age} must be less than days since this year start")
+        elif start is not None:
+            if (dt_now - max_age) < start_dt:
+                raise Exception(f"max_age={max_age} must be closer to now than start={start}")
 
-        if (start is not None) and start == end:
-            return None
 
-        if start is not None:
+        if start_dt is not None:
             try:
-                sched_14d = yfct.GetExchangeSchedule(exchange, start.date(), start.date()+14*td_1d)
+                sched_14d = yfct.GetExchangeSchedule(exchange, start_dt.date(), start_dt.date()+14*td_1d)
             except Exception as e:
                 if "Need to add mapping" in str(e):
-                    raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(self.fast_info["exchange"], self.ticker))
+                    raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(self.info["exchange"], self.ticker))
                 else:
                     raise
             if sched_14d is None:
-                raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start.date(), start.date()+14*td_1d, self.ticker))
+                raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start_dt.date(), start_dt.date()+14*td_1d, self.ticker))
             if sched_14d["open"][0] > dt_now:
                 # Requested date range is in future
                 return None
@@ -181,16 +211,16 @@ class Ticker:
 
         # All date checks passed so can begin fetching
 
-        if ((start_d is None) or (end_d is None)) and (start is not None) and (end is not None):
+        if ((start_d is None) or (end_d is None)) and (start_dt is not None) and (end_dt is not None):
             # if start_d/end_d not set then start/end are datetimes, so need to inspect
             # schedule opens/closes to determine days
             if sched_14d is not None:
                 sched = sched_14d.iloc[0:1]
             else:
-                sched = yfct.GetExchangeSchedule(exchange, start.date(), end.date()+td_1d)
+                sched = yfct.GetExchangeSchedule(exchange, start_dt.date(), end_dt.date()+td_1d)
             n = sched.shape[0]
-            start_d = start.date() if start < sched["open"][0] else start.date()+td_1d
-            end_d = end.date()+td_1d if end >= sched["close"][n-1] else end.date()
+            start_d = start_dt.date() if start_dt < sched["open"][0] else start_dt.date()+td_1d
+            end_d = end_dt.date()+td_1d if end_dt >= sched["close"][n-1] else end_dt.date()
 
         if self._histories_manager is None:
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
@@ -198,18 +228,20 @@ class Ticker:
         # t1_setup = perf_counter()
 
         hist = self._histories_manager.GetHistory(interval)
-        interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
         if period is not None:
             h = hist.get(start=None, end=None, period=period, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         elif interday:
             h = hist.get(start_d, end_d, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         else:
-            h = hist.get(start, end, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
+            h = hist.get(start_dt, end_dt, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
-            if start is not None or end is not None:
-                msg = f"YFC: history() exiting without price data (tkr={self.ticker} start={start} end={end} interval={yfcd.intervalToString[interval]})"
+            msg = f"YFC: history() exiting without price data (tkr={self.ticker}"
+            if start_dt is not None or end_dt is not None:
+                msg += f" start_dt={start_dt} end_dt={end_dt}"
             else:
-                msg = f"YFC: history() exiting without price data (tkr={self.ticker} period={period} interval={yfcd.intervalToString[interval]})"
+                msg += f" period={period}"
+            msg += f" max_age={max_age}"
+            msg += f" interval={yfcd.intervalToString[interval]})"
             raise Exception(msg)
 
         # t2_sync = perf_counter()
@@ -220,8 +252,8 @@ class Ticker:
 
         # Present table for user:
         h_copied = False
-        if (start is not None) and (end is not None):
-            h = h.loc[start:end-datetime.timedelta(milliseconds=1)].copy()
+        if (start_dt is not None) and (end_dt is not None):
+            h = h.loc[start_dt:end_dt-datetime.timedelta(milliseconds=1)].copy()
             h_copied = True
 
         if not keepna:
@@ -240,7 +272,7 @@ class Ticker:
                     h = h.copy()
                 for c in ["Open", "Close", "Low", "High", "Dividends"]:
                     h[c] = np.multiply(h[c].to_numpy(), h["CSF"].to_numpy())
-                h["Volume"] = np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy())
+                h["Volume"] = np.round(np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy()), 0).astype('int')
             if adjust_divs:
                 if not h_copied:
                     h = h.copy()
@@ -256,9 +288,21 @@ class Ticker:
                 # Round to 4 sig-figs
                 if not h_copied:
                     h = h.copy()
-                rnd = yfcu.CalculateRounding(h["Close"].iloc[-1], 4)
+                f_na = h["Close"].isna()
+                na = f_na.any()
+                if na:
+                    f_nna = ~f_na
+                    if not f_nna.any():
+                        raise Exception(f"{self.ticker}: price table is entirely NaNs. Delisted?" +" \n" + log_msg)
+                    last_close = h["Close"][f_nna].iloc[-1]
+                else:
+                    last_close = h["Close"].iloc[-1]
+                rnd = yfcu.CalculateRounding(last_close, 4)
                 for c in ["Open", "Close", "Low", "High"]:
-                    h[c] = np.round(h[c].to_numpy(), rnd)
+                    if na:
+                        h.loc[f_nna, c] = np.round(h.loc[f_nna, c].to_numpy(), rnd)
+                    else:
+                        h[c] = np.round(h[c].to_numpy(), rnd)
 
             if debug_yfc:
                 print("- h:")
@@ -290,13 +334,21 @@ class Ticker:
 
     def _getCachedPrices(self, interval, proxy=None):
         if self._histories_manager is None:
-            exchange = self.fast_info['exchange']
-            tz_name = self.fast_info["timezone"]
+            exchange = self.info['exchange']
+            tz_name = self.info["timeZoneFullName"]
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
 
-        return self._histories_manager.GetHistory(interval)._getCachedPrices()
+        if isinstance(interval, str):
+            if interval not in yfcd.intervalStrToEnum.keys():
+                raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
+            interval = yfcd.intervalStrToEnum[interval]
+
+        return self._histories_manager.GetHistory(interval).h
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
+        if debug:
+            quiet = False
+
         fn_locals = locals()
         del fn_locals["self"]
 
@@ -308,8 +360,8 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::verify_cached_prices(tkr={self.ticker} {fn_locals})")
 
         if self._histories_manager is None:
-            exchange = self.fast_info['exchange']
-            tz_name = self.fast_info["timezone"]
+            exchange = self.info['exchange']
+            tz_name = self.info["timeZoneFullName"]
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
 
         v = True
@@ -319,11 +371,11 @@ class Ticker:
         self.history(start=dt0.date(), quiet=quiet, trigger_at_market_close=True)  # ensure have all dividends
         v = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
         if debug_interval == yfcd.Interval.Days1:
-            yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v}")
+            yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v} (1st pass)")
             return v
         if not v:
             if debug or not correct:
-                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v}")
+                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v} (1st pass)")
                 return v
         if correct:
             # Rows were removed so re-fetch. Only do for 1d data
@@ -332,15 +384,16 @@ class Ticker:
             # repeat verification, because 'fetch backporting' may be buggy
             v2 = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
             if not v2 and debug:
-                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v2}")
+                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v2} (post-correction)")
                 return v2
             if not v2:
-                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v2}")
+                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v2} (post-correction)")
                 return v2
-        if not v and correct:
-            # Stop after correcting first problem, because user won't have been shown the next problem yet
-            yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v}")
-            return v
+
+            if not v:
+                # Stop after correcting first problem, because user won't have been shown the next problem yet
+                yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v} (corrected but user should review next problem)")
+                return v
 
         if debug_interval is not None:
             if debug_interval == yfcd.Interval.Days1:
@@ -372,8 +425,9 @@ class Ticker:
         return v
 
     def _verify_cached_prices_interval(self, interval, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False):
-        # TODO: iterate over all intervals, but only once I'm sure verify is 100% solid.
-        #       - I remember needing 1d verified first => re-fetch after correction before verifying other intervals?
+        if debug:
+            quiet = False
+
         fn_locals = locals()
         del fn_locals["self"]
 
@@ -390,8 +444,8 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::_verify_cached_prices_interval(tkr={self.ticker}, {fn_locals})")
 
         if self._histories_manager is None:
-            exchange = self.fast_info['exchange']
-            tz_name = self.fast_info["timezone"]
+            exchange = self.info['exchangeName']
+            tz_name = self.info["timeZoneFullName"]
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
@@ -401,7 +455,7 @@ class Ticker:
 
     def _process_user_dt(self, dt):
         d = None
-        tz_exchange = ZoneInfo(self.fast_info["timezone"])
+        tz_exchange = ZoneInfo(self.info["timeZoneFullName"])
         if isinstance(dt, str):
             d = datetime.datetime.strptime(dt, "%Y-%m-%d").date()
             dt = datetime.datetime.combine(d, datetime.time(0), tz_exchange)
@@ -428,6 +482,12 @@ class Ticker:
 
         self._info = self.dat.info
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
+
+        if "exchangeTimezoneName" in self._info:
+            tz = self._info["exchangeTimezoneName"]
+        else:
+            tz = self._info["timeZoneFullName"]
+        yfct.SetExchangeTzName(self._info["exchange"], tz)
 
         return self._info
 
@@ -687,19 +747,19 @@ class Ticker:
         if self._yf_lag is not None:
             return self._yf_lag
 
-        exchange_str = "exchange-{0}".format(self.fast_info["exchange"])
+        exchange_str = "exchange-{0}".format(self.info["exchange"])
         if yfcm.IsDatumCached(exchange_str, "yf_lag"):
             self._yf_lag = yfcm.ReadCacheDatum(exchange_str, "yf_lag")
             if self._yf_lag:
                 return self._yf_lag
 
         # Just use specified lag
-        specified_lag = yfcd.exchangeToYfLag[self.fast_info["exchange"]]
+        specified_lag = yfcd.exchangeToYfLag[self.info["exchange"]]
         self._yf_lag = specified_lag
         return self._yf_lag
 
 
-def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, correct=False, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
+def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, correct=False, halt_on_fail=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
     """
     :Parameters:
         session:
@@ -761,7 +821,7 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         dat = Ticker(tkr, session=session)
 
         try:
-            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=correct, quiet=True, debug=debug, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=correct, quiet=not debug, debug=debug, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
             print(str(e) + " - is it delisted? Aborting verification so you can investigate.")
             return
@@ -769,8 +829,11 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
             return
 
         if correct:
-            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=False, quiet=True, debug=debug, debug_interval=debug_interval)
+            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=False, quiet=not debug, debug=debug, debug_interval=debug_interval)
 
         if not v:
             v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
-            raise Exception(f"{tkr}: verify failing")
+            if halt_on_fail:
+                raise Exception(f"{tkr}: verify failing")
+            else:
+                print(f"{tkr}: verify failing")

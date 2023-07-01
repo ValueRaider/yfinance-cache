@@ -111,6 +111,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
     def test_sameWeek_sameDay(self):
         interval_start = self.monday
         interval = yfcd.Interval.Week
+        repaired = False
 
         max_ages = []
         fetch_dts = []
@@ -144,7 +145,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, repaired, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -161,6 +162,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
     def test_sameWeek_diffDay(self):
         interval_start = self.monday
         interval = yfcd.Interval.Week
+        repaired = False
 
         max_ages = []
         fetch_dts = []
@@ -224,7 +226,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, repaired, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -241,6 +243,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
     def test_sameWeek_weekend(self):
         interval_start = self.monday
         interval = yfcd.Interval.Week
+        repaired = False
 
         dt_now = datetime.combine(self.saturday, time(9, 0), self.market_tz)
         max_ages = []
@@ -265,7 +268,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, repaired, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:
@@ -282,6 +285,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
     def test_nextWeek(self):
         interval_start = self.monday
         interval = yfcd.Interval.Week
+        repaired = False
 
         dt_now = datetime.combine(self.monday + timedelta(days=8), time(13, 45), self.market_tz)  # next Monday is holiday
         max_ages = []
@@ -306,7 +310,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             expire_on_candle_close = expire_on_candle_closes[i]
             yf_lag = yf_lags[i]
             answer = answers[i]
-            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
+            response = yfct.IsPriceDatapointExpired(interval_start, fetch_dt, repaired, max_age, self.exchange, interval, triggerExpiryOnClose=expire_on_candle_close, yf_lag=yf_lag, dt_now=dt_now)
             try:
                 self.assertEqual(response, answer)
             except:

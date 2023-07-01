@@ -4,8 +4,6 @@ _main() (
 	EXCHANGES=(usa nze asx tlv)
 	PERIODS=(h d w)
 
-	rm "$HOME"/.cache/yfinance.cache
-
 	set -e
 	
 	TESTS=(cache datetime-assumptions utils time_utils)

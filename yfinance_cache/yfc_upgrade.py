@@ -10,7 +10,7 @@ import click
 
 from . import yfc_cache_manager as yfcm
 # from . import yfc_utils as yfcu
-# from . import yfc_time as yfct
+from . import yfc_time as yfct
 from . import yfc_dat as yfcd
 from . import yfc_ticker as yfc
 from . import yfc_prices_manager as yfcp
@@ -59,6 +59,12 @@ def _sanitise_prices():
                 if "Adj Close" in df.columns:
                     df = df.drop("Adj Close", axis=1)
                     df_modified = True
+
+                if "Repaired?" in df.columns:
+                    f_na = df["Repaired?"].isna()
+                    if f_na.any():
+                        df.loc[f_na, "Repaired?"] = False
+                        df_modified = True
 
                 if df_modified:
                     prices_pkl["data"] = df
@@ -237,7 +243,11 @@ def _separate_events_from_prices():
             else:
                 fp = os.path.join(tkrd, "info.pkl")
                 with open(fp, 'rb') as f:
-                    tz = ZoneInfo(pickle.load(f)["data"]["exchangeTimezoneName"])
+                    info = pickle.load(f)["data"]
+                    if "exchangeTimezoneName" in info:
+                        tz = ZoneInfo(info["exchangeTimezoneName"])
+                    else:
+                        tz = ZoneInfo(info["timeZoneFullName"])
 
             # Add 'FetchDate'
             if divs_df.empty:
@@ -482,6 +492,20 @@ def _fix_listing_date():
             if "firstTradeDate" not in dat.history_metadata:
                 continue
             listing_date = dat.history_metadata["firstTradeDate"]
+            if isinstance(listing_date, int):
+                fp_info = os.path.join(tkrd, "fast_info.pkl")
+                if os.path.isfile(fp_info):
+                    with open(fp_info, 'rb') as f:
+                        tz = pickle.load(f)["data"]["timezone"]
+                else:
+                    fp_info = os.path.join(tkrd, "info.pkl")
+                    with open(fp_info, 'rb') as f:
+                        info = pickle.load(f)["data"]
+                        if "exchangeTimezoneName" in info:
+                            tz = info["exchangeTimezoneName"]
+                        else:
+                            tz = info["timeZoneFullName"]
+                listing_date = pd.to_datetime(listing_date, unit='s', utc=True).tz_convert(tz)
             yfcm.StoreCacheDatum(tkr, "listing_date", listing_date.date())
 
             for interval in yfcd.Interval:
@@ -562,52 +586,157 @@ def _upgrade_divs_splits_supersede():
         pass
 
 
-# def _fix_lost_divs():
-#     d = yfcm.GetCacheDirpath()
-#     yfc_dp = os.path.join(d, "_YFC_")
-#     state_fp = os.path.join(yfc_dp, "have-fixed-lost-divs")
-#     if os.path.isfile(state_fp):
-#         return
+def _add_repaired_column():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-repaired-column")
+    if os.path.isfile(state_fp):
+        return
 
-#     if not os.path.isdir(d):
-#         if not os.path.isdir(yfc_dp):
-#             os.makedirs(yfc_dp)
-#         with open(state_fp, 'w') as f:
-#             pass
-#         return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
 
-#     for tkr in os.listdir(d):
-#         if tkr.startswith("EXCHANGE-") or tkr.startswith('_'):
-#             # Not a security
-#             continue
-#         tkrd = os.path.join(d, tkr)
+    tkrs = os.listdir(d)
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
 
-#         prices_fp = os.path.join(tkrd, "history-1d.pkl")
-#         if not os.path.isfile(prices_fp):
-#             continue
+        for interval in yfcd.intervalToString.values():
+            prices_fp = os.path.join(tkrd, f"history-{interval}.pkl")
+            if os.path.isfile(prices_fp):
+                with open(prices_fp, 'rb') as f:
+                    prices_pkl = pickle.load(f)
+                df = prices_pkl["data"]
+                df_modified = False
 
-#         with open(prices_fp, 'rb') as f:
-#             prices_pkl = pickle.load(f)
-#         df = prices_pkl["data"]
-#         divs = df.loc[df["Dividends"]!=0, ["Dividends", "FetchDate"]]
-#         if divs.empty:
-#             continue
+                if not "Repaired?" in df.columns:
+                    df["Repaired?"] = False
+                    df_modified = True
 
-#         divs["Close day before"] = np.nan
-#         for dt in divs.index:
-#             if dt >= df.index[1]:
-#                 idx = df.index.get_loc(dt)
-#                 close_day_before = df["Close"].iloc[idx-1]
-#             else:
-#                 close_day_before = df["Close"].iloc[0]
-#             divs.loc[dt, "Close day before"] = close_day_before
+                if df_modified:
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
 
-#         # histories_manager = yfcp.HistoriesManager(tkr, exchange, tz_name, self.session, proxy)
-#         dat = yfc.Ticker(tkr)
-#         dat._getCachedPrices(yfcd.Interval.Days1)  # initialises history manager
-#         dat._histories_manager.GetHistory("Events").UpdateDividends(divs)
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
 
-#     if not os.path.isdir(yfc_dp):
-#         os.makedirs(yfc_dp)
-#     with open(state_fp, 'w') as f:
-#         pass
+
+def _recalc_final_column():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-recalced-final-column")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    # print("Running: _recalc_final_column()")
+    print("Fixing 'Final?' column, may take a few minutes (~500 symbols per minute)")
+
+    tkrs = os.listdir(d)
+    try:
+        import tqdm
+        tkrs = tqdm.tqdm(tkrs)
+    except:
+        pass
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+
+        exchange = None
+
+        for interval in yfcd.intervalToString.keys():
+            istr = yfcd.intervalToString[interval]
+            prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+            if os.path.isfile(prices_fp):
+                with open(prices_fp, 'rb') as f:
+                    prices_pkl = pickle.load(f)
+                df = prices_pkl["data"]
+                df_modified = False
+
+                if exchange is None:
+                    fp = os.path.join(tkrd, "fast_info.pkl")
+                    if not os.path.isfile(fp):
+                        fp = os.path.join(tkrd, "info.pkl")
+                    with open(fp, 'rb') as f:
+                        exchange = pickle.load(f)["data"]["exchange"]
+
+                interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+                intervals = yfct.GetTimestampCurrentInterval_batch(exchange, df.index.to_numpy(), interval, discardTimes=interday, ignore_breaks=True)
+                lastDataDts = yfct.CalcIntervalLastDataDt_batch(exchange, intervals["interval_open"].to_numpy(), interval)
+                f_na = intervals["interval_open"].isna().to_numpy()
+                if f_na.any():
+                    # Hacky solution to handle xcal having incorrect schedule, for valid Yahoo data
+                    itd = yfcd.intervalToTimedelta[interval]
+                    lastDataDts[f_na] = intervals.index[f_na] + itd
+                    if not interday:
+                        lastDataDts[f_na] += yfct.GetExchangeDataDelay(exchange)
+                        # For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
+                        if exchange in ["JNB"]:
+                            lastDataDts[f_na] += timedelta(minutes=15)
+                data_final = (df["FetchDate"] >= lastDataDts).to_numpy()
+                df_modified = (data_final != df["Final?"].to_numpy()).any()
+                if df_modified:
+                    df["Final?"] = data_final
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+
+
+def _upgrade_divs_supersede_again():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-upgraded-div-supersede-again")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    for tkr in os.listdir(d):
+        if tkr.startswith("EXCHANGE-") or tkr.startswith('_'):
+            # Not a security
+            continue
+
+        tkrd = os.path.join(d, tkr)
+
+        divs_fp = os.path.join(tkrd, "dividends.pkl")
+        if os.path.isfile(divs_fp):
+            with open(divs_fp, 'rb') as f:
+                divsPklData = pickle.load(f)
+            divs_df = divsPklData["data"]
+
+            # Add column "Superseded div"
+            divs_df["Superseded div"] = 0.0
+            f = divs_df["Superseded back adj."].to_numpy() != 0.0
+            if f.any():
+                ratio = (1.0-divs_df.loc[f,"Superseded back adj."].to_numpy()) / (1.0-divs_df.loc[f,"Back Adj."].to_numpy())
+                divs_df.loc[f,"Superseded div"] = ratio * divs_df.loc[f,"Dividends"].to_numpy()
+
+            divsPklData["data"] = divs_df
+            with open(divs_fp, 'wb') as f:
+                pickle.dump(divsPklData, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass

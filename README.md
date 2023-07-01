@@ -62,6 +62,7 @@ yfc.verify_cached_tickers_prices(
 	rtol=0.0001,
 	vol_rtol=0.005,
 	correct=False,
+	halt_on_fail=True,  # stop verifying on first fail
 	resume_from_tkr=None,  # in case you aborted verification, can jump ahead to this ticker symbol. Append '+1' to start AFTER the ticker
 	debug_tkr=None,  # only verify this ticker symbol
 	debug_interval=None)

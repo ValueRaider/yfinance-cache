@@ -220,6 +220,7 @@ exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
+exchangeToXcalExchange["BTS"] = exchangeToXcalExchange["NYQ"]  # Cboe BZX formerly known as BATS
 # Canada:
 exchangeToXcalExchange["TOR"] = "XTSE"  # Toronto
 exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"]  # TSX Venture
@@ -244,8 +245,10 @@ exchangeToXcalExchange["STO"] = "XSTO"  # Stockholm
 exchangeToXcalExchange["VIE"] = "XWBO"  # Vienna
 # Other:
 exchangeToXcalExchange["TLV"] = "XTAE"  # Israel
-exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg
-exchangeToXcalExchange["SAO"] = "BVMF"  # Sao Paulo
+exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg, South Africa
+exchangeToXcalExchange["SAO"] = "BVMF"  # Sao Paulo, Brazil
+exchangeToXcalExchange["SGO"] = "XSGO"  # Santiago, Chile
+exchangeToXcalExchange["BVC"] = "XBOG"  # Bogota, Colombia
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
@@ -267,6 +270,7 @@ exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["BTS"] = exchangeToYfLag["NYQ"]
 # Canada:
 exchangeToYfLag["TOR"] = timedelta(seconds=0)
 exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
@@ -293,6 +297,8 @@ exchangeToYfLag["VIE"] = timedelta(minutes=15)
 exchangeToYfLag["TLV"] = timedelta(minutes=20)
 exchangeToYfLag["JNB"] = timedelta(minutes=15)
 exchangeToYfLag["SAO"] = timedelta(minutes=15)
+exchangeToYfLag["SGO"] = timedelta(minutes=15)
+exchangeToYfLag["BVC"] = timedelta(minutes=15)  # Guess because Yahoo don't specify
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
 exchangeToYfLag["KSC"] = timedelta(minutes=20)

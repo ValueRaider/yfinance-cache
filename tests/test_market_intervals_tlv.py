@@ -185,29 +185,32 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
             raise
 
     def test_GetScheduleIntervals_weekly(self):
-        interval = yfcd.Interval.Week
+        base_args = {'interval': yfcd.Interval.Week,
+                     'exchange': self.exchange,
+                     'weekForceStartMonday': False}
 
         # Simple case: 2 full weeks
-        start_d = date(2022, 9, 4)  # Sunday
-        end_d = date(2022, 9, 18)  # Sunday + 2 weeks
-        week7days = False ; discardTimes = False
+        args = dict(base_args)
+        args["start"] = date(2022, 9, 4)  # Sunday
+        args["end"] = date(2022, 9, 18)  # Sunday + 2 weeks
+        args['week7days'] = False ; args['discardTimes'] = False
         left = [dtc(date(2022, 9, 4), self.market_open, self.market_tz),  # Sunday open
                 dtc(date(2022, 9, 11), self.market_open, self.market_tz)]  # Sunday open
         right = [dtc(date(2022, 9, 8), self.auction_end, self.market_tz),  # Thursday close
                  dtc(date(2022, 9, 15), self.auction_end, self.market_tz)]  # Thursday close
         answer = pd.IntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
             print("response:") ; pprint(response)
             print("answer:")   ; pprint(answer)
             raise
-        week7days = False ; discardTimes = True
+        args['week7days'] = False ; args['discardTimes'] = True
         left = [date(2022, 9, 4), date(2022, 9, 11)]  # Sundays
         right = [date(2022, 9, 9), date(2022, 9, 16)]  # Fridays
         answer = yfcd.DateIntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
@@ -215,8 +218,9 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
             print("answer:")   ; pprint(answer)
             raise
         week7days = True ; discardTimes = True
+        args['week7days'] = True ; args['discardTimes'] = True
         answer = yfcd.DateIntervalIndex([yfcd.DateInterval(date(2022, 9, 5), date(2022, 9, 12), closed="left")])  # Monday -> next Monday
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
@@ -225,37 +229,38 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
             raise
 
         # Weekend cut off
-        start_d = date(2022, 9, 4)  # Sunday
-        end_d = date(2022, 9, 17)  # next Saturday
-        week7days = False ; discardTimes = False
+        args = dict(base_args)
+        args["start"] = date(2022, 9, 4)  # Sunday
+        args["end"] = date(2022, 9, 17)  # next Saturday
+        args['week7days'] = False ; args['discardTimes'] = False
         left = [dtc(date(2022, 9, 4), self.market_open, self.market_tz),  # Sunday opens
                 dtc(date(2022, 9, 11), self.market_open, self.market_tz)]
         right = [dtc(date(2022, 9, 8), self.market_close, self.market_tz),  # Thursday closes
                  dtc(date(2022, 9, 15), self.market_close, self.market_tz)]
         answer = pd.IntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
             print("response:") ; pprint(response)
             print("answer:")   ; pprint(answer)
             raise
-        week7days = False ; discardTimes = True
+        args['week7days'] = False ; args['discardTimes'] = True
         left = [date(2022, 9, 4), date(2022, 9, 11)]  # Sundays
         right = [date(2022, 9, 9), date(2022, 9, 16)]  # Fridays
         answer = yfcd.DateIntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
             print("response:") ; pprint(response)
             print("answer:")   ; pprint(answer)
             raise
-        week7days = True ; discardTimes = True
+        args['week7days'] = True ; args['discardTimes'] = True
         left = [date(2022, 9, 5)]  # Monday
         right = [date(2022, 9, 12)]  # next Monday
         answer = yfcd.DateIntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
@@ -264,33 +269,34 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
             raise
 
         # Monday holiday
-        start_d = date(2022, 9, 28)  # Wednesday (Mon-Tues holidays)
-        end_d = date(2022, 10, 3)  # next Monday
-        week7days = False ; discardTimes = False
+        args = dict(base_args)
+        args["start"] = date(2022, 9, 28)  # Wednesday (Mon-Tues holidays)
+        args["end"] = date(2022, 10, 3)  # next Monday
+        args['week7days'] = False ; args['discardTimes'] = False
         left = [dtc(date(2022, 9, 28), self.market_open, self.market_tz)]  # Wednesday open
         right = [dtc(date(2022, 9, 29), self.market_close, self.market_tz)]  # Thursday close
         answer = pd.IntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
             print("response:") ; pprint(response)
             print("answer:")   ; pprint(answer)
             raise
-        week7days = False ; discardTimes = True
+        args['week7days'] = False ; args['discardTimes'] = True
         left = [date(2022, 9, 28)]  # Wednesday (Sun-Tue holidays)
         right = [date(2022, 9, 30)]  # Friday
         answer = yfcd.DateIntervalIndex.from_arrays(left, right, closed="left")
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertTrue(response.equals(answer))
         except:
             print("response:") ; pprint(response)
             print("answer:")   ; pprint(answer)
             raise
-        week7days = True ; discardTimes = True
+        args['week7days'] = True ; args['discardTimes'] = True
         answer = None
-        response = yfct.GetExchangeScheduleIntervals(self.exchange, interval, start_d, end_d, discardTimes, week7days)
+        response = yfct.GetExchangeScheduleIntervals(**args)
         try:
             self.assertEqual(response, answer)
         except:
@@ -1240,7 +1246,7 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
                 try:
                     self.assertEqual(response, answer)
                 except:
-                    print(f"interval={interval} dt={dt}")
+                    print(f"interval={interval} dt={dt} discardTimes={discardTimes} week7days={week7days}")
                     print("response:") ; pprint(response)
                     print("answer:") ; pprint(answer)
                     raise
@@ -1254,7 +1260,7 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
                 try:
                     self.assertEqual(response, answer)
                 except:
-                    print(f"interval={interval} dt={dt}")
+                    print(f"interval={interval} dt={dt} discardTimes={discardTimes} week7days={week7days}")
                     print("response:") ; pprint(response)
                     print("answer:") ; pprint(answer)
                     raise
@@ -1268,7 +1274,7 @@ class Test_Market_Intervals_TLV(unittest.TestCase):
                 try:
                     self.assertEqual(response, answer)
                 except:
-                    print(f"interval={interval} dt={dt}")
+                    print(f"interval={interval} dt={dt} discardTimes={discardTimes} week7days={week7days}")
                     print("response:") ; pprint(response)
                     print("answer:") ; pprint(answer)
                     raise
