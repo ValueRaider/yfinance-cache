@@ -25,8 +25,6 @@ _make() (
 
 	python -m twine upload --repository testpypi "$_outdir"/*
 
-	return
-
 	# Note: to download from Test PYPI successfully,
 	# need to download dependencies from PYPI like this:
 	pip install --no-deps --index-url https://test.pypi.org/simple yfinance_cache2
