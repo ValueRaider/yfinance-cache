@@ -377,3 +377,15 @@ class NoPriceDataInRangeException(Exception):
 
     def __str__(self):
         return ("No {}-price data fetched for ticker {} between dates {} -> {}".format(self.interval, self.tkr, self.start_dt, self.end_dt))
+
+
+class TimestampOutsideIntervalException(Exception):
+    def __init__(self, exchange, interval, ts, *args):
+        super().__init__(args)
+        self.exchange = exchange
+        self.interval = interval
+        self.ts = ts
+
+    def __str__(self):
+        return (f"Failed to map '{self.ts}' to '{self.interval}' interval on exchange '{self.exchange}'")
+

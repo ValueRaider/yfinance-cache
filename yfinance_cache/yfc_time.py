@@ -1481,6 +1481,13 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
             print(next_sesh)
         lastDataDt = next_sesh["market_open"] + yf_lag
 
+        # Attempt to handle Yahoo changing weekly interval data after the last market update.
+        # Yes this also happens with daily but less often.
+        # Also, I never see this happen on USA exchanges, but everywhere else.
+        # if not intraday and interval != yfcd.Interval.Days1 and '.' in exchange:
+        # Update: I've seen this happen to 1d interval on USA
+        lastDataDt += timedelta(hours=4)
+
         if debug:
             print("CalcIntervalLastDataDt() returning {}".format(lastDataDt))
         return lastDataDt
@@ -1602,6 +1609,13 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
         if f_na.any():
             lastDataDt[f_na] = pd.NaT
 
+        # Attempt to handle Yahoo changing weekly interval data after the last market update.
+        # Yes this also happens with daily but less often.
+        # Also, I never see this happen on USA exchanges, but everywhere else.
+        # if not intraday and interval != yfcd.Interval.Days1 and '.' in exchange:
+        # Update: I've seen this happen to 1d interval on USA
+        lastDataDt += timedelta(hours=4)
+
         if debug:
             print("CalcIntervalLastDataDt_batch() returning")
         return lastDataDt
@@ -1654,8 +1668,13 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, repaired, max_age, exchange
         print("- irange = {}".format(irange))
 
     if irange is None:
-        print("market open? = {}".format(IsTimestampInActiveSession(exchange, intervalStart)))
-        raise Exception("Failed to map '{}'' to '{}' interval range".format(intervalStart, interval))
+        if not isinstance(intervalStart, datetime):
+            intervalStart_ts = pd.Timestamp(intervalStart).tz_localize(ZoneInfo(GetExchangeTzName(exchange)))
+        else:
+            intervalStart_ts = intervalStart
+        if debug:
+            print("market open? = {}".format(IsTimestampInActiveSession(exchange, intervalStart_ts)))
+        raise yfcd.TimestampOutsideIntervalException(exchange, interval, intervalStart)
 
     intervalEnd = irange["interval_close"]
     if isinstance(intervalEnd, datetime):

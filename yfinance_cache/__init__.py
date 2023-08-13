@@ -28,3 +28,7 @@ _recalc_final_column()
 
 from .yfc_upgrade import _upgrade_divs_supersede_again
 _upgrade_divs_supersede_again()
+
+from .yfc_upgrade import _recalc_multiday_final_column#, _fix_dividend_adjust_repair
+_recalc_multiday_final_column()
+

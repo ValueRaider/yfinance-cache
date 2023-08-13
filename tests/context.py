@@ -8,7 +8,10 @@ _src_dp = _parent_dp
 sys.path.insert(0, _src_dp)
 
 # import yfinance_cache
-from yfinance_cache import yfc_cache_manager, yfc_dat, yfc_ticker, yfc_time, yfc_utils, yfc_logging
+from yfinance_cache import yfc_cache_manager, yfc_dat, yfc_prices_manager, yfc_ticker, yfc_time, yfc_utils, yfc_logging
+
+
+import numpy as np ; np.seterr(divide='raise', over='raise', under='raise', invalid='raise')
 
 
 # Setup a session to rate-limit and cache persistently:

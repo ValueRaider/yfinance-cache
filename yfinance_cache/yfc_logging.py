@@ -23,7 +23,11 @@ def GetLogger(tkr):
     if tkr in loggers:
         return loggers[tkr]
 
-    log_fp = os.path.join(yfcm.GetCacheDirpath(), tkr, "events.log")
+    tkr_dp = os.path.join(yfcm.GetCacheDirpath(), tkr)
+    if not os.path.isdir(tkr_dp):
+        os.mkdir(tkr_dp)
+
+    log_fp = os.path.join(tkr_dp, "events.log")
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
     log_file_handler = logging.FileHandler(log_fp, mode='a')
@@ -31,7 +35,8 @@ def GetLogger(tkr):
     # screen_handler = logging.StreamHandler(stream=sys.stdout)
     # screen_handler.setFormatter(formatter)
     logger = logging.getLogger(tkr)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.DEBUG)
     logger.addHandler(log_file_handler)
     logger.propagate = False
 

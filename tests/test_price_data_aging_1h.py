@@ -16,7 +16,11 @@ class Test_PriceDataAging_1H(unittest.TestCase):
         self.market_tz = ZoneInfo('US/Eastern')
         self.market_close = time(16)
 
-        yfct.SetExchangeTzName("LSE", "Europe/London")
+        self.nze_exchange = "NZE"
+        self.nze_market_tz_name = 'Pacific/Auckland'
+        self.nze_market_tz = ZoneInfo('Pacific/Auckland')
+        self.nze_market_open_time  = time(10)
+        self.nze_market_close_time = time(16)
 
         self.monday = date(2022, 2, 7)
         self.tuesday = date(2022, 2, 8)
@@ -25,7 +29,6 @@ class Test_PriceDataAging_1H(unittest.TestCase):
 
         self.td1h = timedelta(hours=1)
         self.td1d = timedelta(days=1)
-
 
     def test_CalcIntervalLastDataDt_USA_hourly(self):
         interval = yfcd.Interval.Hours1
@@ -72,7 +75,6 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                 print("answer = {}".format(answers[i]))
                 raise
 
-
     def test_CalcIntervalLastDataDt_USA_hourly_batch(self):
         interval = yfcd.Interval.Hours1
 
@@ -106,6 +108,55 @@ class Test_PriceDataAging_1H(unittest.TestCase):
                     print("answer = {}".format(answer))
                     raise
 
+    def test_CalcIntervalLastDataDt_NZE_hourly(self):
+        interval = yfcd.Interval.Hours1
+
+        day = date(2022, 4, 4)
+
+        exchange = self.nze_exchange
+        tz = self.nze_market_tz
+        yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
+        market_close_dt = datetime.combine(day, self.nze_market_close_time, tz)
+
+        lag = timedelta(0)
+        dts = []
+        answers = []
+        for h in range(10, 17):
+            dt = datetime.combine(day, time(h), tz)
+            dts.append(dt)
+            if h == 16:
+                answers.append(datetime.combine(day + self.td1d, time(10), tz))
+            else:
+                answers.append(min(dt+self.td1h, market_close_dt))
+        for i in range(len(dts)):
+            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
+            try:
+                self.assertEqual(response, answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response))
+                print("answer = {}".format(answers[i]))
+                raise
+
+        lag = timedelta(minutes=15)
+        dts = []
+        answers = []
+        for h in range(10, 17):
+            dt = datetime.combine(day, time(h), tz)
+            dts.append(dt)
+            if h == 16:
+                answers.append(datetime.combine(day + self.td1d, time(10), tz) + lag)
+            else:
+                answers.append(min(dt+self.td1h, market_close_dt) + lag)
+        for i in range(len(dts)):
+            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
+            try:
+                self.assertEqual(response, answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response))
+                print("answer = {}".format(answers[i]))
+                raise
 
     # 1h interval, fetched during or v.soon after, tested during or v.soon after
     def test_duringDay(self):

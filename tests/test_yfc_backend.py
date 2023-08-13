@@ -4,9 +4,11 @@ from pprint import pprint
 from .context import yfc_dat as yfcd
 from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
+from .context import yfc_prices_manager as yfcp
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
 from .context import session_gbl
+from .utils import Test_Base
 
 import yfinance as yf
 
@@ -57,7 +59,8 @@ import appdirs
 ##  21*  22   23   24   25   26   27
 ##  28*
 
-class Test_Yfc_Backend(unittest.TestCase):
+# class Test_Yfc_Backend(unittest.TestCase):
+class Test_Yfc_Backend(Test_Base):
 
     def setUp(self):
         self.tempCacheDir = tempfile.TemporaryDirectory()
@@ -73,20 +76,6 @@ class Test_Yfc_Backend(unittest.TestCase):
         self.usa_market_open_time  = time(9, 30)
         self.usa_market_close_time = time(16)
         self.usa_dat = yfc.Ticker(self.usa_tkr, session=self.session)
-
-        self.nze_tkr = "MEL.NZ"
-        self.nze_market = "nz_market"
-        self.nze_exchange = "NZE"
-        self.nze_market_tz_name = 'Pacific/Auckland'
-        self.nze_market_tz = ZoneInfo('Pacific/Auckland')
-        self.nze_market_open_time  = time(10)
-        self.nze_market_close_time = time(16, 45)
-        self.nze_dat = yfc.Ticker(self.nze_tkr, session=self.session)
-
-        self.uk_exchange = "LSE"
-        self.uk_market_tz_name = "Europe/London"
-        self.uk_market_tz = ZoneInfo(self.uk_market_tz_name)
-        self.uk_market_open_time = time(8)
 
         self.td1h = timedelta(hours=1)
         self.td1d = timedelta(days=1)
@@ -127,278 +116,6 @@ class Test_Yfc_Backend(unittest.TestCase):
             # Confirm that fetching from cache returns same value:
             lag_cache = dat.yf_lag
             self.assertEqual(lag, lag_cache)
-
-    def test_CalcIntervalLastDataDt_NZE_hourly(self):
-        interval = yfcd.Interval.Hours1
-
-        day = date(2022, 4, 4)
-
-        exchange = self.nze_exchange
-        tz = self.nze_market_tz
-        yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
-        market_close_dt = datetime.combine(day, self.nze_market_close_time, tz)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        for h in range(10, 17):
-            dt = datetime.combine(day, time(h), tz)
-            dts.append(dt)
-            if h == 16:
-                answers.append(datetime.combine(day + self.td1d, time(10), tz))
-            else:
-                answers.append(min(dt+self.td1h, market_close_dt))
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        for h in range(10, 17):
-            dt = datetime.combine(day, time(h), tz)
-            dts.append(dt)
-            if h == 16:
-                answers.append(datetime.combine(day + self.td1d, time(10), tz) + lag)
-            else:
-                answers.append(min(dt+self.td1h, market_close_dt) + lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-    def test_CalcIntervalLastDataDt_NZE_daily(self):
-        interval = yfcd.Interval.Days1
-
-        exchange = self.nze_exchange
-        tz = self.nze_market_tz
-        yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        for d in range(4, 9):
-            day = date(2022, 4, d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, time(10), tz))
-            else:
-                answers.append(datetime.combine(day+self.td1d, time(10), tz))
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-            try:
-                self.assertEqual(response_batch[i], answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response_batch[i] = {}".format(response_batch[i]))
-                print("answer = {}".format(answers[i]))
-                raise
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        for d in range(4, 9):
-            day = date(2022, 4, d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, time(10), tz) + lag)
-            else:
-                answers.append(datetime.combine(day+self.td1d, time(10), tz) + lag)
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-            try:
-                self.assertEqual(response_batch[i], answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response_batch[i] = {}".format(response_batch[i]))
-                print("answer = {}".format(answers[i]))
-                raise
-
-    def test_CalcIntervalLastDataDt_NZE_weekly(self):
-        interval = yfcd.Interval.Week
-
-        exchange = self.nze_exchange
-        tz = self.nze_market_tz
-        yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        week_start_day = date(2022, 4, 4)
-        answer = datetime.combine(date(2022, 4, 11), self.nze_market_open_time, tz)
-        for d in range(4, 9):
-            day = date(2022, 4, d)
-
-            dts.append(datetime.combine(day, time(0), tz))
-            answers.append(answer+lag)
-            dts.append(datetime.combine(day, time(12), tz))
-            answers.append(answer+lag)
-            dts.append(datetime.combine(day, time(20), tz))
-            answers.append(answer+lag)
-
-        week_start_day = date(2022, 4, 11)
-        answer = datetime.combine(date(2022, 4, 19), time(10), tz)
-        for d in range(11, 16):
-            day = date(2022, 4, d)
-            
-            dts.append(datetime.combine(day, time(0), tz))
-            answers.append(answer+lag)
-            dts.append(datetime.combine(day, time(12), tz))
-            answers.append(answer+lag)
-            dts.append(datetime.combine(day, time(20), tz))
-            answers.append(answer+lag)
-
-
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-            try:
-                self.assertEqual(response_batch[i], answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response_batch[i] = {}".format(response_batch[i]))
-                print("answer = {}".format(answers[i]))
-                raise
-
-    def test_CalcIntervalLastDataDt_UK_daily(self):
-        interval = yfcd.Interval.Days1
-
-        exchange = self.uk_exchange
-        tz = self.uk_market_tz
-        yfct.SetExchangeTzName(exchange, self.uk_market_tz_name)
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        for d in range(4, 9):
-            day = date(2022, 4, d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, self.uk_market_open_time, tz))
-            else:
-                answers.append(datetime.combine(day+self.td1d, self.uk_market_open_time, tz))
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-            try:
-                self.assertEqual(response_batch[i], answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response_batch[i] = {}".format(response_batch[i]))
-                print("answer = {}".format(answers[i]))
-                raise
-
-        lag = timedelta(minutes=15)
-        dts = []
-        answers = []
-        for d in range(4, 9):
-            day = date(2022, 4, d)
-            dt = datetime.combine(day, time(14), tz)
-            dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, self.uk_market_open_time, tz) + lag)
-            else:
-                answers.append(datetime.combine(day+self.td1d, self.uk_market_open_time, tz) + lag)
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-            try:
-                self.assertEqual(response_batch[i], answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response_batch[i] = {}".format(response_batch[i]))
-                print("answer = {}".format(answers[i]))
-                raise
-
-    def test_CalcIntervalLastDataDt_UK_weekly(self):
-        interval = yfcd.Interval.Week
-
-        exchange = "LSE"
-        tz = ZoneInfo("Europe/London")
-        yfct.SetExchangeTzName(exchange, "Europe/London")
-
-        lag = timedelta(0)
-        dts = []
-        answers = []
-        answer = datetime.combine(date(2022, 5, 9), time(8), tz)
-        for d in range(3, 7):  # 2nd is holiday
-            day = date(2022, 5, d)
-            dt = datetime.combine(day, time(14, 30), tz)
-            dts.append(dt)
-            answers.append(answer+lag)
-
-        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
-        for i in range(len(dts)):
-            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
-            try:
-                self.assertEqual(response, answers[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response))
-                print("answer = {}".format(answers[i]))
-                raise
-
-            try:
-                self.assertEqual(response, response_batch[i])
-            except:
-                print("dt = {}".format(dts[i]))
-                print("response = {}".format(response_batch[i]))
-                print("answer = {}".format(response))
-                raise
-
 
     def test_history_backend_usa(self):
         # index should always be DatetimeIndex
@@ -456,7 +173,7 @@ class Test_Yfc_Backend(unittest.TestCase):
             raise Exception("history() failed, indicates problem with detecting/handling listing-date")
 
     def test_history_bug_pnl(self):
-        # Ticker PNL.L missing 90minutes of trading on morning of 2022-07-18, 
+        # Ticker PNL.L missing 90 minutes of trading on morning of 2022-07-18, 
         # and Yahoo not returning NaN rows in place. So YFC needs to insert NaN rows
 
         tkr="PNL.L"
@@ -584,14 +301,42 @@ class Test_Yfc_Backend(unittest.TestCase):
             print(df_tc)
             raise
 
+    def test_reverseYahooAdjust(self):
+        tkr = '8TRA.DE'
+        interval = yfcd.Interval.Days1
+        dat = yfc.Ticker(tkr)
+
+        exchange = dat.info['exchange']
+        if "exchangeTimezoneName" in dat.info:
+            tz_name = dat.info["exchangeTimezoneName"]
+        else:
+            tz_name = dat.info["timeZoneFullName"]
+        hm = yfcp.HistoriesManager(tkr, exchange, tz_name, self.session, None)
+
+        # Step 1: add a dividend into system
+        div = 0.7
+        div_date = date(2023, 6, 2)
+        div_close_before = 18.79
+        fetch_dt = pd.Timestamp(datetime(2023, 6, 1, 14, 1)).tz_localize(tz_name)
+        divs_df = pd.DataFrame(index=[div_date], data={'Close day before':[div_close_before], 'Dividends':[div], "FetchDate":[fetch_dt]})
+        divs_df.index = pd.to_datetime(divs_df.index).tz_localize(tz_name)
+        hm.GetHistory("Events").UpdateDividends(divs_df)
+
+        # Step 2: test _reverseYahooAdjust()
+        df = pd.read_csv(os.path.join('./tests/Adjustment/TestCase_missingDivAdjust', tkr.replace('.','-')+"-missing-div-adjust.csv"), index_col="Date")
+        df.index = pd.to_datetime(df.index)
+        df2 = hm.GetHistory(interval)._reverseYahooAdjust(df)
+
+        df_correct = pd.read_csv(os.path.join('./tests/Adjustment/TestCase_missingDivAdjust', tkr.replace('.','-')+"-missing-div-adjust-fixed.csv"), index_col="Date")
+        self.verify_df(df2, df_correct, 1e-10)
 
 if __name__ == '__main__':
-    # unittest.main()
+    unittest.main()
 
-    # Run tests sequentially:
-    import inspect
-    test_src = inspect.getsource(Test_Yfc_Backend)
-    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
-        test_src.index(f"def {x}") - test_src.index(f"def {y}")
-    )
-    unittest.main(verbosity=2)
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(Test_Yfc_Backend)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)

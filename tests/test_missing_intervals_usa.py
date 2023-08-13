@@ -303,6 +303,30 @@ class TestMissingIntervals_USA(unittest.TestCase):
             pprint(answer)
             raise
 
+        knownIntervalStarts = None
+        answer = [(date(2022, 2, 14), date(2022, 2, 21))]
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, date(2022, 2, 14), date(2022, 2, 21), interval, knownIntervalStarts)
+        try:
+            self.assertEqual(ranges, answer)
+        except:
+            print("ranges:")
+            pprint(ranges)
+            print("answer:")
+            pprint(answer)
+            raise
+
+        knownIntervalStarts = None
+        answer = [(date(2022, 2, 14), date(2022, 2, 21))]
+        ranges = yfct.IdentifyMissingIntervalRanges(self.exchange, date(2022, 2, 10), date(2022, 2, 25), interval, knownIntervalStarts)
+        try:
+            self.assertEqual(ranges, answer)
+        except:
+            print("ranges:")
+            pprint(ranges)
+            print("answer:")
+            pprint(answer)
+            raise
+
 
 if __name__ == '__main__':
     unittest.main()

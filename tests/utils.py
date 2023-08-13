@@ -54,6 +54,7 @@ class Test_Base(unittest.TestCase):
             last_row_final = True
 
         dcs = ["Open","High","Low","Close","Volume","Dividends","Stock Splits"]
+        dcs += ['CDF', 'CSF']
         for dc in dcs:
             if not (dc in df.columns and dc in answer.columns):
                 continue
@@ -81,7 +82,8 @@ class Test_Base(unittest.TestCase):
             except:
                 f = ~f
                 debug_cols_to_print = [dc]
-                debug_cols_to_print += [c for c in ["CSF","CDF"] if c in df.columns]
+                if not dc in ['CSF', 'CDF']:
+                    debug_cols_to_print += [c for c in ["CSF","CDF"] if c in df.columns]
                 if sum(f) < 20:
                     if different:
                         print("{}/{} matches in column {} (expected differences):".format(sum(f), df.shape[0], dc))

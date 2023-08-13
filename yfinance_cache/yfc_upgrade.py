@@ -740,3 +740,81 @@ def _upgrade_divs_supersede_again():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w') as f:
         pass
+
+
+def _recalc_multiday_final_column():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-recalced-multiday-final-column")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w') as f:
+            pass
+        return
+
+    # print("Running: _recalc_final_column()")
+    print("Fixing 'Final?' column, may take a few minutes (~500 symbols per minute)")
+
+    keys = []
+    for k in yfcd.intervalToString.keys():
+        istr = yfcd.intervalToString[k]
+        if istr.endswith('wk') or istr.endswith('mo') or istr.endswith('y'):
+            keys.append(k)
+
+    tkrs = os.listdir(d)
+    try:
+        import tqdm
+        tkrs = tqdm.tqdm(tkrs)
+    except:
+        pass
+    for tkr in tkrs:
+        tkrd = os.path.join(d, tkr)
+
+        exchange = None
+
+        for interval in keys:
+            istr = yfcd.intervalToString[interval]
+            prices_fp = os.path.join(tkrd, f"history-{istr}.pkl")
+            if os.path.isfile(prices_fp):
+                with open(prices_fp, 'rb') as f:
+                    prices_pkl = pickle.load(f)
+                df = prices_pkl["data"]
+                df_modified = False
+
+                if exchange is None:
+                    fp = os.path.join(tkrd, "fast_info.pkl")
+                    if not os.path.isfile(fp):
+                        fp = os.path.join(tkrd, "info.pkl")
+                    with open(fp, 'rb') as f:
+                        exchange = pickle.load(f)["data"]["exchange"]
+
+                interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+                intervals = yfct.GetTimestampCurrentInterval_batch(exchange, df.index.to_numpy(), interval, discardTimes=interday, ignore_breaks=True)
+                lastDataDts = yfct.CalcIntervalLastDataDt_batch(exchange, intervals["interval_open"].to_numpy(), interval)
+                f_na = intervals["interval_open"].isna().to_numpy()
+                if f_na.any():
+                    # Hacky solution to handle xcal having incorrect schedule, for valid Yahoo data
+                    itd = yfcd.intervalToTimedelta[interval]
+                    lastDataDts[f_na] = intervals.index[f_na] + itd
+                    if not interday:
+                        lastDataDts[f_na] += yfct.GetExchangeDataDelay(exchange)
+                        # For some exchanges, Yahoo has trades that occurred soon afer official market close, e.g. Johannesburg:
+                        if exchange in ["JNB"]:
+                            lastDataDts[f_na] += timedelta(minutes=15)
+                data_final = (df["FetchDate"] >= lastDataDts).to_numpy()
+                df_modified = (data_final != df["Final?"].to_numpy()).any()
+                if df_modified:
+                    df["Final?"] = data_final
+                    prices_pkl["data"] = df
+                    with open(prices_fp, 'wb') as f:
+                        pickle.dump(prices_pkl, f, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w') as f:
+        pass
+

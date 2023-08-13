@@ -19,11 +19,20 @@ from pprint import pprint
 
 class Test_PriceDataAging_1W(unittest.TestCase):
     def setUp(self):
-        self.market = "us_market"
         self.exchange = "NMS"
         self.market_tz = ZoneInfo('US/Eastern')
         self.market_open  = time(9, 30)
         self.market_close = time(16, 0)
+
+        self.nze_exchange = "NZE"
+        self.nze_market_tz_name = 'Pacific/Auckland'
+        self.nze_market_tz = ZoneInfo('Pacific/Auckland')
+        self.nze_market_open_time  = time(10)
+
+        self.uk_exchange = "LSE"
+        self.uk_market_tz_name = "Europe/London"
+        self.uk_market_tz = ZoneInfo(self.uk_market_tz_name)
+        self.uk_market_open_time = time(8)
 
         self.monday = date(2022, 2, 14)
         self.tuesday = date(2022, 2, 15)
@@ -32,8 +41,8 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         self.saturday = date(2022, 2, 19)
 
         self.td1h = timedelta(hours=1)
+        self.td4h = timedelta(hours=4)
         self.td1d = timedelta(days=1)
-
 
     def test_CalcIntervalLastDataDt_USA_weekly(self):
         interval = yfcd.Interval.Week
@@ -42,7 +51,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         dts = []
         answers = []
         week_start_day = date(2022, 2, 7)
-        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz)
+        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h
         for d in range(7, 12):
             day = date(2022, 2,d)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
@@ -50,7 +59,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             answers.append(answer+lag)
 
         week_start_day = date(2022, 2, 14)
-        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td1d  # Monday holiday
+        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h + self.td1d  # Monday holiday
         for d in range(14, 19):
             day = date(2022, 2,d)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
@@ -65,7 +74,6 @@ class Test_PriceDataAging_1W(unittest.TestCase):
                 print("response = {}".format(response))
                 print("answer = {}".format(answers[i]))
                 raise
-
 
     def test_CalcIntervalLastDataDt_USA_weekly_batch(self):
         interval = yfcd.Interval.Week
@@ -106,6 +114,96 @@ class Test_PriceDataAging_1W(unittest.TestCase):
                     print("answer = {}".format(answer))
                     raise
 
+    def test_CalcIntervalLastDataDt_NZE_weekly(self):
+        interval = yfcd.Interval.Week
+
+        exchange = self.nze_exchange
+        tz = self.nze_market_tz
+        yfct.SetExchangeTzName(exchange, self.nze_market_tz_name)
+
+        lag = timedelta(minutes=15)
+        dts = []
+        answers = []
+        week_start_day = date(2022, 4, 4)
+        answer = datetime.combine(date(2022, 4, 11), self.nze_market_open_time, tz) + self.td4h
+        for d in range(4, 9):
+            day = date(2022, 4, d)
+
+            dts.append(datetime.combine(day, time(0), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(12), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(20), tz))
+            answers.append(answer+lag)
+
+        week_start_day = date(2022, 4, 11)
+        answer = datetime.combine(date(2022, 4, 19), time(10), tz) + self.td4h
+        for d in range(11, 16):
+            day = date(2022, 4, d)
+            
+            dts.append(datetime.combine(day, time(0), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(12), tz))
+            answers.append(answer+lag)
+            dts.append(datetime.combine(day, time(20), tz))
+            answers.append(answer+lag)
+
+
+        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
+
+        for i in range(len(dts)):
+            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
+            try:
+                self.assertEqual(response, answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response))
+                print("answer = {}".format(answers[i]))
+                raise
+
+            try:
+                self.assertEqual(response_batch[i], answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response_batch[i] = {}".format(response_batch[i]))
+                print("answer = {}".format(answers[i]))
+                raise
+
+    def test_CalcIntervalLastDataDt_UK_weekly(self):
+        interval = yfcd.Interval.Week
+
+        exchange = self.uk_exchange
+        tz = self.uk_market_tz
+        yfct.SetExchangeTzName(exchange, self.uk_market_tz_name)
+
+        lag = timedelta(0)
+        dts = []
+        answers = []
+        answer = datetime.combine(date(2022, 5, 9), time(8), tz) + self.td4h
+        for d in range(3, 7):  # 2nd is holiday
+            day = date(2022, 5, d)
+            dt = datetime.combine(day, time(14, 30), tz)
+            dts.append(dt)
+            answers.append(answer+lag)
+
+        response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
+        for i in range(len(dts)):
+            response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
+            try:
+                self.assertEqual(response, answers[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response))
+                print("answer = {}".format(answers[i]))
+                raise
+
+            try:
+                self.assertEqual(response, response_batch[i])
+            except:
+                print("dt = {}".format(dts[i]))
+                print("response = {}".format(response_batch[i]))
+                print("answer = {}".format(response))
+                raise
 
     # Test same day same week
     def test_sameWeek_sameDay(self):

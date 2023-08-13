@@ -108,7 +108,15 @@ def IsDatumCached(ticker, objectName):
                 packedData = pickle.load(inData)
             return objectName in packedData.keys()
     else:
-        return os.path.isfile(fp)
+        if os.path.isfile(fp):
+            if os.path.getsize(fp) == 0:
+                # Corrupt
+                os.remove(fp)
+                return False
+            else:
+                return True
+        else:
+            return False
 
 
 def _ReadData(ticker, objectName):

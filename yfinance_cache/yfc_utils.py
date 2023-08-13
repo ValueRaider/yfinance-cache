@@ -309,44 +309,12 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
         print(f"{np.sum(f_na)}/{h.shape[0]} NaNs detected in dividends & stock splits")
         f_diff_all = f_diff_all | f_na
 
-    # Test: index should match
-    f_missing = ~df_yf.index.isin(h.index)
-    if f_missing.any():
-        dts_missing_from_cache = df_yf.index[f_missing]
-    else:
-        dts_missing_from_cache = []
-    #
-    f_orphan = pd.Series(~h.index.isin(df_yf.index), index=h.index)
-    if f_orphan.any():
-        dts_missing_from_yf = h.index[f_orphan]
-        n_missing = len(dts_missing_from_yf)
-        n_missing_pct = n_missing/h.shape[0]
-        if not quiet:
-            if not interday and not interval == yfcd.Interval.Mins1 and n_missing_pct < 0.005:
-                msg = "WARNING: Cache contains intervals not returned by Yahoo, may be result of historic repair rather than error:"
-            else:
-                msg = "WARNING: These cached intervals not returned by Yahoo:"
-            print(msg)
-            print("-", dts_missing_from_yf)
-    else:
-        dts_missing_from_yf = []
-
     # Drop NaNs from YF data:
     df_yf = df_yf[~df_yf[yfcd.yf_price_data_cols].isna().any(axis=1)]
 
     # Drop mismatching indices for value check
     h = h[h.index.isin(df_yf.index)]
     df_yf = df_yf[df_yf.index.isin(h.index)]
-    if h.shape[0] != df_yf.shape[0]:
-        print("h:") ; print(h)
-        print("df_yf:") ; print(df_yf)
-        missing_from_h = df_yf.index[~df_yf.index.isin(h.index)]
-        print("missing_from_h:", missing_from_h)
-        missing_from_yf = h.index[~h.index.isin(df_yf.index)]
-        print("missing_from_yf:", missing_from_yf)
-        print(f"- h: {h.index[0]} -> {h.index[-1]}")
-        print(f"- df_yf: {df_yf.index[0]} -> {df_yf.index[-1]}")
-        raise Exception("Different #rows")
     n = h.shape[0]
 
     # Apply dividend-adjustment
@@ -435,7 +403,11 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
         f_diff = ~f_close
         if f_diff.any():
             # Use looser tolerance if different 'Repaired?' states
-            f_repair_mismatch = np.logical_xor(df["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+            if column == 'Volume':
+                # Volume is very sensitive fetch
+                f_repair_mismatch = np.logical_or(df["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+            else:
+                f_repair_mismatch = np.logical_xor(df["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
             if f_repair_mismatch.any():
                 if column == 'Volume':
                     loose_tol = 0.5
@@ -473,6 +445,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             if "LastDivAdjustDt" in df_diffs.columns:
                 df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.tz_convert(df.index.tz)
                 df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.strftime("%Y-%m-%d %H:%M:%S%z")
+            if interday:
+                df_diffs.index = df_diffs.index.date
             f_diff_n = sum(f_diff)
             msg = f"WARNING: {istr}: {f_diff_n}/{n} sig. diffs in column {c} with rtol={rtol}"
             print(msg)
@@ -493,7 +467,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     f_diff_vol = ~f_close
     if f_diff_vol.any():
         # Use looser tolerance if different 'Repaired?' states
-        f_repair_mismatch = np.logical_xor(h["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
+        f_repair_mismatch = np.logical_or(h["Repaired?"].to_numpy(), df_yf["Repaired?"].to_numpy())
         if f_repair_mismatch.any():
             # loose_tol = 0.5
             loose_tol = 1.0

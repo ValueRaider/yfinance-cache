@@ -937,12 +937,12 @@ class Test_Yfc_Interface(Test_Base):
 
 
 if __name__ == '__main__':
-    # unittest.main()
+    unittest.main()
 
-    # Run tests sequentially:
-    import inspect
-    test_src = inspect.getsource(Test_Yfc_Interface)
-    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
-        test_src.index(f"def {x}") - test_src.index(f"def {y}")
-    )
-    unittest.main(verbosity=2)
+    # # Run tests sequentially:
+    # import inspect
+    # test_src = inspect.getsource(Test_Yfc_Interface)
+    # unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: (
+    #     test_src.index(f"def {x}") - test_src.index(f"def {y}")
+    # )
+    # unittest.main(verbosity=2)
