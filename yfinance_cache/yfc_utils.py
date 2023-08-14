@@ -10,6 +10,34 @@ import pandas as pd
 from . import yfc_dat as yfcd
 
 
+class CustomNanCheckingDataFrame(pd.DataFrame):
+    def __init__(self, *args, **kwargs):
+        super(CustomNanCheckingDataFrame, self).__init__(*args, **kwargs)
+        self.check_nans()
+
+    def __setitem__(self, key, value):
+        super(CustomNanCheckingDataFrame, self).__setitem__(key, value)
+        self.check_nans()
+
+    @classmethod
+    def concat(cls, objs, *args, **kwargs):
+        result = super(CustomNanCheckingDataFrame, cls).concat(objs, *args, **kwargs)
+        result.check_nans()
+        return result
+    
+    @classmethod
+    def merge(cls, *args, **kwargs):
+        result = super(CustomNanCheckingDataFrame, cls).merge(*args, **kwargs)
+        result.check_nans()
+        return result
+    
+    def check_nans(self):
+        if 'Repaired?' not in self.columns:
+            return
+        if self['Repaired?'].isna().any():
+            raise Exception(f"NaNs detected in column 'Repaired?'!")
+
+
 def TypeCheckStr(var, varName):
     if not isinstance(var, str):
         raise TypeError(f"'{varName}' must be str not {type(var)}")

@@ -376,6 +376,8 @@ class PriceHistory:
         elif h is not None:
             h_modified = False
 
+            # h = yfcu.CustomNanCheckingDataFrame(h)
+
             if "Adj Close" in h.columns:
                 raise Exception("Adj Close in cached h")
 
@@ -817,14 +819,14 @@ class PriceHistory:
                         delete_range = (sched is not None) and dt_now < (sched["open"].iloc[0] + yf_lag)
                 if delete_range:
                     if debug_yfc:
-                        print("- deleting future range:", ranges_to_fetch[i])
+                        print("- deleting future range:", r[i])
                     del ranges_to_fetch[i]
                 else:
                     # Check if range ends in future, if yes then adjust to tomorrow max
                     y = r[1]
                     if isinstance(y, (datetime, pd.Timestamp)):
                         if y > dt_now:
-                            ranges_to_fetch[i][1] = min(dt_now.ceil(), y)
+                            ranges_to_fetch[i] = (r[0], min(dt_now.ceil('1D'), y))
                     elif y > d_now_exchange:
                         sched = yfct.GetExchangeSchedule(self.exchange, d_now_exchange, y + td_1d)
                         if sched is not None:
@@ -2439,6 +2441,8 @@ class PriceHistory:
             yfcl.TraceExit(log_msg)
         elif debug_yfc:
             print(log_msg)
+
+        # df = yfcu.CustomNanCheckingDataFrame(df)
 
         return df
 
