@@ -33,9 +33,13 @@ hist = msft.history(period="1d")
 
 #### Refreshing cache
 ```python
-msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
+df = msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
 ```
 `max_age` controls when to update cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. If `trigger_at_market_close=True` then refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
+
+The returned table has 2 new columns:
+- `FetchDate` = when data was fetched
+- `Final?` = `true` if don't expect future fetches to change
 
 #### Adjusting price
 Price can be adjusted for stock splits, dividends, or both.
