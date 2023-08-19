@@ -12,7 +12,9 @@ Persistent cache stored in your user cache folder:
 
 How is my price caching different to other market price caches? Simple - they don't adjust cached data for new stock splits or dividends.
 
-Uses [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data available. '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+What makes the cache smart? Adds 'fetched date' to each price data, then combines with an [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data expected. 
+
+Note: '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
 
 ## Interface
 Interaction almost identical to yfinance. Differences highlighted underneath code:
