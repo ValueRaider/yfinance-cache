@@ -1,7 +1,7 @@
 # yfinance-cache
-Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache if missing and new data expected.
+Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache where missing/outdated and new data expected.
 
-Only price data caching fully implemented. Everything else is cached once but never updated (unless you delete their files).
+Only price data caching fully implemented. Everything else is cached once but never updated (unless you delete their files) - I ran out of time to implement e.g. financials cache update.
 
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
@@ -10,11 +10,17 @@ Persistent cache stored in your user cache folder:
 
 ### Price cache
 
-How is my price caching different to other market price caches? Simple - they don't adjust cached data for new stock splits or dividends.
+Idea behind this cache is to minimise fetch frequency and quantity. Yahoo API officially only cares about frequency, but I'm guessing they also care about server load from scrapers.
+
+How is this caching different to caching URL fetches? Simple - they don't adjust cached data for new stock splits or dividends.
 
 What makes the cache smart? Adds 'fetched date' to each price data, then combines with an [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data expected. 
 
 Note: '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+
+### Financials cache
+
+I planned to implement this after prices cache, but ran out of time. Strategy to minimise fetch frequency is to fetch at/after the next earnings date, inferred from `Ticker.calendar` and/or `Ticker.earnings_dates`.
 
 ## Interface
 Interaction almost identical to yfinance. Differences highlighted underneath code:
