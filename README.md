@@ -16,7 +16,9 @@ How is this caching different to caching URL fetches? Simple - they don't adjust
 
 What makes the cache smart? Adds 'fetched date' to each price data, then combines with an [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data expected. 
 
-Note: '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+Note:
+- '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
+- price repair enabled, to prevent bad Yahoo data corrupting cache. See [yfinance Wiki](https://github.com/ranaroussi/yfinance/wiki/Price-repair) for detail
 
 ### Financials cache
 
