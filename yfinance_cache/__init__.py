@@ -2,6 +2,7 @@
 
 from .yfc_dat import Period, Interval
 from .yfc_ticker import Ticker, verify_cached_tickers_prices
+from .yfc_multi import download
 from .yfc_logging import EnableLogging, DisableLogging
 
 from .yfc_upgrade import _move_cache_dirpath

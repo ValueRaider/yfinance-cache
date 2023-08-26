@@ -1,10 +1,13 @@
 from pprint import pprint
 import sqlite3 as sql
 from copy import deepcopy
+from functools import lru_cache
 
 from datetime import datetime, date, time, timedelta
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
+
+from multiprocessing import Lock, Manager
 
 import pandas as pd
 import numpy as np
@@ -14,6 +17,10 @@ from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
 
+
+exchanges_lock = Lock()
+manager = Manager()
+exchange_locks = manager.dict()
 
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
@@ -31,21 +38,26 @@ def SetExchangeTzName(exchange, tz):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckStr(tz, "tz")
 
-    tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
-    if tzc is not None:
-        if tzc != tz:
-            # Different names but maybe same tz
-            tzc_zi = ZoneInfo(tzc)
-            tz_zi = ZoneInfo(tz)
-            dt = datetime.now()
-            if tz_zi.utcoffset(dt) != tzc_zi.utcoffset(dt):
-                print("tz_zi = {} ({})".format(tz_zi, type(tz_zi)))
-                print("tzc_zi = {} ({})".format(tzc_zi, type(tzc_zi)))
-                raise Exception("For exchange '{}', new tz {} != cached tz {}".format(exchange, tz, tzc))
-    else:
-        exchangeTzCache[exchange] = tz
-        yfcm.StoreCacheDatum("exchange-"+exchange, "tz", tz)
+    with exchanges_lock:
+        if not exchange in exchange_locks:
+            exchange_locks[exchange] = manager.Lock()
+    exchange_lock = exchange_locks[exchange]
 
+    with exchange_lock:
+        tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
+        if tzc is not None:
+            if tzc != tz:
+                # Different names but maybe same tz
+                tzc_zi = ZoneInfo(tzc)
+                tz_zi = ZoneInfo(tz)
+                dt = datetime.now()
+                if tz_zi.utcoffset(dt) != tzc_zi.utcoffset(dt):
+                    print("tz_zi = {} ({})".format(tz_zi, type(tz_zi)))
+                    print("tzc_zi = {} ({})".format(tzc_zi, type(tzc_zi)))
+                    raise Exception("For exchange '{}', new tz {} != cached tz {}".format(exchange, tz, tzc))
+        else:
+            exchangeTzCache[exchange] = tz
+            yfcm.StoreCacheDatum("exchange-"+exchange, "tz", tz)
 
 calCache = {}
 schedCache = {}
@@ -105,6 +117,7 @@ def JoinTwoXcals(cal1, cal2):
     return cal12
 
 
+@lru_cache(maxsize=1000)
 def GetCalendarViaCache(exchange, start, end=None):
     global calCache
 
@@ -119,6 +132,11 @@ def GetCalendarViaCache(exchange, start, end=None):
     cal_name = yfcd.exchangeToXcalExchange[exchange]
 
     cal = None
+
+    with exchanges_lock:
+        if exchange not in exchange_locks:
+            exchange_locks[exchange] = manager.Lock()
+        exchange_lock = exchange_locks[exchange]
 
     def _customModSchedule(cal):
         tz = ZoneInfo(GetExchangeTzName(exchange))
@@ -141,49 +159,50 @@ def GetCalendarViaCache(exchange, start, end=None):
                 cal.closes_nanos = df["close"].values.astype("int64")
         return cal
 
-    # Load from cache
-    if cal_name in calCache:
-        cal = calCache[cal_name]
-    elif yfcm.IsDatumCached(cache_key, "cal"):
-        cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
-        if xcal.__version__ != md["version"]:
-            cal = None
+    with exchange_lock:
+        # Load from cache
+        if cal_name in calCache:
+            cal = calCache[cal_name]
+        elif yfcm.IsDatumCached(cache_key, "cal"):
+            cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
+            if xcal.__version__ != md["version"]:
+                cal = None
 
-    # Calculate missing data
-    pre_range = None ; post_range = None
-    if cal is not None:
-        cached_range = (cal.schedule.index[0].year, cal.schedule.index[-1].year)
-        if start < cached_range[0]:
-            pre_range = (start, cached_range[0]-1)
-        if end > cached_range[1]:
-            post_range = (cached_range[1]+1, end)
-    else:
-        pre_range = (start, end)
-
-    # Fetch missing data
-    if pre_range is not None:
-        start = date(pre_range[0], 1, 1)
-        end = date(pre_range[1], 12, 31)
-        pre_cal = xcal.get_calendar(cal_name, start=start, end=end)
-        pre_cal = _customModSchedule(pre_cal)
-        if cal is None:
-            cal = pre_cal
+        # Calculate missing data
+        pre_range = None ; post_range = None
+        if cal is not None:
+            cached_range = (cal.schedule.index[0].year, cal.schedule.index[-1].year)
+            if start < cached_range[0]:
+                pre_range = (start, cached_range[0]-1)
+            if end > cached_range[1]:
+                post_range = (cached_range[1]+1, end)
         else:
-            cal = JoinTwoXcals(pre_cal, cal)
-    if post_range is not None:
-        start = date(post_range[0], 1, 1)
-        end = date(post_range[1], 12, 31)
-        post_cal = xcal.get_calendar(cal_name, start=start, end=end)
-        post_cal = _customModSchedule(post_cal)
-        if cal is None:
-            cal = post_cal
-        else:
-            cal = JoinTwoXcals(cal, post_cal)
+            pre_range = (start, end)
 
-    # Write to cache
-    calCache[cal_name] = cal
-    if pre_range is not None or post_range is not None:
-        yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__})
+        # Fetch missing data
+        if pre_range is not None:
+            start = date(pre_range[0], 1, 1)
+            end = date(pre_range[1], 12, 31)
+            pre_cal = xcal.get_calendar(cal_name, start=start, end=end)
+            pre_cal = _customModSchedule(pre_cal)
+            if cal is None:
+                cal = pre_cal
+            else:
+                cal = JoinTwoXcals(pre_cal, cal)
+        if post_range is not None:
+            start = date(post_range[0], 1, 1)
+            end = date(post_range[1], 12, 31)
+            post_cal = xcal.get_calendar(cal_name, start=start, end=end)
+            post_cal = _customModSchedule(post_cal)
+            if cal is None:
+                cal = post_cal
+            else:
+                cal = JoinTwoXcals(cal, post_cal)
+
+        # Write to cache
+        calCache[cal_name] = cal
+        if pre_range is not None or post_range is not None:
+            yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__})
 
     return cal
 
@@ -199,6 +218,7 @@ def ExchangeOpenOnDay(exchange, d):
     return d.isoformat() in cal.schedule.index
 
 
+@lru_cache(maxsize=1000)
 def GetExchangeSchedule(exchange, start_d, end_d):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDateStrict(start_d, "start_d")
@@ -499,7 +519,6 @@ def MapPeriodToDates(exchange, period, interval):
     return start_d, end_d
 
 
-# @lru_cache(maxsize=1000)  # 3.3% speedup
 def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=None, week7days=True, weekForceStartMonday=True, ignore_breaks=False, exclude_future=True):
     yfcu.TypeCheckStr(exchange, "exchange")
     if start >= end:
