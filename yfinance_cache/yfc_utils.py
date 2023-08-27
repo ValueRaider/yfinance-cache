@@ -621,3 +621,12 @@ def np_weighted_mean_and_std(values, weights):
 
     # return std_pct
     return mean, std
+
+def display_progress_bar(completed, total):
+    """Function to display progress bar with percentage completion."""
+    # percentage = (completed / total) * 100
+    bar_length = 48  # Number of characters in the progress bar
+    completed_length = int(bar_length * completed // total)
+    bar = "*" * completed_length + " " * (bar_length - completed_length)
+    # print(f"\rProgress: |{bar}| {percentage:.0f}% Completed", end='', flush=True)
+    print(f"\r[{bar}]  {completed} of {total} completed", end='', flush=True)

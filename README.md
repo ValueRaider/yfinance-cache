@@ -37,6 +37,9 @@ msft.info
 
 # get historical market data
 hist = msft.history(period="1d")
+
+# bulk download
+yfc.download("MSFT AMZN", period="1d")
 ...
 # etc. See yfinance documentation for full API
 ```
@@ -103,5 +106,4 @@ Available on PIP: `pip install yfinance_cache`
 ## Limitations
 
 - only price data is checked if refresh needed
-- `Tickers` class and `download()` not available - use `Ticker.history()`
 - intraday pre/post price data not available
