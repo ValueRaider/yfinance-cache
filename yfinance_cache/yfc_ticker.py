@@ -92,15 +92,7 @@ class Ticker:
         yfcl.TraceEnter(log_msg)
 
         td_1d = datetime.timedelta(days=1)
-        try:
-            exchange = self.info['exchange']
-            if "exchangeTimezoneName" in self.info:
-                tz_name = self.info["exchangeTimezoneName"]
-            else:
-                tz_name = self.info["timeZoneFullName"]
-        except:
-            exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
-            tz_name = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
+        exchange, tz_name = self._getExchangeAndTz()
         tz_exchange = ZoneInfo(tz_name)
         yfct.SetExchangeTzName(exchange, tz_name)
         dt_now = pd.Timestamp.utcnow()
@@ -338,12 +330,7 @@ class Ticker:
 
     def _getCachedPrices(self, interval, proxy=None):
         if self._histories_manager is None:
-            try:
-                exchange = self.info['exchange']
-                tz_name = self.info["timeZoneFullName"]
-            except:
-                exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
-                tz_name = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
+            exchange, tz_name = self._getExchangeAndTz()
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
 
         if isinstance(interval, str):
@@ -352,6 +339,25 @@ class Ticker:
             interval = yfcd.intervalStrToEnum[interval]
 
         return self._histories_manager.GetHistory(interval).h
+
+    def _getExchangeAndTz(self):
+        exchange, tz_name = None, None
+        try:
+            exchange = self.info['exchange']
+            if "exchangeTimezoneName" in self.info:
+                tz_name = self.info["exchangeTimezoneName"]
+            else:
+                tz_name = self.info["timeZoneFullName"]
+        except:
+            md = yf.Ticker(self.ticker, session=self.session).history_metadata
+            if 'exchangeName' in md.keys():
+                exchange = md['exchangeName']
+            if 'exchangeTimezoneName' in md.keys():
+                tz_name = md['exchangeTimezoneName']
+
+        if exchange is None or tz_name is None:
+            raise Exception(f"{self.ticker}: exchange and timezone not available")
+        return exchange, tz_name
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
@@ -370,12 +376,7 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::verify_cached_prices(tkr={self.ticker} {fn_locals})")
 
         if self._histories_manager is None:
-            try:
-                exchange = self.info['exchange']
-                tz_name = self.info["timeZoneFullName"]
-            except:
-                exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
-                tz_name = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
+            exchange, tz_name = self._getExchangeAndTz()
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
 
         v = True
@@ -458,12 +459,7 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::_verify_cached_prices_interval(tkr={self.ticker}, {fn_locals})")
 
         if self._histories_manager is None:
-            try:
-                exchange = self.info['exchangeName']
-                tz_name = self.info["timeZoneFullName"]
-            except:
-                exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
-                tz_name = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
+            exchange, tz_name = self._getExchangeAndTz()
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
@@ -473,10 +469,7 @@ class Ticker:
 
     def _process_user_dt(self, dt):
         d = None
-        try:
-            tz_name = self.info["timeZoneFullName"]
-        except:
-            tz_name = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
+        exchange, tz_name = self._getExchangeAndTz()
         tz_exchange = ZoneInfo(tz_name)
         if isinstance(dt, str):
             d = datetime.datetime.strptime(dt, "%Y-%m-%d").date()
@@ -505,16 +498,8 @@ class Ticker:
         self._info = self.dat.info
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
-        try:
-            if "exchangeTimezoneName" in self._info:
-                tz = self._info["exchangeTimezoneName"]
-            else:
-                tz = self._info["timeZoneFullName"]
-            exchange = self._info["exchange"]
-        except:
-            exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
-            tz = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeTimezoneName']
-        yfct.SetExchangeTzName(exchange, tz)
+        exchange, tz_name = self._getExchangeAndTz()
+        yfct.SetExchangeTzName(exchange, tz_name)
 
         return self._info
 
@@ -774,10 +759,7 @@ class Ticker:
         if self._yf_lag is not None:
             return self._yf_lag
 
-        try:
-            exchange = self.info["exchange"]
-        except:
-            exchange = yf.Ticker(self.ticker, session=self.session).history_metadata['exchangeName']
+        exchange, tz_name = self._getExchangeAndTz()
         exchange_str = "exchange-{0}".format(exchange)
         if yfcm.IsDatumCached(exchange_str, "yf_lag"):
             self._yf_lag = yfcm.ReadCacheDatum(exchange_str, "yf_lag")

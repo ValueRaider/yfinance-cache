@@ -572,7 +572,10 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             elif not quiet:
                 print(f"{np.sum(f_diff_divs)}/{h.shape[0]} div-adjustment errors")
 
+        only_div_errors = not f_diff_all.any()
         f_diff_all = f_diff_all | f_diff_divs
+        if f_diff_divs.any() and only_div_errors:
+            f_diff_all = f_diff_all.rename("Div-Adjust")
 
     return f_diff_all
 

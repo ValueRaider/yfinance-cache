@@ -243,6 +243,7 @@ exchangeToXcalExchange["OSL"] = "XOSL"  # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR"  # Paris
 exchangeToXcalExchange["STO"] = "XSTO"  # Stockholm
 exchangeToXcalExchange["VIE"] = "XWBO"  # Vienna
+exchangeToXcalExchange["WSE"] = "XWAR"  # Warsaw
 # Other:
 exchangeToXcalExchange["TLV"] = "XTAE"  # Israel
 exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg, South Africa
@@ -293,6 +294,7 @@ exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
 exchangeToYfLag["STO"] = timedelta(0)
 exchangeToYfLag["VIE"] = timedelta(minutes=15)
+exchangeToYfLag["WSE"] = timedelta(minutes=15)
 # Other:
 exchangeToYfLag["TLV"] = timedelta(minutes=20)
 exchangeToYfLag["JNB"] = timedelta(minutes=15)

@@ -162,6 +162,21 @@ class Test_Yfc_Interface(Test_Base):
             print("")
             raise
 
+        ## 1-minute
+        yf.enable_debug_mode()
+        df1 = self.usa_dat.history(interval='1m', period='1d')
+        df2 = self.usa_dat.history(interval='1m', period='1d')
+        try:
+            self.assertTrue(df1.equals(df2))
+        except:
+            print("df1:")
+            print(df1)
+            print("")
+            print("df2:")
+            print(df2)
+            print("")
+            raise
+
 
     def test_history_basics1_nze(self):
         # A fetch of prices, then another fetch of same prices, should return identical
