@@ -10,6 +10,12 @@ yf_data_cols = yf_price_data_cols+['Volume', 'Dividends', 'Stock Splits']
 yf_min_year = 1950
 
 
+from multiprocessing import Lock, Manager
+exchanges_lock = Lock()
+manager = Manager()
+exchange_locks = manager.dict()
+
+
 class DateInterval:
     def __init__(self, left, right, closed=None):
         if not isinstance(left, date) or isinstance(left, datetime):
