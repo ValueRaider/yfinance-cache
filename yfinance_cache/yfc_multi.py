@@ -10,10 +10,8 @@ from . import yfc_ticker
 from . import yfc_utils as yfcu
 from . import yfc_dat as yfcd
 
-def reinitialize_locks(lock, manager):
-    yfcd.exchanges_lock = lock
-    yfcd.manager = manager
-    yfcd.exchange_locks = manager.dict()
+def reinitialize_locks(locks):
+    yfcd.exchange_locks = locks
 
 def download(tickers,
             threads=True, ignore_tz=None, 
@@ -56,7 +54,7 @@ def download(tickers,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     proxy=proxy,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchanges_lock, yfcd.manager)) as pool:
+            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchange_locks,)) as pool:
                 result_async = pool.map_async(partial_func, tickers)
 
                 if have_tqdm:

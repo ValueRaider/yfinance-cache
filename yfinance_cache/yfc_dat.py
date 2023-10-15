@@ -10,12 +10,6 @@ yf_data_cols = yf_price_data_cols+['Volume', 'Dividends', 'Stock Splits']
 yf_min_year = 1950
 
 
-from multiprocessing import Lock, Manager
-exchanges_lock = Lock()
-manager = Manager()
-exchange_locks = manager.dict()
-
-
 class DateInterval:
     def __init__(self, left, right, closed=None):
         if not isinstance(left, date) or isinstance(left, datetime):
@@ -362,6 +356,11 @@ listing_date_check_tols[Interval.Days1] = timedelta(days=7)
 listing_date_check_tols[Interval.Week] = timedelta(days=14)
 listing_date_check_tols[Interval.Months1] = timedelta(days=35)
 listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
+
+
+from multiprocessing import Lock, Manager
+manager = Manager()
+exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
 
 
 class NoIntervalsInRangeException(Exception):
