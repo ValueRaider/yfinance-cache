@@ -35,6 +35,8 @@ class Ticker:
 
         self._splits = None
 
+        self._shares = None
+
         self._financials = None
         self._quarterly_financials = None
 
@@ -488,14 +490,35 @@ class Ticker:
 
     @property
     def info(self):
+        max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+
+        if self._info is None:
+            if yfcm.IsDatumCached(self.ticker, "info"):
+                self._info = yfcm.ReadCacheDatum(self.ticker, "info")
+                if 'FetchDate' not in self._info.keys():
+                    fp = yfcm.GetFilepath(self.ticker, 'info')
+                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                    self._info['FetchDate'] = mod_dt
+
+        if (self._info is not None) and (self._info['FetchDate'] + max_age) > pd.Timestamp.now():
+            return self._info
+
+        i = self.dat.info
+        i['FetchDate'] = pd.Timestamp.now()
+
         if self._info is not None:
-            return self._info
-
-        if yfcm.IsDatumCached(self.ticker, "info"):
-            self._info = yfcm.ReadCacheDatum(self.ticker, "info")
-            return self._info
-
-        self._info = self.dat.info
+            # Check new info is not downgrade
+            diff = len(i) - len(self._info)
+            if diff < -1:
+                # More than 1 element disappeared
+                msg = 'When fetching new info, data has disappeared\n'
+                msg += '- cached info:\n'
+                msg += f'{self._info}' + '\n'
+                msg += '- new info:\n'
+                msg += f'{i}' + '\n'
+                raise Exception(msg)
+            
+        self._info = i
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
         exchange, tz_name = self._getExchangeAndTz()
@@ -545,6 +568,122 @@ class Ticker:
         self._splits = self.dat.splits
         yfcm.StoreCacheDatum(self.ticker, "splits", self._splits)
         return self._splits
+
+
+    def get_shares(self, start=None, end=None, max_age='7d'):
+        debug = False
+        # debug = True
+
+        max_age = pd.Timedelta(max_age)
+
+        # Process dates
+        exchange, tz = self._getExchangeAndTz()
+        dt_now = pd.Timestamp.utcnow().tz_convert(tz)
+        if start is not None:
+            start_dt, start_d = self._process_user_dt(start)
+            start = start_d
+        if end is not None:
+            end_dt, end_d = self._process_user_dt(end)
+            end = end_d
+        if end is None:
+            end = dt_now.date()
+        if start is None:
+            start = end - pd.Timedelta(days=548)  # 18 months
+        if start >= end:
+            logger.error("Start date must be before end")
+            return None
+        if debug:
+            print("- start =", start, " end =", end)
+
+
+        init = False
+        if self._shares is None:
+            init = True
+            if yfcm.IsDatumCached(self.ticker, "shares"):
+                if debug:
+                    print("- init shares from cache")
+                self._shares = yfcm.ReadCacheDatum(self.ticker, "shares")
+            else:
+                if debug:
+                    print("- fetching shares")
+                self._shares = self._fetch_shares(start, end)
+                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+                # return self._shares
+                f_na = self._shares['Shares'].isna()
+                return self._shares[~f_na]
+
+        if debug:
+            print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
+            # print(self._shares)
+
+        td_1d = datetime.timedelta(days=1)
+        last_row = self._shares.iloc[-1]
+        if np.isnan(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
+            if debug:
+                print("- dropping last row from cached")
+            self._shares = self._shares.drop(self._shares.index[-1])
+
+        if start < self._shares.index[0]:
+            if debug:
+                print("- add more before")
+            df_pre = self._fetch_shares(start, self._shares.index[0])
+            # if debug:
+            #     print("- df_pre:") ; print(df_pre)
+            if df_pre is not None:
+                self._shares = pd.concat([df_pre, self._shares])
+        if (end-td_1d) > self._shares.index[-1] and \
+            (end - self._shares.index[-1]) > max_age:
+            if debug:
+                print("- add more after")
+            df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
+            # if debug:
+            #     print("- df_post:") ; print(df_post)
+            if df_post is not None:
+                self._shares = pd.concat([self._shares, df_post])
+
+        self._shares = self._shares
+        yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+
+        f_na = self._shares['Shares'].isna()
+        shares = self._shares[~f_na]
+        if init:
+            return shares
+        i0 = np.searchsorted(shares.index, start)
+        i1 = np.searchsorted(shares.index, end)
+        return shares.iloc[i0:i1]
+
+    def _fetch_shares(self, start, end):
+        td_1d = datetime.timedelta(days=1)
+
+        end = min(end, datetime.date.today() + td_1d)
+
+        exchange, tz = self._getExchangeAndTz()
+        df = self.dat.get_shares_full(start, end)
+        if df is None:
+            return df
+        if df.empty:
+            return None
+
+        df.index = df.index.date
+
+        # Currently, yfinance uses ceil(end), so fix:
+        if df.index[-1] == end:
+            df.drop(end)
+            if df.empty:
+                return None
+
+        fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
+        df = pd.DataFrame(df, columns=['Shares'])
+
+        if start < df.index[0]:
+            df.loc[start] = np.nan
+        if (end-td_1d) > df.index[-1]:
+            df.loc[end-td_1d] = np.nan
+        df = df.sort_index()
+
+        df['FetchDate'] = fetch_dt
+
+        return df
 
     @property
     def financials(self):
@@ -704,15 +843,36 @@ class Ticker:
 
     @property
     def calendar(self):
+        max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
+
+        if self._calendar is None:
+            if yfcm.IsDatumCached(self.ticker, "calendar"):
+                c = yfcm.ReadCacheDatum(self.ticker, "calendar")
+                if 'FetchDate' not in c.keys():
+                    fp = yfcm.GetFilepath(self.ticker, 'info')
+                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                    c['FetchDate'] = mod_dt
+
+        if (self._calendar is not None) and (self._calendar['FetchDate'] + max_age) > pd.Timestamp.now():
+            return self._calendar
+
+        c = self.dat.calendar
+        c['FetchDate'] = pd.Timestamp.now()
+        
         if self._calendar is not None:
-            return self._calendar
+            # Check calendar info is not downgrade
+            diff = len(c) - len(self._calendar)
+            if diff < -1:
+                # More than 1 element disappeared
+                msg = 'When fetching new calendar, data has disappeared\n'
+                msg += '- cached calendar:\n'
+                msg += f'{self._calendar}' + '\n'
+                msg += '- new calendar:\n'
+                msg += f'{c}' + '\n'
+                raise Exception(msg)
 
-        if yfcm.IsDatumCached(self.ticker, "calendar"):
-            self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
-            return self._calendar
-
-        self._calendar = self.dat.calendar
-        yfcm.StoreCacheDatum(self.ticker, "calendar", self._calendar)
+        yfcm.StoreCacheDatum(self.ticker, "calendar", c)
+        self._calendar = c
         return self._calendar
 
     @property
