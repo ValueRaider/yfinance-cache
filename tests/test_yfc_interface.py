@@ -163,7 +163,6 @@ class Test_Yfc_Interface(Test_Base):
             raise
 
         ## 1-minute
-        yf.enable_debug_mode()
         df1 = self.usa_dat.history(interval='1m', period='1d')
         df2 = self.usa_dat.history(interval='1m', period='1d')
         try:
@@ -414,7 +413,6 @@ class Test_Yfc_Interface(Test_Base):
             exchange = dat.fast_info["exchange"]
             yfct.SetExchangeTzName(exchange, dat.fast_info["timezone"])
             if yfct.IsTimestampInActiveSession(exchange, dt_now):
-                print(tkr)
                 df1 = dat.history(interval="1d", start=start_d, end=end_d)
                 n = df1.shape[0]
                 try:
@@ -492,10 +490,15 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.fast_info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)]
+                f_open = yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)
+                f_div_split = (df_yf['Dividends']!=0).to_numpy() | (df_yf['Stock Splits']!=0).to_numpy()
+                f_open = f_open | f_div_split
+                df_yf = df_yf[f_open]
                 df_yf_backup = df_yf.copy()
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
+                if df_yfc is None and p == yfcd.Period.Days1:
+                    continue
 
                 ## How Yahoo maps period -> start_date is mysterious, so need to account for my different mapping:
                 td = abs(df_yf.index.min() - df_yfc.index.min())
@@ -562,9 +565,14 @@ class Test_Yfc_Interface(Test_Base):
                         raise
                 # Remove any rows when exchange was closed. Yahoo can be naughty and fill in rows when exchange closed.
                 sched = yfct.GetExchangeSchedule(dat_yfc.fast_info["exchange"], df_yf.index[0].date(), df_yf.index[-1].date()+timedelta(days=1))
-                df_yf = df_yf[yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)]
+                f_open = yfcu.np_isin_optimised(df_yf.index.date, sched["open"].dt.date)
+                f_div_split = (df_yf['Dividends']!=0).to_numpy() | (df_yf['Stock Splits']!=0).to_numpy()
+                f_open = f_open | f_div_split
+                df_yf = df_yf[f_open]
 
                 df_yfc = dat_yfc.history(period=p, adjust_divs=False)
+                if df_yfc is None and p == yfcd.Period.Days1:
+                    continue
 
                 ## How Yahoo maps period -> start_date is mysterious, so need to account for my different mapping:
                 td = abs(df_yf.index.min() - df_yfc.index.min())
@@ -687,7 +695,6 @@ class Test_Yfc_Interface(Test_Base):
         dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         td_1d = timedelta(days=1)
         for tkr in tkr_candidates:
-            print(tkr)
             dat = yfc.Ticker(tkr, session=None)
             exchange = dat.fast_info["exchange"]
             tz = dat.fast_info["timezone"]

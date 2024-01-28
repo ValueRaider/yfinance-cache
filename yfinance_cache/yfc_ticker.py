@@ -199,7 +199,7 @@ class Ticker:
                     raise
             if sched_14d is None:
                 raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start_dt.date(), start_dt.date()+14*td_1d, self.ticker))
-            if sched_14d["open"][0] > dt_now:
+            if sched_14d["open"].iloc[0] > dt_now:
                 # Requested date range is in future
                 return None
         else:
@@ -215,8 +215,8 @@ class Ticker:
             else:
                 sched = yfct.GetExchangeSchedule(exchange, start_dt.date(), end_dt.date()+td_1d)
             n = sched.shape[0]
-            start_d = start_dt.date() if start_dt < sched["open"][0] else start_dt.date()+td_1d
-            end_d = end_dt.date()+td_1d if end_dt >= sched["close"][n-1] else end_dt.date()
+            start_d = start_dt.date() if start_dt < sched["open"].iloc[0] else start_dt.date()+td_1d
+            end_d = end_dt.date()+td_1d if end_dt >= sched["close"].iloc[n-1] else end_dt.date()
 
         if self._histories_manager is None:
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)

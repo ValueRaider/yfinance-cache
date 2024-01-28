@@ -121,6 +121,19 @@ def JoinTwoXcals(cal1, cal2):
 def GetCalendarViaCache(exchange, start, end=None):
     global calCache
 
+    if isinstance(start, date):
+        if start.month == 1 and start.day < 5:
+            if end is None:
+                end = start
+            start = start.year - 1
+        else:
+            start = start.year
+    if end is not None and isinstance(end, date):
+        if end.month == 12 and end.day > 25:
+            end = end.year + 1
+        else:
+            end = end.year
+
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckYear(start, "start")
     if end is not None:
@@ -213,12 +226,12 @@ def ExchangeOpenOnDay(exchange, d):
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendarViaCache(exchange, d.year)
+    cal = GetCalendarViaCache(exchange, d)
 
     return d.isoformat() in cal.schedule.index
 
 
-@lru_cache(maxsize=1000)
+# @lru_cache(maxsize=1000)  # changes index of returned dataframe from datetimeindex to index
 def GetExchangeSchedule(exchange, start_d, end_d):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDateStrict(start_d, "start_d")
@@ -245,11 +258,11 @@ def GetExchangeSchedule(exchange, start_d, end_d):
         if cache_key in schedCache:
             s = schedCache[cache_key]
         else:
-            cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
+            cal = GetCalendarViaCache(exchange, start_d, end_d)
             s = cal.schedule.loc[str(start_d.year):str(end_d_sub1.year)].copy()
             schedCache[cache_key] = s
     else:
-        cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
+        cal = GetCalendarViaCache(exchange, start_d, end_d)
         s = cal.schedule
 
     if s is not None:
@@ -279,7 +292,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
     global schedDbMetadata
     global db_mem
     if exchange not in schedDbMetadata:
-        cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
+        cal = GetCalendarViaCache(exchange, start_d, end_d)
         cal.schedule["open"] = cal.schedule["open"].dt.tz_convert("UTC")
         cal.schedule["close"] = cal.schedule["close"].dt.tz_convert("UTC")
         cal.schedule.to_sql(exchange, db_mem, index_label="indexpd")
@@ -357,13 +370,7 @@ def GetExchangeWeekSchedule(exchange, start, end, ignoreHolidays, ignoreWeekends
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    start_year = start_d.year
-    if start_d.month == 1:
-        start_year -= 1
-    end_year = end_d.year
-    if end_d.month == 12:
-        end_year += 1
-    cal = GetCalendarViaCache(exchange, start_year, end_year)
+    cal = GetCalendarViaCache(exchange, start, end)
 
     sched = GetExchangeSchedule(exchange, start_d, end_d)
     if sched is None or sched.empty:
@@ -479,7 +486,7 @@ def MapPeriodToDates(exchange, period, interval):
         opens = pd.DatetimeIndex(sched["open"])
         x = opens.get_indexer([dt_now_sub_lag], method="bfill")[0]  # If not exact match, search forward
         sched = sched.iloc[:x]
-    last_open_day = sched["open"][-1].date()
+    last_open_day = sched["open"].iloc[-1].date()
     if debug:
         print(f"- last_open_day={last_open_day} d_now={d_now}")
     end_d = last_open_day + td_1d
@@ -584,7 +591,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
 
     if exchange not in yfcd.exchangeToXcalExchange:
         raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-    cal = GetCalendarViaCache(exchange, start_d.year, end_d.year)
+    cal = GetCalendarViaCache(exchange, start_d, end_d)
 
     # When calculating intervals use dates not datetimes. Cache the result, and then
     # apply datetime limits.
@@ -738,7 +745,7 @@ def IsTimestampInActiveSession(exchange, ts):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDatetime(ts, "ts")
 
-    cal = GetCalendarViaCache(exchange, ts.year)
+    cal = GetCalendarViaCache(exchange, ts)
     try:
         s = cal.schedule.loc[ts.date().isoformat()]
     except Exception:
@@ -757,7 +764,7 @@ def GetTimestampCurrentSession(exchange, ts):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDatetime(ts, "ts")
 
-    cal = GetCalendarViaCache(exchange, ts.year)
+    cal = GetCalendarViaCache(exchange, ts)
     try:
         s = cal.schedule.loc[ts.date().isoformat()]
     except Exception:
@@ -793,9 +800,9 @@ def GetTimestampMostRecentSession(exchange, ts):
             else:
                 sched.loc[f, "close"] = np.maximum(sched.loc[f, "close"], sched.loc[f, "auction"]+yfcd.exchangeAuctionDuration[exchange])
     for i in range(sched.shape[0]-1, -1, -1):
-        if sched["open"][i] <= ts:
+        if sched["open"].iloc[i] <= ts:
             tz = ZoneInfo(GetExchangeTzName(exchange))
-            return {"market_open": sched["open"][i].to_pydatetime().astimezone(tz), "market_close": sched["close"][i].to_pydatetime().astimezone(tz)}
+            return {"market_open": sched["open"].iloc[i].to_pydatetime().astimezone(tz), "market_close": sched["close"].iloc[i].to_pydatetime().astimezone(tz)}
     raise Exception("Failed to find most recent '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -813,9 +820,9 @@ def GetTimestampNextSession(exchange, ts):
             else:
                 sched.loc[f, "close"] = np.maximum(sched.loc[f, "close"], sched.loc[f, "auction"]+yfcd.exchangeAuctionDuration[exchange])
     for i in range(sched.shape[0]):
-        if ts < sched["open"][i]:
+        if ts < sched["open"].iloc[i]:
             tz = ZoneInfo(GetExchangeTzName(exchange))
-            return {"market_open": sched["open"][i].to_pydatetime().astimezone(tz), "market_close": sched["close"][i].to_pydatetime().astimezone(tz)}
+            return {"market_open": sched["open"].iloc[i].to_pydatetime().astimezone(tz), "market_close": sched["close"].iloc[i].to_pydatetime().astimezone(tz)}
     raise Exception("Failed to find next '{0}' session for ts = {1}".format(exchange, ts))
 
 
@@ -883,8 +890,8 @@ def GetTimestampCurrentInterval(exchange, ts, interval, discardTimes=None, week7
             if debug:
                 print("- weekSched:")
                 print(weekSched)
-            weekStart = weekSched["open"][0]
-            weekEnd = weekSched["close"][-1]
+            weekStart = weekSched["open"].iloc[0]
+            weekEnd = weekSched["close"].iloc[-1]
             if discardTimes:
                 weekStart = weekStart.date()
                 weekEnd = weekEnd.date() + td_1d
@@ -1083,11 +1090,15 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, discardTimes=None,
         intervals = pd.DataFrame(index=ts)
         intervals["interval_open"] = pd.NaT
         intervals["interval_close"] = pd.NaT
+        intervals["interval_open"] = pd.to_datetime(intervals["interval_open"], utc=True)
+        intervals["interval_close"] = pd.to_datetime(intervals["interval_close"], utc=True)
         if f.any():
             intervals.loc[intervals.index[f], "interval_open"] = tis.left[idx[f]].tz_convert(tz)
             intervals.loc[intervals.index[f], "interval_close"] = tis.right[idx[f]].tz_convert(tz)
         intervals["interval_open"] = pd.to_datetime(intervals["interval_open"])
         intervals["interval_close"] = pd.to_datetime(intervals["interval_close"])
+        intervals["interval_open"] = intervals["interval_open"].dt.tz_convert(tz)
+        intervals["interval_close"] = intervals["interval_close"].dt.tz_convert(tz)
 
     if debug:
         print("intervals:") ; print(intervals)
@@ -1199,7 +1210,7 @@ def GetTimestampNextInterval(exchange, ts, interval, discardTimes=None, week7day
             else:
                 align = "-"+istr
             d = next_sesh["market_open"].date()
-            cal = GetCalendarViaCache(exchange, ts.year)
+            cal = GetCalendarViaCache(exchange, ts)
             ti = cal.trading_index(d.isoformat(), (d+td_1d).isoformat(), period=istr, intervals=True, force_close=True, align=align)
             next_interval_start = ti.left[0]
         else:
@@ -1436,7 +1447,7 @@ def TimestampInBreak_batch(exchange, ts, interval):
     itd = yfcd.intervalToTimedelta[interval]
     tss = pd.to_datetime(ts)
     df = pd.DataFrame(data={"_date": tss.date}, index=tss)
-    cal = GetCalendarViaCache(exchange, df["_date"][0].year, df["_date"][-1].year)
+    cal = GetCalendarViaCache(exchange, df["_date"].iloc[0], df["_date"].iloc[-1])
     s = cal.schedule.copy()
     s["_date"] = s.index.date
     df["_indexBackup"] = df.index

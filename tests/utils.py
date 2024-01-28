@@ -26,7 +26,7 @@ class Test_Base(unittest.TestCase):
                 pprint("{} ...".format(missing_from_answer[0:5]))
 
             if len(missing_from_answer) > 0:
-                print("First day missing from answer:")
+                print("First day missing/different from answer:")
                 print("df:")
                 print(df[df.index.date==missing_from_answer[0].date()])
                 print("answer:")
@@ -40,7 +40,7 @@ class Test_Base(unittest.TestCase):
                 pprint("{} ...".format(missing_from_df[0:5]))
 
             if len(missing_from_df) > 0:
-                print("First day missing from df:")
+                print("First day missing/different from df:")
                 print("df:")
                 print(df[df.index.date==missing_from_df[0].date()])
                 print("answer:")
@@ -100,8 +100,8 @@ class Test_Base(unittest.TestCase):
                         print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
 
                 last_diff_idx = np.where(f)[0][-1]
-                x = df[dc][last_diff_idx]
-                y = answer[dc][last_diff_idx]
+                x = df[dc].iloc[last_diff_idx]
+                y = answer[dc].iloc[last_diff_idx]
                 last_diff = x - y
                 print("- last_diff: {} - {} = {}".format(x, y, last_diff))
                 print("- answer:")

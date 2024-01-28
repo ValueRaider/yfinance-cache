@@ -198,7 +198,7 @@ def GetCSF0(df):
     else:
         ss_rcp = 1.0/ss
         csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
-    csf0 = csf[0]
+    csf0 = csf.iloc[0]
 
     ss0 = ss.iloc[0]
     if ss0 != 1.0:
@@ -215,7 +215,7 @@ def GetCDF0(df, close_day_before=None):
 
     df = df.sort_index(ascending=True)
 
-    cdf = df["CDF"][0]
+    cdf = df["CDF"].iloc[0]
     if cdf != 1.0:
         # Yahoo's dividend adjustment has tiny variation (~1e-6),
         # so use mean to minimise accuracy loss of adjusted->deadjust->adjust
@@ -225,7 +225,7 @@ def GetCDF0(df, close_day_before=None):
             raise Exception("Mean CDF={} is sig. different to CDF[0]={}".format(cdf_mean, cdf))
         cdf = cdf_mean
 
-    div0 = df["Dividends"][0]
+    div0 = df["Dividends"].iloc[0]
     if div0 != 0.0:
         if close_day_before is None:
             raise Exception("Dividend in most recent row so need to know yesterday's close")
@@ -341,7 +341,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     df_yf = df_yf[~df_yf[yfcd.yf_price_data_cols].isna().any(axis=1)]
 
     # Drop mismatching indices for value check
-    h = h[h.index.isin(df_yf.index)]
+    h = h[h.index.isin(df_yf.index)].copy()
+    h = h[h['Final?'].to_numpy()]
     df_yf = df_yf[df_yf.index.isin(h.index)]
     n = h.shape[0]
 

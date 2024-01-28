@@ -62,7 +62,10 @@ class DateIntervalIndex:
     def from_arrays(cls, left, right, closed=None):
         if len(left) != len(right):
             raise Exception("left and right must be equal length")
-        intervals = [DateInterval(left[i], right[i], closed) for i in range(len(left))]
+        if isinstance(left, pd.Series):
+            intervals = [DateInterval(left.iloc[i], right.iloc[i], closed) for i in range(len(left))]
+        else:
+            intervals = [DateInterval(left[i], right[i], closed) for i in range(len(left))]
         return cls(intervals)
 
     @property
@@ -235,6 +238,7 @@ exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
 exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
 exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
+exchangeToXcalExchange["HAM"] = exchangeToXcalExchange["GER"] # Hamburg, assume same as Frankfurt
 exchangeToXcalExchange["HEL"] = "XHEL"  # Helsinki
 exchangeToXcalExchange["ISE"] = "XDUB"  # Ireland
 exchangeToXcalExchange["MCE"] = "XMAD"  # Madrid
@@ -250,6 +254,7 @@ exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg, South Africa
 exchangeToXcalExchange["SAO"] = "BVMF"  # Sao Paulo, Brazil
 exchangeToXcalExchange["SGO"] = "XSGO"  # Santiago, Chile
 exchangeToXcalExchange["BVC"] = "XBOG"  # Bogota, Colombia
+exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
@@ -286,6 +291,7 @@ exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
 exchangeToYfLag["FRA"] = timedelta(minutes=15)
 exchangeToYfLag["GER"] = timedelta(minutes=15)
+exchangeToYfLag["HAM"] = exchangeToYfLag["GER"]
 exchangeToYfLag["HEL"] = timedelta(0)
 exchangeToYfLag["ISE"] = timedelta(minutes=15)
 exchangeToYfLag["MCE"] = timedelta(minutes=15)
@@ -301,6 +307,7 @@ exchangeToYfLag["JNB"] = timedelta(minutes=15)
 exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["SGO"] = timedelta(minutes=15)
 exchangeToYfLag["BVC"] = timedelta(minutes=15)  # Guess because Yahoo don't specify
+exchangeToYfLag["MEX"] = timedelta(minutes=20)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
 exchangeToYfLag["KSC"] = timedelta(minutes=20)
