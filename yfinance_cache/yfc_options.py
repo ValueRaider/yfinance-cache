@@ -29,7 +29,7 @@ class NestedOptions:
 class OptionsManager:
     def __init__(self):
         d = yfcm.GetCacheDirpath()
-        self.option_file = os.path.join(d, "_YFC_", 'options.json')
+        self.option_file = os.path.join(d, 'options.json')
         self._load_option()
 
     def _load_option(self):

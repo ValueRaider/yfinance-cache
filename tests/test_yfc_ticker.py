@@ -108,14 +108,6 @@ class Test_Yfc_Ticker(Test_Base):
         self.assertNotEqual(mod_dt3, mod_dt1)
 
 
-    def test_fetch_shares(self):
-        df1 = self.usa_dat._fetch_shares(date(2023,1,1), date(2023,6,1))
-        print(df1)
-
-        # df2 = self.usa_dat._fetch_shares(date(2024,1,1), date(2024,11,1))
-        # self.assertTrue(df1.equals(df2))
-
-
     def test_get_shares(self):
         df1 = self.usa_dat.get_shares('2023-01-01', '2023-06-01')
 

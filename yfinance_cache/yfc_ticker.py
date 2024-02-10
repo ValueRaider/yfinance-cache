@@ -509,15 +509,25 @@ class Ticker:
         if self._info is not None:
             # Check new info is not downgrade
             diff = len(i) - len(self._info)
-            if diff < -1:
-                # More than 1 element disappeared
-                msg = 'When fetching new info, data has disappeared\n'
-                msg += '- cached info:\n'
-                msg += f'{self._info}' + '\n'
-                msg += '- new info:\n'
-                msg += f'{i}' + '\n'
-                raise Exception(msg)
-            
+            diff_pct = float(diff) / float(len(self._info))
+            if diff_pct < -0.05:
+                msg = 'When fetching new info, significant amount of data has disappeared\n'
+                missing_keys = [k for k in self._info.keys() if k not in i.keys()]
+                new_keys = [k for k in i.keys() if k not in self._info.keys()]
+                msg += "- missing: "
+                msg += str({k:self._info[k] for k in missing_keys}) + '\n'
+                msg += "- new: "
+                msg += str({k:i[k] for k in new_keys}) + '\n'
+
+                # msg += "\nKeep new data?"
+                # keep = click.confirm(msg, default=False)
+                # if not keep:
+                #     return self._info
+                #
+                msg += "\nDiscarding fetched info."
+                print(f'{self.ticker}: {msg}')
+                return self._info
+
         self._info = i
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
@@ -570,7 +580,7 @@ class Ticker:
         return self._splits
 
 
-    def get_shares(self, start=None, end=None, max_age='7d'):
+    def get_shares(self, start=None, end=None, max_age='30d'):
         debug = False
         # debug = True
 
@@ -586,12 +596,12 @@ class Ticker:
             end_dt, end_d = self._process_user_dt(end)
             end = end_d
         if end is None:
+            end_dt = dt_now
             end = dt_now.date()
         if start is None:
             start = end - pd.Timedelta(days=548)  # 18 months
         if start >= end:
-            logger.error("Start date must be before end")
-            return None
+            raise Exception("Start date must be before end")
         if debug:
             print("- start =", start, " end =", end)
 
@@ -614,30 +624,27 @@ class Ticker:
 
         if debug:
             print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
-            # print(self._shares)
 
         td_1d = datetime.timedelta(days=1)
         last_row = self._shares.iloc[-1]
-        if np.isnan(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
+        if pd.isna(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
             if debug:
                 print("- dropping last row from cached")
             self._shares = self._shares.drop(self._shares.index[-1])
 
-        if start < self._shares.index[0]:
-            if debug:
-                print("- add more before")
+        if not isinstance(self._shares.index, pd.DatetimeIndex):
+            self._shares.index = pd.to_datetime(self._shares.index).tz_localize(tz)
+        if self._shares['Shares'].dtype == 'float':
+            # Convert to Int, and add a little to avoid rounding errors
+            self._shares['Shares'] = (self._shares['Shares']+0.01).round().astype('Int64')
+
+        if start < self._shares.index[0].date():
             df_pre = self._fetch_shares(start, self._shares.index[0])
-            # if debug:
-            #     print("- df_pre:") ; print(df_pre)
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
-        if (end-td_1d) > self._shares.index[-1] and \
-            (end - self._shares.index[-1]) > max_age:
-            if debug:
-                print("- add more after")
+        if (end-td_1d) > self._shares.index[-1].date() and \
+            (end - self._shares.index[-1].date()) > max_age:
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
-            # if debug:
-            #     print("- df_post:") ; print(df_post)
             if df_post is not None:
                 self._shares = pd.concat([self._shares, df_post])
 
@@ -646,39 +653,51 @@ class Ticker:
 
         f_na = self._shares['Shares'].isna()
         shares = self._shares[~f_na]
-        if init:
-            return shares
-        i0 = np.searchsorted(shares.index, start)
-        i1 = np.searchsorted(shares.index, end)
+        i0 = np.searchsorted(shares.index, start_dt)
+        i1 = np.searchsorted(shares.index, end_dt)
         return shares.iloc[i0:i1]
 
     def _fetch_shares(self, start, end):
         td_1d = datetime.timedelta(days=1)
 
-        end = min(end, datetime.date.today() + td_1d)
-
         exchange, tz = self._getExchangeAndTz()
-        df = self.dat.get_shares_full(start, end)
+        if isinstance(end, datetime.datetime):
+            end_dt = end
+            end_d = end.date()
+        else:
+            end_dt = pd.Timestamp(end).tz_localize(tz)
+            end_d = end
+        if isinstance(start, datetime.datetime):
+            start_dt = start
+            start_d = start.date()
+        else:
+            start_dt = pd.Timestamp(start).tz_localize(tz)
+            start_d = start
+
+        end_d = min(end_d, datetime.date.today() + td_1d)
+
+        df = self.dat.get_shares_full(start_d, end_d)
         if df is None:
             return df
         if df.empty:
             return None
 
-        df.index = df.index.date
+        # Convert to Pandas Int for NaN support
+        df = df.astype('Int64')
 
         # Currently, yfinance uses ceil(end), so fix:
-        if df.index[-1] == end:
-            df.drop(end)
+        if df.index[-1].date() == end_d:
+            df.drop(df.index[-1])
             if df.empty:
                 return None
 
         fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
         df = pd.DataFrame(df, columns=['Shares'])
 
-        if start < df.index[0]:
-            df.loc[start] = np.nan
-        if (end-td_1d) > df.index[-1]:
-            df.loc[end-td_1d] = np.nan
+        if start_d < df.index[0].date():
+            df.loc[start_dt] = np.nan
+        if (end_d-td_1d) > df.index[-1].date():
+            df.loc[end_dt] = np.nan
         df = df.sort_index()
 
         df['FetchDate'] = fetch_dt
@@ -952,7 +971,7 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         debug_interval = yfcd.intervalStrToEnum[debug_interval]
 
     d = yfcm.GetCacheDirpath()
-    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and '_' not in x]
+    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and os.path.isdir(os.path.join(d, x)) and '_' not in x]
     # tkrs = tkrs[:5]
     # tkrs = tkrs[:20]
     # tkrs = tkrs[tkrs.index("DDOG"):]
