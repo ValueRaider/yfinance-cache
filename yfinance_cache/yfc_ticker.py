@@ -35,6 +35,8 @@ class Ticker:
 
         self._splits = None
 
+        self._shares = None
+
         self._financials = None
         self._quarterly_financials = None
 
@@ -488,14 +490,45 @@ class Ticker:
 
     @property
     def info(self):
+        max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+
+        if self._info is None:
+            if yfcm.IsDatumCached(self.ticker, "info"):
+                self._info = yfcm.ReadCacheDatum(self.ticker, "info")
+                if 'FetchDate' not in self._info.keys():
+                    fp = yfcm.GetFilepath(self.ticker, 'info')
+                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                    self._info['FetchDate'] = mod_dt
+
+        if (self._info is not None) and (self._info['FetchDate'] + max_age) > pd.Timestamp.now():
+            return self._info
+
+        i = self.dat.info
+        i['FetchDate'] = pd.Timestamp.now()
+
         if self._info is not None:
-            return self._info
+            # Check new info is not downgrade
+            diff = len(i) - len(self._info)
+            diff_pct = float(diff) / float(len(self._info))
+            if diff_pct < -0.05:
+                msg = 'When fetching new info, significant amount of data has disappeared\n'
+                missing_keys = [k for k in self._info.keys() if k not in i.keys()]
+                new_keys = [k for k in i.keys() if k not in self._info.keys()]
+                msg += "- missing: "
+                msg += str({k:self._info[k] for k in missing_keys}) + '\n'
+                msg += "- new: "
+                msg += str({k:i[k] for k in new_keys}) + '\n'
 
-        if yfcm.IsDatumCached(self.ticker, "info"):
-            self._info = yfcm.ReadCacheDatum(self.ticker, "info")
-            return self._info
+                # msg += "\nKeep new data?"
+                # keep = click.confirm(msg, default=False)
+                # if not keep:
+                #     return self._info
+                #
+                msg += "\nDiscarding fetched info."
+                print(f'{self.ticker}: {msg}')
+                return self._info
 
-        self._info = self.dat.info
+        self._info = i
         yfcm.StoreCacheDatum(self.ticker, "info", self._info)
 
         exchange, tz_name = self._getExchangeAndTz()
@@ -545,6 +578,131 @@ class Ticker:
         self._splits = self.dat.splits
         yfcm.StoreCacheDatum(self.ticker, "splits", self._splits)
         return self._splits
+
+
+    def get_shares(self, start=None, end=None, max_age='30d'):
+        debug = False
+        # debug = True
+
+        max_age = pd.Timedelta(max_age)
+
+        # Process dates
+        exchange, tz = self._getExchangeAndTz()
+        dt_now = pd.Timestamp.utcnow().tz_convert(tz)
+        if start is not None:
+            start_dt, start_d = self._process_user_dt(start)
+            start = start_d
+        if end is not None:
+            end_dt, end_d = self._process_user_dt(end)
+            end = end_d
+        if end is None:
+            end_dt = dt_now
+            end = dt_now.date()
+        if start is None:
+            start = end - pd.Timedelta(days=548)  # 18 months
+        if start >= end:
+            raise Exception("Start date must be before end")
+        if debug:
+            print("- start =", start, " end =", end)
+
+
+        init = False
+        if self._shares is None:
+            init = True
+            if yfcm.IsDatumCached(self.ticker, "shares"):
+                if debug:
+                    print("- init shares from cache")
+                self._shares = yfcm.ReadCacheDatum(self.ticker, "shares")
+            else:
+                if debug:
+                    print("- fetching shares")
+                self._shares = self._fetch_shares(start, end)
+                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+                # return self._shares
+                f_na = self._shares['Shares'].isna()
+                return self._shares[~f_na]
+
+        if debug:
+            print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
+
+        td_1d = datetime.timedelta(days=1)
+        last_row = self._shares.iloc[-1]
+        if pd.isna(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
+            if debug:
+                print("- dropping last row from cached")
+            self._shares = self._shares.drop(self._shares.index[-1])
+
+        if not isinstance(self._shares.index, pd.DatetimeIndex):
+            self._shares.index = pd.to_datetime(self._shares.index).tz_localize(tz)
+        if self._shares['Shares'].dtype == 'float':
+            # Convert to Int, and add a little to avoid rounding errors
+            self._shares['Shares'] = (self._shares['Shares']+0.01).round().astype('Int64')
+
+        if start < self._shares.index[0].date():
+            df_pre = self._fetch_shares(start, self._shares.index[0])
+            if df_pre is not None:
+                self._shares = pd.concat([df_pre, self._shares])
+        if (end-td_1d) > self._shares.index[-1].date() and \
+            (end - self._shares.index[-1].date()) > max_age:
+            df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
+            if df_post is not None:
+                self._shares = pd.concat([self._shares, df_post])
+
+        self._shares = self._shares
+        yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+
+        f_na = self._shares['Shares'].isna()
+        shares = self._shares[~f_na]
+        i0 = np.searchsorted(shares.index, start_dt)
+        i1 = np.searchsorted(shares.index, end_dt)
+        return shares.iloc[i0:i1]
+
+    def _fetch_shares(self, start, end):
+        td_1d = datetime.timedelta(days=1)
+
+        exchange, tz = self._getExchangeAndTz()
+        if isinstance(end, datetime.datetime):
+            end_dt = end
+            end_d = end.date()
+        else:
+            end_dt = pd.Timestamp(end).tz_localize(tz)
+            end_d = end
+        if isinstance(start, datetime.datetime):
+            start_dt = start
+            start_d = start.date()
+        else:
+            start_dt = pd.Timestamp(start).tz_localize(tz)
+            start_d = start
+
+        end_d = min(end_d, datetime.date.today() + td_1d)
+
+        df = self.dat.get_shares_full(start_d, end_d)
+        if df is None:
+            return df
+        if df.empty:
+            return None
+
+        # Convert to Pandas Int for NaN support
+        df = df.astype('Int64')
+
+        # Currently, yfinance uses ceil(end), so fix:
+        if df.index[-1].date() == end_d:
+            df.drop(df.index[-1])
+            if df.empty:
+                return None
+
+        fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
+        df = pd.DataFrame(df, columns=['Shares'])
+
+        if start_d < df.index[0].date():
+            df.loc[start_dt] = np.nan
+        if (end_d-td_1d) > df.index[-1].date():
+            df.loc[end_dt] = np.nan
+        df = df.sort_index()
+
+        df['FetchDate'] = fetch_dt
+
+        return df
 
     @property
     def financials(self):
@@ -704,15 +862,36 @@ class Ticker:
 
     @property
     def calendar(self):
+        max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
+
+        if self._calendar is None:
+            if yfcm.IsDatumCached(self.ticker, "calendar"):
+                c = yfcm.ReadCacheDatum(self.ticker, "calendar")
+                if 'FetchDate' not in c.keys():
+                    fp = yfcm.GetFilepath(self.ticker, 'info')
+                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                    c['FetchDate'] = mod_dt
+
+        if (self._calendar is not None) and (self._calendar['FetchDate'] + max_age) > pd.Timestamp.now():
+            return self._calendar
+
+        c = self.dat.calendar
+        c['FetchDate'] = pd.Timestamp.now()
+        
         if self._calendar is not None:
-            return self._calendar
+            # Check calendar info is not downgrade
+            diff = len(c) - len(self._calendar)
+            if diff < -1:
+                # More than 1 element disappeared
+                msg = 'When fetching new calendar, data has disappeared\n'
+                msg += '- cached calendar:\n'
+                msg += f'{self._calendar}' + '\n'
+                msg += '- new calendar:\n'
+                msg += f'{c}' + '\n'
+                raise Exception(msg)
 
-        if yfcm.IsDatumCached(self.ticker, "calendar"):
-            self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
-            return self._calendar
-
-        self._calendar = self.dat.calendar
-        yfcm.StoreCacheDatum(self.ticker, "calendar", self._calendar)
+        yfcm.StoreCacheDatum(self.ticker, "calendar", c)
+        self._calendar = c
         return self._calendar
 
     @property
@@ -792,7 +971,7 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         debug_interval = yfcd.intervalStrToEnum[debug_interval]
 
     d = yfcm.GetCacheDirpath()
-    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and '_' not in x]
+    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and os.path.isdir(os.path.join(d, x)) and '_' not in x]
     # tkrs = tkrs[:5]
     # tkrs = tkrs[:20]
     # tkrs = tkrs[tkrs.index("DDOG"):]
