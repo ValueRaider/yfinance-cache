@@ -1,6 +1,5 @@
 import multiprocessing
 from functools import partial
-import time
 
 import pandas as pd
 from scipy.stats import mode
@@ -33,7 +32,7 @@ def download(tickers,
         try:
             import tqdm
             have_tqdm = True
-        except e:
+        except Exception:
             have_tqdm = False
 
     if threads:

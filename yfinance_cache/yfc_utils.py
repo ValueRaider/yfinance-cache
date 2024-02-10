@@ -35,7 +35,7 @@ class CustomNanCheckingDataFrame(pd.DataFrame):
         if 'Repaired?' not in self.columns:
             return
         if self['Repaired?'].isna().any():
-            raise Exception(f"NaNs detected in column 'Repaired?'!")
+            raise Exception("NaNs detected in column 'Repaired?'!")
 
 
 def TypeCheckStr(var, varName):

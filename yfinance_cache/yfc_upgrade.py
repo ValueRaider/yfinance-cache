@@ -12,7 +12,7 @@ def _init_options():
     if not os.path.isdir(d):
         if not os.path.isdir(yfc_dp):
             os.makedirs(yfc_dp)
-        with open(state_fp, 'w') as f:
+        with open(state_fp, 'w'):
             pass
         return
 
@@ -23,5 +23,5 @@ def _init_options():
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)
-    with open(state_fp, 'w') as f:
+    with open(state_fp, 'w'):
         pass

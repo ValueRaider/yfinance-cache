@@ -4,7 +4,6 @@ from copy import deepcopy
 from functools import lru_cache
 
 from datetime import datetime, date, time, timedelta
-from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
 from multiprocessing import Lock, Manager
@@ -39,7 +38,7 @@ def SetExchangeTzName(exchange, tz):
     yfcu.TypeCheckStr(tz, "tz")
 
     with exchanges_lock:
-        if not exchange in exchange_locks:
+        if exchange not in exchange_locks:
             exchange_locks[exchange] = manager.Lock()
     exchange_lock = exchange_locks[exchange]
 
@@ -1766,7 +1765,6 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, repaired, max_age, exchange
             print("- - fetch_dt            = {}".format(fetch_dt))
             print("- - lastDataDt = {}".format(lastDataDt))
             print("- - dt_now              = {}".format(dt_now))
-        fetch_d = fetch_dt.date()
         if fetch_dt < lastDataDt:
             if lastDataDt <= dt_now:
                 # Even though fetched data hasn't fully aged, the candle has since closed so treat as expired

@@ -123,7 +123,7 @@ class Ticker:
                     else:
                         period = pd.Timedelta(period)
             if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
-                raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(perio)}")
+                raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(period)}")
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
                 raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
@@ -350,7 +350,7 @@ class Ticker:
                 tz_name = self.info["exchangeTimezoneName"]
             else:
                 tz_name = self.info["timeZoneFullName"]
-        except:
+        except Exception:
             md = yf.Ticker(self.ticker, session=self.session).history_metadata
             if 'exchangeName' in md.keys():
                 exchange = md['exchangeName']
@@ -544,7 +544,7 @@ class Ticker:
         if yfcm.IsDatumCached(self.ticker, "fast_info"):
             try:
                 self._fast_info = yfcm.ReadCacheDatum(self.ticker, "fast_info")
-            except:
+            except Exception:
                 pass
             else:
                 return self._fast_info
@@ -605,10 +605,7 @@ class Ticker:
         if debug:
             print("- start =", start, " end =", end)
 
-
-        init = False
         if self._shares is None:
-            init = True
             if yfcm.IsDatumCached(self.ticker, "shares"):
                 if debug:
                     print("- init shares from cache")

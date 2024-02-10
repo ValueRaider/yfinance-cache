@@ -2,7 +2,6 @@ import os
 import pickle
 import json
 import appdirs
-import json
 from pandas import Timedelta
 
 from datetime import datetime, date, timedelta
