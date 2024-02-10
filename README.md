@@ -1,66 +1,105 @@
 # yfinance-cache
-Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache where missing/outdated and new data expected.
 
-Only price data caching fully implemented. Everything else is cached once but never updated (unless you delete their files) - I ran out of time to implement e.g. financials cache update.
+Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache where missing/outdated and new data expected. Idea is to minimise fetch frequency and quantity - Yahoo API officially only cares about frequency, but I'm guessing they also care about server load from scrapers.
+
+Cache auto-update implemented for:
+- prices
+- calendar
+- shares
+- info
+
+Everything else cached once but never updated (unless you delete their files).
+Financials auto-update will be implemented soon ...
 
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
 - Linux = /home/\<USER\>/.cache/py-yfinance-cache
 - MacOS = /Users/\<USER\>/Library/Caches/py-yfinance-cache
 
-### Price cache
-
-Idea behind this cache is to minimise fetch frequency and quantity. Yahoo API officially only cares about frequency, but I'm guessing they also care about server load from scrapers.
-
-How is this caching different to caching URL fetches? Simple - they don't adjust cached data for new stock splits or dividends.
-
-What makes the cache smart? Adds 'fetched date' to each price data, then combines with an [exchange schedule](https://github.com/gerrymanoim/exchange_calendars) to know when new price data expected. 
-
-Note:
-- '1d' price data always fetched from `start` date to today (i.e. ignores `end`), as need to know all dividends and stock splits since `start`.
-- price repair enabled, to prevent bad Yahoo data corrupting cache. See [yfinance Wiki](https://github.com/ranaroussi/yfinance/wiki/Price-repair) for detail
-
-### Financials cache
-
-I planned to implement this after prices cache, but ran out of time. Strategy to minimise fetch frequency is to fetch at/after the next earnings date, inferred from `Ticker.calendar` and/or `Ticker.earnings_dates`.
-
 ## Interface
-Interaction almost identical to yfinance. Differences highlighted underneath code:
+
+Interaction almost identical to yfinance, listed is attributes with auto-update:
 
 ```python
 import yfinance_cache as yfc
 
 msft = yfc.Ticker("MSFT")
-
-# get stock info
 msft.info
+msft.calendar
+msft.get_shares(start='2024-01-01')
+msft.history(period="1wk")
+yfc.download("MSFT AMZN", period="1wk")
 
-# get historical market data
-hist = msft.history(period="1d")
-
-# bulk download
-yfc.download("MSFT AMZN", period="1d")
-...
-# etc. See yfinance documentation for full API
+# See yfinance documentation for full API
 ```
 
-#### Refreshing cache
-```python
-df = msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
-```
-`max_age` controls when to update cache. If market is still open and `max_age` time has passed since last fetch, then today's cached price data will be refreshed. If `trigger_at_market_close=True` then refresh also triggered if market has closed since last fetch. Must be `Timedelta` or equivalent `str`, defaults to half of interval. 
+### Price data differences
 
-The returned table has 2 new columns:
-- `FetchDate` = when data was fetched
-- `Final?` = `true` if don't expect future fetches to change
+Other people have implemented price caches, but none adjust cached data for new stock splits or dividends.
+YFC does. Price can be adjusted for stock splits, dividends, or both:
 
-#### Adjusting price
-Price can be adjusted for stock splits, dividends, or both.
 ```python
 msft.history(..., adjust_splits=True, adjust_divs=True)
 ```
 
+Price repair is force-enabled, to prevent bad Yahoo data corrupting cache.
+See [yfinance Wiki](https://github.com/ranaroussi/yfinance/wiki/Price-repair) for detail.
+
+Returned table has 2 new columns:
+- `FetchDate` = when data was fetched
+- `Final?` = `true` if don't expect future fetches to change
+
+## Aging
+
+Concept of `max age` controls when cached data is updated.
+If `max age` time has passed since last fetch then cache is updated.
+Value must be `Timedelta` or equivalent `str`.
+
+#### Price data aging
+
+``` python
+df = msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
+```
+
+With price data, YFC also considers how long exchange been open since last fetch, 
+using [exchange_calendars](https://github.com/gerrymanoim/exchange_calendars).
+Only if market been open long enough since last fetch, 
+or if `trigger_at_market_close=True` and market since closed, 
+is cache refreshed.
+`max_age` defaults to half of interval.
+
+#### Shares aging
+
+``` python
+df = msft.shares(..., max_age='60d')
+```
+
+#### Property aging
+
+For data obtained from `Ticker` properties not functions, max age set in YFC options.
+Implemented to behave like `pandas.options`, except YFC options are persistent.
+
+``` python
+>>> import yfinance_cache as yfc
+>>> yfc.options
+{
+    "max_ages": {
+        "calendar": "7d",
+        "info": "180d"
+    }
+}
+>>> yfc.options.max_ages.calendar = '30d'
+>>> yfc.options
+{
+    "max_ages": {
+        "calendar": "30d",
+        "info": "180d"
+    }
+}
+```
+
 #### Verifying cache
+
 Cached prices can be compared against latest Yahoo Finance data, and correct differences:
 ```python
 # Verify prices of one ticker symbol
