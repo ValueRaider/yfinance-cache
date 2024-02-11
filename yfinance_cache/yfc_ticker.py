@@ -863,11 +863,11 @@ class Ticker:
 
         if self._calendar is None:
             if yfcm.IsDatumCached(self.ticker, "calendar"):
-                c = yfcm.ReadCacheDatum(self.ticker, "calendar")
-                if 'FetchDate' not in c.keys():
+                self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
+                if 'FetchDate' not in self._calendar.keys():
                     fp = yfcm.GetFilepath(self.ticker, 'info')
                     mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
-                    c['FetchDate'] = mod_dt
+                    self._calendar['FetchDate'] = mod_dt
 
         if (self._calendar is not None) and (self._calendar['FetchDate'] + max_age) > pd.Timestamp.now():
             return self._calendar
