@@ -12,8 +12,8 @@ from . import yfc_utils as yfcu
 
 # To reduce #files in cache, store some YF objects together into same file (including metadata)
 packed_data_cats = {}
-packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
-packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials"]
+packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials", "quarterly_income_stmt"]
+packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials", "income_stmt"]
 
 quarterly_objects = packed_data_cats["quarterlys"]
 annual_objects    = packed_data_cats["annuals"]

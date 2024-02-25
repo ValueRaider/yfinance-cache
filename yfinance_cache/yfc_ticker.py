@@ -6,6 +6,7 @@ from . import yfc_utils as yfcu
 from . import yfc_logging as yfcl
 from . import yfc_time as yfct
 from . import yfc_prices_manager as yfcp
+from . import yfc_financials_manager as yfcf
 
 import numpy as np
 import pandas as pd
@@ -37,21 +38,12 @@ class Ticker:
 
         self._shares = None
 
-        self._financials = None
-        self._quarterly_financials = None
-
         self._major_holders = None
 
         self._institutional_holders = None
 
-        self._balance_sheet = None
-        self._quarterly_balance_sheet = None
-
-        self._cashflow = None
-        self._quarterly_cashflow = None
-
-        self._earnings = None
-        self._quarterly_earnings = None
+        exchange, tz_name = self._getExchangeAndTz()
+        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
 
         self._sustainability = None
 
@@ -728,32 +720,6 @@ class Ticker:
         return df
 
     @property
-    def financials(self):
-        if self._financials is not None:
-            return self._financials
-
-        if yfcm.IsDatumCached(self.ticker, "financials"):
-            self._financials = yfcm.ReadCacheDatum(self.ticker, "financials")
-            return self._financials
-
-        self._financials = self.dat.financials
-        yfcm.StoreCacheDatum(self.ticker, "financials", self._financials)
-        return self._financials
-
-    @property
-    def quarterly_financials(self):
-        if self._quarterly_financials is not None:
-            return self._quarterly_financials
-
-        if yfcm.IsDatumCached(self.ticker, "quarterly_financials"):
-            self._quarterly_financials = yfcm.ReadCacheDatum(self.ticker, "quarterly_financials")
-            return self._quarterly_financials
-
-        self._quarterly_financials = self.dat.quarterly_financials
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_financials", self._quarterly_financials)
-        return self._quarterly_financials
-
-    @property
     def major_holders(self):
         if self._major_holders is not None:
             return self._major_holders
@@ -780,82 +746,47 @@ class Ticker:
         return self._institutional_holders
 
     @property
-    def balance_sheet(self):
-        if self._balance_sheet is not None:
-            return self._balance_sheet
-
-        if yfcm.IsDatumCached(self.ticker, "balance_sheet"):
-            self._balance_sheet = yfcm.ReadCacheDatum(self.ticker, "balance_sheet")
-            return self._balance_sheet
-
-        self._balance_sheet = self.dat.balance_sheet
-        yfcm.StoreCacheDatum(self.ticker, "balance_sheet", self._balance_sheet)
-        return self._balance_sheet
-
-    @property
-    def quarterly_balance_sheet(self):
-        if self._quarterly_balance_sheet is not None:
-            return self._quarterly_balance_sheet
-
-        if yfcm.IsDatumCached(self.ticker, "quarterly_balance_sheet"):
-            self._quarterly_balance_sheet = yfcm.ReadCacheDatum(self.ticker, "quarterly_balance_sheet")
-            return self._quarterly_balance_sheet
-
-        self._quarterly_balance_sheet = self.dat.quarterly_balance_sheet
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_balance_sheet", self._quarterly_balance_sheet)
-        return self._quarterly_balance_sheet
-
-    @property
-    def cashflow(self):
-        if self._cashflow is not None:
-            return self._cashflow
-
-        if yfcm.IsDatumCached(self.ticker, "cashflow"):
-            self._cashflow = yfcm.ReadCacheDatum(self.ticker, "cashflow")
-            return self._cashflow
-
-        self._cashflow = self.dat.cashflow
-        yfcm.StoreCacheDatum(self.ticker, "cashflow", self._cashflow)
-        return self._cashflow
-
-    @property
-    def quarterly_cashflow(self):
-        if self._quarterly_cashflow is not None:
-            return self._quarterly_cashflow
-
-        if yfcm.IsDatumCached(self.ticker, "quarterly_cashflow"):
-            self._quarterly_cashflow = yfcm.ReadCacheDatum(self.ticker, "quarterly_cashflow")
-            return self._quarterly_cashflow
-
-        self._quarterly_cashflow = self.dat.quarterly_cashflow
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_cashflow", self._quarterly_cashflow)
-        return self._quarterly_cashflow
-
-    @property
     def earnings(self):
-        if self._earnings is not None:
-            return self._earnings
-
-        if yfcm.IsDatumCached(self.ticker, "earnings"):
-            self._earnings = yfcm.ReadCacheDatum(self.ticker, "earnings")
-            return self._earnings
-
-        self._earnings = self.dat.earnings
-        yfcm.StoreCacheDatum(self.ticker, "earnings", self._earnings)
-        return self._earnings
+        return self._financials_manager.get_earnings()
 
     @property
     def quarterly_earnings(self):
-        if self._quarterly_earnings is not None:
-            return self._quarterly_earnings
+        return self._financials_manager.get_quarterly_earnings()
 
-        if yfcm.IsDatumCached(self.ticker, "quarterly_earnings"):
-            self._quarterly_earnings = yfcm.ReadCacheDatum(self.ticker, "quarterly_earnings")
-            return self._quarterly_earnings
+    @property
+    def income_stmt(self):
+        return self._financials_manager.get_income_stmt()
 
-        self._quarterly_earnings = self.dat.quarterly_earnings
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_earnings", self._quarterly_earnings)
-        return self._quarterly_earnings
+    @property
+    def quarterly_income_stmt(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def financials(self):
+        return self._financials_manager.get_income_stmt()
+
+    @property
+    def quarterly_financials(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def balance_sheet(self):
+        return self._financials_manager.get_balance_sheet()
+
+    @property
+    def quarterly_balance_sheet(self):
+        return self._financials_manager.get_quarterly_balance_sheet()
+
+    @property
+    def cashflow(self):
+        return self._financials_manager.get_cashflow()
+
+    @property
+    def quarterly_cashflow(self):
+        return self._financials_manager.get_quarterly_cashflow()
+
+    def get_earnings_dates(self, limit=12):
+        return self._financials_manager.get_earnings_dates(limit)
 
     @property
     def sustainability(self):
@@ -885,37 +816,7 @@ class Ticker:
 
     @property
     def calendar(self):
-        max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
-
-        if self._calendar is None:
-            if yfcm.IsDatumCached(self.ticker, "calendar"):
-                self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
-                if 'FetchDate' not in self._calendar.keys():
-                    fp = yfcm.GetFilepath(self.ticker, 'info')
-                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
-                    self._calendar['FetchDate'] = mod_dt
-
-        if (self._calendar is not None) and (self._calendar['FetchDate'] + max_age) > pd.Timestamp.now():
-            return self._calendar
-
-        c = self.dat.calendar
-        c['FetchDate'] = pd.Timestamp.now()
-        
-        if self._calendar is not None:
-            # Check calendar info is not downgrade
-            diff = len(c) - len(self._calendar)
-            if diff < -1:
-                # More than 1 element disappeared
-                msg = 'When fetching new calendar, data has disappeared\n'
-                msg += '- cached calendar:\n'
-                msg += f'{self._calendar}' + '\n'
-                msg += '- new calendar:\n'
-                msg += f'{c}' + '\n'
-                raise Exception(msg)
-
-        yfcm.StoreCacheDatum(self.ticker, "calendar", c)
-        self._calendar = c
-        return self._calendar
+        return self._financials_manager.get_calendar()
 
     @property
     def inin(self):

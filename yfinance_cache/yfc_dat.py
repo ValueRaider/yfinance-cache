@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 
@@ -363,6 +363,24 @@ listing_date_check_tols[Interval.Days1] = timedelta(days=7)
 listing_date_check_tols[Interval.Week] = timedelta(days=14)
 listing_date_check_tols[Interval.Months1] = timedelta(days=35)
 listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
+
+
+
+class Financials(Enum):
+    IncomeStmt = 0
+    BalanceSheet = 1
+    CashFlow = 2
+
+
+class ReportingPeriod(Enum):
+    Interim = 0
+    Full = 1
+
+
+class Confidence(IntEnum):
+    Low = 0
+    Medium = 1
+    High = 2
 
 
 class NoIntervalsInRangeException(Exception):
