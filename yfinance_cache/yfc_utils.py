@@ -48,7 +48,7 @@ def TypeCheckFloat(var, varName):
     if not isinstance(var, (float, np.float32, np.float64)):
         raise TypeError(f"'{varName}' must be float not {type(var)}")
 def TypeCheckInt(var, varName):
-    if not isinstance(var, (int, np.int32, np.int64)):
+    if isinstance(var, bool) or not isinstance(var, (int, np.int32, np.int64)):
         raise TypeError(f"'{varName}' must be int not {type(var)}")
 def TypeCheckIterable(var, varName):
     if not isinstance(var, (list, set, np.ndarray, pd.Series)):
