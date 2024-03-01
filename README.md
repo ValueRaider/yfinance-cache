@@ -4,12 +4,12 @@ Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb 
 
 Cache auto-update implemented for:
 - prices
-- calendar
+- financials
+- calendar & earnings_dates
 - shares
 - info
 
 Everything else cached once but never updated (unless you delete their files).
-Financials auto-update will be implemented soon ...
 
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
@@ -26,11 +26,11 @@ import yfinance_cache as yfc
 msft = yfc.Ticker("MSFT")
 msft.info
 msft.calendar
+msft.cashflow ; msft.quarterly_cashflow  # or: balance_sheet, financials
+msft.get_earnings_dates(4)
 msft.get_shares(start='2024-01-01')
 msft.history(period="1wk")
 yfc.download("MSFT AMZN", period="1wk")
-
-# See yfinance documentation for full API
 ```
 
 ### Price data differences
@@ -98,7 +98,14 @@ Implemented to behave like `pandas.options`, except YFC options are persistent.
 }
 ```
 
-#### Verifying cache
+## Financials
+
+Financials updates are handled different because they don't age.
+Instead, YFC analyses earnings dates to determine exactly when next earnings will be, 
+or if Yahoo data is incomplete then YFC will predict.
+You can inspect this schedule in new function `dat.get_release_dates()`.
+
+## Verifying cache
 
 Cached prices can be compared against latest Yahoo Finance data, and correct differences:
 ```python
