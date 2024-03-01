@@ -788,6 +788,38 @@ class Ticker:
     def get_earnings_dates(self, limit=12):
         return self._financials_manager.get_earnings_dates(limit)
 
+    def get_release_dates(self, period='quarterly'):
+        if not period in ['annual', 'quarterly']:
+            raise ValueError(f'period argument must be "annual" or "quarterly", not "{period}"')
+        if period == 'annual':
+            period = yfcd.ReportingPeriod.Full
+        else:
+            period = yfcd.ReportingPeriod.Interim
+        df = self._financials_manager._get_release_dates(yfcd.Financials.BalanceSheet, period)
+
+        # Format:
+        df['Period end uncertainty'] = '0d'
+        f = df['PE confidence'] == yfcd.Confidence.Medium
+        if f.any():
+            df.loc[f, 'Period end uncertainty'] = '+-7d'
+        f = df['PE confidence'] == yfcd.Confidence.Low
+        if f.any():
+            df.loc[f, 'Period end uncertainty'] = '+-45d'
+        df = df.drop('PE confidence', axis=1)
+
+        df['Release date uncertainty'] = '0d'
+        f = df['RD confidence'] == yfcd.Confidence.Medium
+        if f.any():
+            df.loc[f, 'Release date uncertainty'] = '+/-7d'
+        f = df['RD confidence'] == yfcd.Confidence.Low
+        if f.any():
+            df.loc[f, 'Release date uncertainty'] = '+/-45d'
+        df = df.drop('RD confidence', axis=1)
+
+        df = df.drop('Delay', axis=1)
+
+        return df
+
     @property
     def sustainability(self):
         if self._sustainability is not None:
