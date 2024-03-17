@@ -490,18 +490,27 @@ class Ticker:
 
     @property
     def info(self):
+        if self._info is not None:
+            return self._info
+
         max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
 
-        if self._info is None:
-            if yfcm.IsDatumCached(self.ticker, "info"):
-                self._info = yfcm.ReadCacheDatum(self.ticker, "info")
-                if 'FetchDate' not in self._info.keys():
-                    fp = yfcm.GetFilepath(self.ticker, 'info')
-                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
-                    self._info['FetchDate'] = mod_dt
+        if yfcm.IsDatumCached(self.ticker, "info"):
+            self._info, md = yfcm.ReadCacheDatum(self.ticker, "info", True)
+            if 'FetchDate' not in self._info.keys():
+                fp = yfcm.GetFilepath(self.ticker, 'info')
+                mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                self._info['FetchDate'] = mod_dt
+                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', mod_dt)
 
-        if (self._info is not None) and (self._info['FetchDate'] + max_age) > pd.Timestamp.now():
-            return self._info
+        if self._info is not None:
+            if md is None:
+                md = {}
+            if not 'LastCheck' in md.keys():
+                md['LastCheck'] = self._info['FetchDate']
+                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
+            if max(self._info['FetchDate'], md['LastCheck']) + max_age > pd.Timestamp.now():
+                return self._info
 
         i = self.dat.info
         i['FetchDate'] = pd.Timestamp.now()
@@ -510,7 +519,7 @@ class Ticker:
             # Check new info is not downgrade
             diff = len(i) - len(self._info)
             diff_pct = float(diff) / float(len(self._info))
-            if diff_pct < -0.05:
+            if diff_pct < -0.1 and diff < -10:
                 msg = 'When fetching new info, significant amount of data has disappeared\n'
                 missing_keys = [k for k in self._info.keys() if k not in i.keys()]
                 new_keys = [k for k in i.keys() if k not in self._info.keys()]
@@ -526,6 +535,7 @@ class Ticker:
                 #
                 msg += "\nDiscarding fetched info."
                 print(f'{self.ticker}: {msg}')
+                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', i['FetchDate'])
                 return self._info
 
         self._info = i
