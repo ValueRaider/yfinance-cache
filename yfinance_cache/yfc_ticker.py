@@ -68,6 +68,9 @@ class Ticker:
         self._debug = False
         # self._debug = True
 
+        self._tz = None
+        self._exchange = None
+
     def history(self,
                 interval="1d",
                 max_age=None,  # defaults to half of interval
@@ -343,13 +346,16 @@ class Ticker:
         return self._histories_manager.GetHistory(interval).h
 
     def _getExchangeAndTz(self):
+        if self._tz is not None and self._exchange is not None:
+            return self._tz, self._exchange
+
         exchange, tz_name = None, None
         try:
-            exchange = self.info['exchange']
-            if "exchangeTimezoneName" in self.info:
-                tz_name = self.info["exchangeTimezoneName"]
+            exchange = self.get_info('9999d')['exchange']
+            if "exchangeTimezoneName" in self.get_info('9999d'):
+                tz_name = self.get_info('9999d')["exchangeTimezoneName"]
             else:
-                tz_name = self.info["timeZoneFullName"]
+                tz_name = self.get_info('9999d')["timeZoneFullName"]
         except Exception:
             md = yf.Ticker(self.ticker, session=self.session).history_metadata
             if 'exchangeName' in md.keys():
@@ -359,7 +365,9 @@ class Ticker:
 
         if exchange is None or tz_name is None:
             raise Exception(f"{self.ticker}: exchange and timezone not available")
-        return exchange, tz_name
+        self._tz = tz_name
+        self._exchange = exchange
+        return self._tz, self._exchange
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
@@ -490,10 +498,18 @@ class Ticker:
 
     @property
     def info(self):
+        return self.get_info()
+
+    def get_info(self, max_age=None):
         if self._info is not None:
             return self._info
 
-        max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+        if max_age is None:
+            max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+        elif not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age < pd.Timedelta(0):
+            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
         if yfcm.IsDatumCached(self.ticker, "info"):
             self._info, md = yfcm.ReadCacheDatum(self.ticker, "info", True)
