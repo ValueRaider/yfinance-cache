@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .yfc_dat import Period, Interval
+from .yfc_dat import Period, Interval, AmbiguousComparisonException
 from .yfc_ticker import Ticker, verify_cached_tickers_prices
 from .yfc_multi import download
 from .yfc_logging import EnableLogging, DisableLogging

@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import re
@@ -182,6 +182,25 @@ def CalculateRounding(n, sigfigs):
         return 0
     else:
         return sigfigs - GetSigFigs(round(n))
+
+
+def ProcessUserDt(dt, tz_name):
+    d = None
+    tz = ZoneInfo(tz_name)
+    if isinstance(dt, str):
+        d = datetime.strptime(dt, "%Y-%m-%d").date()
+        dt = datetime.combine(d, time(0), tz)
+    elif isinstance(dt, date) and not isinstance(dt, datetime):
+        d = dt
+        dt = datetime.combine(dt, time(0), tz)
+    elif not isinstance(dt, datetime):
+        raise Exception("Argument 'dt' must be str, date or datetime")
+    dt = dt.replace(tzinfo=tz) if dt.tzinfo is None else dt.astimezone(tz)
+
+    if d is None and dt.time() == datetime.time(0):
+        d = dt.date()
+
+    return dt, d
 
 
 def GetCSF0(df):

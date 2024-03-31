@@ -470,23 +470,8 @@ class Ticker:
         return v
 
     def _process_user_dt(self, dt):
-        d = None
         exchange, tz_name = self._getExchangeAndTz()
-        tz_exchange = ZoneInfo(tz_name)
-        if isinstance(dt, str):
-            d = datetime.datetime.strptime(dt, "%Y-%m-%d").date()
-            dt = datetime.datetime.combine(d, datetime.time(0), tz_exchange)
-        elif isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
-            d = dt
-            dt = datetime.datetime.combine(dt, datetime.time(0), tz_exchange)
-        elif not isinstance(dt, datetime.datetime):
-            raise Exception("Argument 'dt' must be str, date or datetime")
-        dt = dt.replace(tzinfo=tz_exchange) if dt.tzinfo is None else dt.astimezone(tz_exchange)
-
-        if d is None and dt.time() == datetime.time(0):
-            d = dt.date()
-
-        return dt, d
+        return yfcu.ProcessUserDt(dt, tz_name)
 
     @property
     def info(self):
@@ -788,37 +773,41 @@ class Ticker:
     def get_earnings_dates(self, limit=12):
         return self._financials_manager.get_earnings_dates(limit)
 
-    def get_release_dates(self, period='quarterly'):
+    def get_release_dates(self, period='quarterly', as_df=False, check=True):
         if not period in ['annual', 'quarterly']:
             raise ValueError(f'period argument must be "annual" or "quarterly", not "{period}"')
         if period == 'annual':
             period = yfcd.ReportingPeriod.Full
         else:
             period = yfcd.ReportingPeriod.Interim
-        df = self._financials_manager._get_release_dates(yfcd.Financials.BalanceSheet, period)
 
-        # Format:
-        df['Period end uncertainty'] = '0d'
-        f = df['PE confidence'] == yfcd.Confidence.Medium
-        if f.any():
-            df.loc[f, 'Period end uncertainty'] = '+-7d'
-        f = df['PE confidence'] == yfcd.Confidence.Low
-        if f.any():
-            df.loc[f, 'Period end uncertainty'] = '+-45d'
-        df = df.drop('PE confidence', axis=1)
+        releases = self._financials_manager.get_release_dates(period, as_df, refresh=True, check=check)
+        if releases is None:
+            return releases
 
-        df['Release date uncertainty'] = '0d'
-        f = df['RD confidence'] == yfcd.Confidence.Medium
-        if f.any():
-            df.loc[f, 'Release date uncertainty'] = '+/-7d'
-        f = df['RD confidence'] == yfcd.Confidence.Low
-        if f.any():
-            df.loc[f, 'Release date uncertainty'] = '+/-45d'
-        df = df.drop('RD confidence', axis=1)
+        if as_df:
+            # Format:
+            releases['Period end uncertainty'] = '0d'
+            f = releases['PE confidence'] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, 'Period end uncertainty'] = '+-7d'
+            f = releases['PE confidence'] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, 'Period end uncertainty'] = '+-45d'
+            releases = releases.drop('PE confidence', axis=1)
 
-        df = df.drop('Delay', axis=1)
+            releases['Release date uncertainty'] = '0d'
+            f = releases['RD confidence'] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, 'Release date uncertainty'] = '+/-7d'
+            f = releases['RD confidence'] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, 'Release date uncertainty'] = '+/-45d'
+            releases = releases.drop('RD confidence', axis=1)
 
-        return df
+            releases = releases.drop('Delay', axis=1)
+
+        return releases
 
     @property
     def sustainability(self):

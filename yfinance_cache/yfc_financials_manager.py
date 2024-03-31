@@ -1,7 +1,7 @@
 import yfinance as yf
 
-from . import yfc_cache_manager as yfcm
 from . import yfc_dat as yfcd
+from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
 
 import numpy as np
@@ -9,707 +9,80 @@ import pandas as pd
 import scipy.stats as stats
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-# import calendar
 import os
 from statistics import mean, stdev
+import math
 from decimal import Decimal
 from pprint import pprint
 
 
 d_today = date.today()
+yf_spam_window = timedelta(days=7)
+# give Yahoo time to update their financials
+yf_min_grace_days_period = timedelta(days=2)
+yf_max_grace_days_period = timedelta(days=28)
+company_release_delay = timedelta(days=2)
 
 
-class ComparableRelativedelta(relativedelta):
-    def _have_same_attributes(self, other):
-        attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
-
-        for a in attrs:
-            if getattr(self, a, 0) == 0:
-                if getattr(other, a, 0) != 0:
-                    return False
-        return True
-
-    def __eq__(self, other):
-        if isinstance(other, relativedelta):
-            attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
-            return all(getattr(self, attr, 0) == getattr(other, attr, 0) for attr in attrs)
-
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} == {type(other)}={other}')
-
-    def __lt__(self, other):
-        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
-            return other.__gt__(self)
-
-        elif isinstance(other, (relativedelta, timedelta)):
-            # Reference date for comparison
-            reference_date = date(2000, 1, 1)
-
-            # Apply each relativedelta to the reference date
-            result_date_self = reference_date + self
-            result_date_other = reference_date + other
-
-            if not self._have_same_attributes(other):
-                # Threshold for undefined comparison
-                threshold = timedelta(days=7)
-                # threshold = timedelta(days=3)
-                # Check if the difference is within the threshold
-                if abs(result_date_self - result_date_other) < threshold:
-                    raise ValueError(f"Comparison is undefined due to small difference ({self} - {other})")
-
-            return result_date_self < result_date_other
-
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} < {type(other)}={other}')
-
-    def __le__(self, other):
-        return (not self.__gt__(other))
-
-    def __gt__(self, other):
-        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
-            return other.__lt__(self)
-
-        elif isinstance(other, (relativedelta, timedelta)):
-            # Reference date for comparison
-            reference_date = date(2000, 1, 1)
-
-            # Apply each relativedelta to the reference date
-            result_date_self = reference_date + self
-            result_date_other = reference_date + other
-
-            if not self._have_same_attributes(other):
-                # Threshold for undefined comparison
-                threshold = timedelta(days=7)
-                # threshold = timedelta(days=3)
-                # Check if the difference is within the threshold
-                if abs(result_date_self - result_date_other) < threshold:
-                    raise ValueError("Comparison is undefined due to small difference")
-
-            return result_date_self > result_date_other
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        return (not self.__lt__(other))
+print_fetches = False
+# print_fetches = True
 
 
-interval_str_to_days = {}
-interval_str_to_days['ANNUAL'] = ComparableRelativedelta(years=1)
-interval_str_to_days['HALF'] = ComparableRelativedelta(months=6)
-interval_str_to_days['QUART'] = ComparableRelativedelta(months=3)
+def sort_estimates(lst):
+    if len(lst) < 2:
+        return lst
 
+    pivot_index = len(lst) // 2
+    pivot = lst[pivot_index]
 
-confidence_to_buffer = {}
-confidence_to_buffer[yfcd.Confidence.Medium] = timedelta(days=7)
-confidence_to_buffer[yfcd.Confidence.Low] = timedelta(days=45)
+    less = []
+    greater = []
 
-
-class TimedeltaEstimate():
-    def __init__(self, td, confidence):
-        if not isinstance(confidence, yfcd.Confidence):
-            raise Exception("'confidence' must be a 'Confidence' object, not {0}".format(type(confidence)))
-        if not isinstance(td, (timedelta, pd.Timedelta, ComparableRelativedelta)):
-            raise Exception("'td' must be a 'timedelta' object or None, not {0}".format(type(td)))
-        if isinstance(td, ComparableRelativedelta) and confidence != yfcd.Confidence.High:
-            # raise Exception('Actually, TimedeltaEstimate with a ComparableRelativedelta is a problem')
-            # Convert to normal timedelta
-            td = timedelta(days=td.years*365 +td.months*30 +td.days)
-        self.td = td
-        self.confidence = confidence
-        self.uncertainty = confidence_to_buffer[confidence]
-
-    def copy(self):
-        return TimedeltaEstimate(self.td, self.confidence)
-
-    def __str__(self):
-        s = f"{self.td} ({self.confidence})"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __abs__(self):
-        return TimedeltaEstimate(abs(self.td), self.confidence)
-
-    def __eq__(self, other):
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} == {type(other)}={other}')
-
-    def isclose(self, other):
-        if isinstance(other, TimedeltaEstimate):
-            conf = min(self.confidence, other.confidence)
-            return abs(self.td - other.td) < confidence_to_buffer[conf]
-
-        elif isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
-            return ((self.td - self.uncertainty) < other) and (other < (self.td + self.uncertainty))
-        
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} is-close-to {type(other)}={other}')
-
-    def __iadd__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            self.td += other
-            return self
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} += {type(other)}={other}')
-    def __add__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            return TimedeltaEstimate(self.td + other, self.confidence)
-        elif isinstance(other, date):
-            return DateEstimate(self.td + other, self.confidence)
-        elif isinstance(other, DateEstimate):
-            return DateEstimate(self.td + other.date, min(self.confidence, other.confidence))
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} + {type(other)}={other}')
-
-    def __sub__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            return TimedeltaEstimate(self.td - other, self.confidence)
-        elif isinstance(other, date):
-            return DateEstimate(self.td - other, self.confidence)
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} - {type(other)}={other}')
-
-    def __imul__(self, other):
-        if isinstance(other, int):
-            self.td *= other
-            return self
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} *= {type(other)}={other}')
-
-    def __lt__(self, other):
-        if isinstance(other, TimedeltaRangeEstimate):
-            return other.__gt__(self)
-
-        elif isinstance(other, TimedeltaEstimate):
-            if self.td + self.uncertainty < other.td - other.uncertainty:
-                return True
-            elif other.td + other.uncertainty <= self.td - self.uncertainty:
-                return False
+    for i, val in enumerate(lst):
+        if i == pivot_index:
+            continue
+        try:
+            less_than = val < pivot
+        except yfcd.AmbiguousComparisonException:
+            if hasattr(val, "prob_lt"):
+                less_than = val.prob_lt(pivot) > 0.5
             else:
-                raise Exception(f'Ambiguous whether {self} < {other}')
-
-        elif isinstance(other, (relativedelta, timedelta, ComparableRelativedelta)):
-            if self.td + self.uncertainty < other:
-                return True
-            elif other <= self.td - self.uncertainty:
-                return False
-            else:
-                raise Exception(f'Ambiguous whether {self} < {other}')
-
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} < {type(other)}={other}')
-
-    def __gt__(self, other):
-        if isinstance(other, TimedeltaRangeEstimate):
-            return other.__lt__(self)
-
-        elif isinstance(other, TimedeltaEstimate):
-            if self.td - self.uncertainty > other.td + other.uncertainty:
-                return True
-            elif self.td + self.uncertainty <= other.td - other.uncertainty:
-                return False
-            else:
-                raise Exception(f'Ambiguous whether {self} is > {other}')
-
-        elif isinstance(other, (relativedelta, timedelta, ComparableRelativedelta)):
-            if self.td - self.uncertainty > other:
-                return True
-            elif self.td + self.uncertainty < other:
-                return False
-            else:
-                raise Exception(f'Ambiguous whether {self} is > {other}')
-
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        # return self.isclose(other) or self.__gt__(other)
-        return self.__gt__(other)
-
-    def __le__(self, other):
-        # return self.isclose(other) or self.__lt__(other)
-        return self.__lt__(other)
-
-    def __mod__(self, other):
-        if isinstance(other, timedelta):
-            if self.td < timedelta(0):
-                raise NotImplementedError('Not implemented modulus of negative TimedeltaEstimate')
-            else:
-                td = self.td
-                while td > other:
-                    td -= other
-                return TimedeltaEstimate(td, self.confidence)
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} modulus-of {type(other)}={other}')
-
-    def __truediv__(self, other):
-        if isinstance(other, (int, float)):
-            return TimedeltaEstimate(self.td / other, self.confidence)
-        raise NotImplementedError(f'Not implemented TimedeltaEstimate={self} / {type(other)}={other}')
-
-
-class TimedeltaRangeEstimate():
-    def __init__(self, td1, td2, confidence):
-        if not isinstance(confidence, yfcd.Confidence):
-            raise Exception("'confidence' must be a 'Confidence' object, not {0}".format(type(confidence)))
-        if (td1 is not None) and not isinstance(td1, (timedelta, pd.Timedelta)):
-            raise Exception("'td1' must be a 'timedelta' object or None, not {0}".format(type(td1)))
-        if (td2 is not None) and not isinstance(td2, (timedelta, pd.Timedelta)):
-            raise Exception("'td2' must be a 'timedelta' object or None, not {0}".format(type(td2)))
-        if td2 <= td1:
-            swap = td1 ; td1 = td2 ; td2 = swap
-        self.td1 = td1
-        self.td2 = td2
-        self.confidence = confidence
-        self.uncertainty = confidence_to_buffer[confidence]
-
-    def __str__(self):
-        s = f"TimedeltaRangeEstimate {self.td1} -> {self.td2} ({self.confidence})"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def isclose(self, other):
-        # if isinstance(other, TimedeltaEstimate):
-        #     conf = min(self.confidence, other.confidence)
-        #     # return abs(self.td - other.td) < confidence_to_buffer[conf]
-        # elif isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
-        #     b = self.uncertainty
-        #     return ((self.td - b) < other) and (other < (self.td + b))
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} is-close-to {type(other)}={other}')
-
-    def __add__(self, other):
-        if isinstance(other, date):
-            return DateRangeEstimate(self.td1 + other, self.td2 + other, self.confidence)
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} + {type(other)}={other}')
-
-    def __lt__(self, other):
-        if isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
-            if self.td2 + self.uncertainty < other:
-                return True
-            elif self.td2 - self.uncertainty >= other:
-                return True
-            else:
-                raise Exception(f"Ambigious whether {self} < {other}")
-
-        elif isinstance(other, TimedeltaEstimate):
-            if self.td2 + self.uncertainty < other.td - other.uncertainty:
-                return True
-            elif self.td2 - self.uncertainty >= other.td + other.uncertainty:
-                return False
-            else:
-                raise Exception(f"Ambigious whether {self} < {other}")
-
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} < {type(other)}={other}')
-
-    def __gt__(self, other):
-        if isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
-            if self.td1 - self.uncertainty > other:
-                return True
-            elif self.td1 + self.uncertainty <= other:
-                return True
-            else:
-                raise Exception(f"Ambigious whether {self} > {other}")
-                
-        elif isinstance(other, TimedeltaEstimate):
-            if self.td1 - self.uncertainty > other.td + other.uncertainty:
-                return True
-            elif self.td1 + self.uncertainty <= other.td - other.uncertainty:
-                return False
-            else:
-                raise Exception(f"Ambigious whether {self} > {other}")
-
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} > {type(other)}={other}')
-
-    def __le__(self, other):
-        if self.__lt__(other):
-            return True
-        elif self.__gt__(other):
-            return False
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} <= {type(other)}={other}')
-        
-    def __ge__(self, other):
-        if self.__gt__(other):
-            return True
-        elif self.__lt__(other):
-            return False
-        raise NotImplementedError(f'Not implemented TimedeltaRangeEstimate={self} >= {type(other)}={other}')
-        
-    def __abs__(self):
-        return TimedeltaRangeEstimate(abs(self.td1), abs(self.td2), self.confidence)
-
-
-class TimedeltaRange():
-    def __init__(self, td1, td2):
-        if (td1 is not None) and not isinstance(td1, (timedelta, pd.Timedelta)):
-            raise Exception("'td1' must be a 'timedelta' object or None, not {0}".format(type(td1)))
-        if (td2 is not None) and not isinstance(td2, (timedelta, pd.Timedelta)):
-            raise Exception("'td2' must be a 'timedelta' object or None, not {0}".format(type(td2)))
-        if td2 <= td1:
-            swap = td1 ; td1 = td2 ; td2 = swap
-        self.td1 = td1
-        self.td2 = td2
-
-    def __str__(self):
-        s = f"TimedeltaRange {self.td1} -> {self.td2}"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __le__(self, other):
-        if isinstance(other, (timedelta, pd.Timedelta)):
-            return self.td2 <= other
-        raise NotImplementedError(f'Not implemented TimedeltaRange={self} <= {type(other)}={other}')
-
-    def __ge__(self, other):
-        if isinstance(other, (timedelta, pd.Timedelta)):
-            return self.td2 >= other
-        raise NotImplementedError(f'Not implemented TimedeltaRange={self} >= {type(other)}={other}')
-
-
-class DateRangeEstimate():
-    def __init__(self, start, end, confidence):
-        if (start is not None) and not isinstance(start, date):
-            raise Exception("'start' must be a 'date' object or None, not {0}".format(type(start)))
-        if (end is not None) and not isinstance(end, date):
-            raise Exception("'end' must be a 'date' object or None, not {0}".format(type(end)))
-        if not isinstance(confidence, yfcd.Confidence):
-            raise Exception("'confidence' must be a 'Confidence' object, not {0}".format(type(confidence)))
-        self.start = start
-        self.end = end
-        self.confidence = confidence
-        self.uncertainty = confidence_to_buffer[confidence]
-
-    def copy(self):
-        return DateRangeEstimate(self.start, self.end, self.confidence)
-
-    def __str__(self):
-        s = f"{self.start} -> {self.end} ({self.confidence})"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __lt__(self, other):
-        if isinstance(other, date):
-            if self.end + self.uncertainty < other:
-                return True
-            elif self.start - self.uncertainty >= other:
-                return False
-            else:
-                raise Exception(f"Ambigious whether {self} < {other}")
-
-        elif isinstance(other, DateEstimate):
-            if self.end + self.uncertainty < other - other.uncertainty:
-                return True
-            elif self.start - self.uncertainty >= other + other.uncertainty:
-                return False
-            else:
-                raise Exception(f"Ambigious whether {self} < {other}")
-
-        elif isinstance(other, DateRangeEstimate):
-            if self.end + self.uncertainty < other.start - other.uncertainty:
-                return True
-            elif self.start - self.uncertainty >= other.end + other.uncertainty:
-                return False
-            else:
-                raise Exception(f"Ambigious whether {self} < {other}")
-
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} < {type(other)}={other}')
-
-    def __le__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} <= {type(other)}={other}')
-
-    def __gt__(self, other):
-        if isinstance(other, DateEstimate):
-            return other.__lt__(self)
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        if isinstance(other, DateEstimate):
-            return other.__le__(self)
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} >= {type(other)}={other}')
-
-    def __eq__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} == {type(other)}={other}')
-
-    def __iadd__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} += {type(other)}={other}')
-    def __add__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} + {type(other)}={other}')
-    def __radd__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} radd {type(other)}={other}')
-
-    def __isub__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} -= {type(other)}={other}')
-    def __sub__(self, other):
-        if isinstance(other, DateEstimate):
-            conf = min(self.confidence, other.confidence)
-            return TimedeltaRangeEstimate(self.start - other, self.end - other, conf)
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} - {type(other)}={other}')
-    def __rsub__(self, other):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} rsub {type(other)}={other}')
-
-    def __neg__(self):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} negate')
-    def __invert__(self):
-        raise NotImplementedError(f'Not implemented DateRangeEstimate={self} invert')
-
-
-class DateRange():
-    def __init__(self, start, end):
-        if (start is not None) and not isinstance(start, date):
-            raise Exception("'start' must be a 'date' object or None, not {0}".format(type(start)))
-        if (end is not None) and not isinstance(end, date):
-            raise Exception("'end' must be a 'date' object or None, not {0}".format(type(end)))
-        self.start = start
-        self.end = end
-
-    def copy(self):
-        return DateRange(self.start, self.end)
-
-    def __str__(self):
-        s = f"({self.start} -> {self.end})"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __lt__(self, other):
-        if isinstance(other, date):
-            if self.end <= other:
-                return True
-            elif other < self.start:
-                return False
-            raise NotImplementedError(f"Not sure how to implement date < date-range when date is inside range (date={other}, range={self}")
-
-        elif isinstance(other, DateEstimate):
-            return self.end <= other
-
-        raise NotImplementedError(f'Not implemented DateRange={self} < {type(other)}={other}')
-
-    def __le__(self, other):
-        if isinstance(other, date):
-            if self.end <= other:
-                return True
-            elif other < self.start:
-                return False
-            else:
-                raise NotImplementedError(f"Not sure how to implement date < date-range when date is inside range (date={other}, range={self}")
-
-        raise NotImplementedError(f'Not implemented DateRange={self} <= {type(other)}={other}')
-
-    def __gt__(self, other):
-        if isinstance(other, date):
-            if self.start > other:
-                return True
-            elif other >= self.end:
-                return False
-            raise NotImplementedError(f"Not sure how to implement date > date-range when date is inside range (date={other}, range={self}")
-        raise NotImplementedError(f'Not implemented DateRange={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        if isinstance(other, date):
-            return not self.__lt__(other)
-        elif isinstance(other, DateEstimate):
-            return self.start >= other
-
-        raise NotImplementedError(f'Not implemented DateRange={self} >= {type(other)}={other}')
-
-    def __eq__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} == {type(other)}={other}')
-
-    def __iadd__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} += {type(other)}={other}')
-    def __add__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} + {type(other)}={other}')
-    def __radd__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} radd {type(other)}={other}')
-
-    def __isub__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} -= {type(other)}={other}')
-    def __sub__(self, other):
-        if isinstance(other, date):
-            return TimedeltaRange(self.start - other, self.end - other)
-        elif isinstance(other, DateEstimate):
-            return TimedeltaRangeEstimate(self.start - other, self.end - other, other.confidence)
-        raise NotImplementedError(f'Not implemented DateRange={self} - {type(other)}={other}')
-    def __rsub__(self, other):
-        raise NotImplementedError(f'Not implemented DateRange={self} rsub {type(other)}={other}')
-
-    def __neg__(self):
-        raise NotImplementedError(f'Not implemented DateRange={self} negate')
-    def __invert__(self):
-        raise NotImplementedError(f'Not implemented DateRange={self} invert')
-
-
-class DateEstimate():
-    def __init__(self, dt, confidence):
-        if not isinstance(confidence, yfcd.Confidence):
-            raise Exception("'confidence' must be a 'Confidence' object, not {0}".format(type(confidence)))
-        if not isinstance(dt, (date, DateEstimate)):
-            raise Exception("'dt' must be a 'date' object or None, not {0}".format(type(dt)))
-        if isinstance(dt, DateEstimate):
-            self.date = dt.date
-            self.confidence = min(dt.confidence, confidence)
+                less_than = pivot.prob_gt(val) > 0.5
+        if less_than:
+            less.append(val)
         else:
-            self.date = dt
-            self.confidence = confidence
-        self.uncertainty = confidence_to_buffer[confidence]
+            greater.append(val)
 
-    def copy(self):
-        return DateEstimate(self.date, self.confidence)
-
-    def __str__(self):
-        s = f"{self.date} ({self.confidence})"
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __lt__(self, other):
-        date_cautious = self.date + self.uncertainty
-        if isinstance(other, date):
-            if self.date < other:
-                if date_cautious < other:
-                    return True
-                raise Exception(f'Ambiguous whether {self} is less-than {other}')
-            elif other <= self.date:
-                if other <= date_cautious:
-                    return False
-                raise Exception(f'Ambiguous whether {self} is less-than {other}')
-            raise NotImplementedError('Code path')
-        elif isinstance(other, DateEstimate):
-            if self.date < other.date:
-                other_date_cautious = other.date - self.uncertainty
-                if date_cautious < other_date_cautious:
-                    return True
-                raise Exception(f'Ambiguous whether {self} is less-than {other}')
-            elif self.date >= other.date:
-                other_date_cautious = other.date + self.uncertainty
-                if date_cautious >= other_date_cautious:
-                    return False
-                raise Exception(f'Ambiguous whether {self} is less-than {other}')
-        elif isinstance(other, (DateRangeEstimate, DateRange)):
-            return other.__ge__(self)
-
-        raise NotImplementedError(f'Not implemented DateEstimate={self} < {type(other)}={other}')
-
-    def __le__(self, other):
-        # raise NotImplementedError(f'other={other}, {type(other)}')
-        return not self.__gt__(other)
-
-    def __gt__(self, other):
-        if isinstance(other, date):
-            if self.date > other:
-                if self.date - self.uncertainty > other:
-                    return True
-                raise Exception(f'Ambiguous whether {self} is greater-than {other}')
-            elif other >= self.date + self.uncertainty:
-                if other >= self.date:
-                    return False
-                raise Exception(f'Ambiguous whether {self} is greater-than {other}')
-            raise NotImplementedError('Code path')
-        elif isinstance(other, DateEstimate):
-            if self.date > other.date:
-                if self.date - self.uncertainty > other.date + other.uncertainty:
-                    return True
-                raise Exception(f'Ambiguous whether {self} is greater-than {other}')
-            elif other.date >= self.date:
-                if other.date - other.uncertainty >= self.date + self.uncertainty:
-                    return False
-                raise Exception(f'Ambiguous whether {self} is greater-than {other}')
-
-        elif isinstance(other, (DateRangeEstimate, DateRange)):
-            return other.__le__(self)
-        raise NotImplementedError(f'Not implemented DateEstimate={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        # return other.__le__(self)
-        return not self.__lt__(other)
-
-    def __eq__(self, other):
-        self_cautious_lower = self.date - self.uncertainty
-        self_cautious_upper = self.date + self.uncertainty +timedelta(days=1)
-
-        if isinstance(other, DateEstimate):
-            other_cautious_lower = other.date - other.uncertainty
-            other_cautious_upper = other.date + other.uncertainty +timedelta(days=1)
-        else:
-            other_cautious_lower = other
-            other_cautious_upper = other +timedelta(days=1)
-
-        if self_cautious_upper <= other_cautious_lower or other_cautious_upper <= self_cautious_lower:
-            # Definitely not overlapping
-            return False
-        raise NotImplementedError(f'Not implemented DateEstimate={self} = {type(other)}={other}')
-
-    def isclose(self, other):
-        if isinstance(other, DateEstimate):
-            return abs(self.date - other.date) < min(self.uncertainty, other.uncertainty)
-        else:
-            return abs(self.date - other) < self.uncertainty
-        raise NotImplementedError(f'Not implemented DateEstimate={self} is-close-to {type(other)}={other}')
-
-    def __iadd__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            self.date += other
-            return self
-        raise NotImplementedError(f'Not implemented DateEstimate={self} += {type(other)}={other}')
-    def __add__(self, other):
-        if isinstance(other, TimedeltaEstimate):
-            return DateEstimate(self.date+other.td, min(self.confidence, other.confidence))
-        elif isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            return DateEstimate(self.date+other, self.confidence)
-        raise NotImplementedError(f'Not implemented DateEstimate={self} + {type(other)}={other}')
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __isub__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            self.date -= other
-            return self
-        raise NotImplementedError(f'Not implemented DateEstimate={self} -= {type(other)}={other}')
-    def __sub__(self, other):
-        if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
-            return DateEstimate(self.date-other, self.confidence)
-        elif isinstance(other, DateEstimate):
-            td = self.date - other.date
-            c0 = self.confidence
-            c1 = other.confidence
-            if min(c0, c1) == yfcd.Confidence.Medium:
-                return TimedeltaEstimate(td, min(c0, c1))
-            else:
-                print(c0, type(c0))
-                print(c1, type(c1))
-                raise NotImplementedError(f"__sub__ not implemented between DateEstimates with confidences {c0} and {c1}")
-        elif isinstance(other, date):
-            # return self.date - other
-            return TimedeltaEstimate(self.date-other, self.confidence)
-        raise NotImplementedError(f'Not implemented DateEstimate={self} - {type(other)}={other}')
-    def __rsub__(self, other):
-        if isinstance(other, DateEstimate):
-            return other.date - self.date
-        elif isinstance(other, date):
-            return other - self.date
-        raise NotImplementedError(f'Not implemented DateEstimate={self} rsub {type(other)}={other}')
-
-    def __neg__(self):
-        raise NotImplementedError(f'Not implemented DateEstimate={self} negate')
-    def __invert__(self):
-        raise NotImplementedError(f'Not implemented DateEstimate={self} invert')
+    return sort_estimates(less) + [pivot] + sort_estimates(greater)
 
 
 class EarningsRelease():
-    def __init__(self, period_end, release_date):
-        if (period_end is not None) and not isinstance(period_end, (date, DateEstimate)):
-            raise Exception("'period_end' must be a 'DateEstimate' or date object or None, not {0}".format(type(period_end)))
+    def __init__(self, interval, period_end, release_date, full_year_end):
+        if not isinstance(period_end, (date, yfcd.DateEstimate)):
+            raise Exception("'period_end' must be a 'yfcd.DateEstimate' or date object or None, not {0}".format(type(period_end)))
         if (release_date is not None):
-            if not isinstance(release_date, (date, DateEstimate)):
-                raise Exception("'release_date' must be a 'DateEstimate' or date object or None, not {0}".format(type(release_date)))
+            if not isinstance(release_date, (date, yfcd.DateEstimate)):
+                raise Exception("'release_date' must be a 'yfcd.DateEstimate' or date object or None, not {0}".format(type(release_date)))
             if release_date < period_end:
                 raise Exception("release_date={0} cannot occur before period_end={1}".format(release_date, period_end))
             if release_date > (period_end + timedelta(days=90)):
                 raise Exception("release_date={0} shouldn't occur 90 days after period_end={1}".format(release_date, period_end))
+        if not isinstance(full_year_end, date):
+            raise Exception("'full_year_end' must be a date object or None, not {0}".format(type(full_year_end)))
+        self.interval = interval
         self.period_end = period_end
         self.release_date = release_date
+        self.full_year_end = full_year_end
 
     def __str__(self):
-        s = "Released at unknown date" if self.release_date is None else "Released on {0}".format(self.release_date)
-        s += ": "
-        s += " for period ending {0}".format(self.period_end)
+        s = f'{self.interval} earnings'
+        s += f" ending {self.period_end}"
+        s += " released"
+        s += " ?" if self.release_date is None else f" {self.release_date}"
         return s
+
+    def __repr__(self):
+        return self.__str__()
 
     def __lt__(self, other):
         return self.period_end < other.period_end or (self.period_end == other.period_end and self.release_date < other.release_date)
@@ -726,6 +99,27 @@ class EarningsRelease():
     def __ge__(self, other):
         return (self == other) or (self > other)
 
+    def is_end_of_year(self):
+        r_is_end_of_year = False
+        rpe = self.period_end
+        diff = (rpe - self.full_year_end)
+        diff += timedelta(days=365)  # just in case is negative
+        diff = diff % timedelta(days=365)
+        try:
+            if (diff > timedelta(days=-15) and diff < timedelta(days=15)) or\
+                (diff > timedelta(days=350) and diff < timedelta(days=370)):
+                # Aligns with annual release date
+                r_is_end_of_year = True
+        except yfcd.AmbiguousComparisonException:
+            r_is_end_of_year = True
+        return r_is_end_of_year
+
+
+interval_str_to_days = {}
+interval_str_to_days['ANNUAL'] = yfcd.ComparableRelativedelta(years=1)
+interval_str_to_days['HALF'] = yfcd.ComparableRelativedelta(months=6)
+interval_str_to_days['QUART'] = yfcd.ComparableRelativedelta(months=3)
+
 
 class FinancialsManager:
     def __init__(self, ticker, exchange, tzName, session):
@@ -739,10 +133,8 @@ class FinancialsManager:
         self.session = session
         self.dat = yf.Ticker(self.ticker, session=self.session)
 
-        # self.logger = None
-
-        self._earnings = None
-        self._quarterly_earnings = None
+        # self._earnings = None
+        # self._quarterly_earnings = None
         self._income_stmt = None
         self._quarterly_income_stmt = None
         self._balance_sheet = None
@@ -752,6 +144,9 @@ class FinancialsManager:
 
         self._earnings_dates = None
         self._calendar = None
+
+        self._pruned_tbl_cache = {}
+        self._fin_tbl_cache = {}
 
     def get_income_stmt(self, refresh=True):
         if self._income_stmt is not None:
@@ -801,7 +196,14 @@ class FinancialsManager:
         if not isinstance(period, yfcd.ReportingPeriod):
             raise Exception('Argument period must be type ReportingPeriod')
 
-        # if period == 'quarterly':
+        cache_key = (finType, period, refresh)
+        if cache_key in self._fin_tbl_cache:
+            return self._fin_tbl_cache[cache_key]
+        if not refresh:
+            cache_key2 = (finType, period, True)
+            if cache_key2 in self._fin_tbl_cache:
+                return self._fin_tbl_cache[cache_key2]
+
         if period == yfcd.ReportingPeriod.Interim:
             name = 'quarterly_'
         else:
@@ -861,57 +263,73 @@ class FinancialsManager:
                     do_fetch = True
             else:
                 td_1d = pd.Timedelta(1, unit='D')
-                dates = self._get_release_dates(finType, period, refresh=False)
+                releases = self.get_release_dates(period, refresh=False)
                 if debug:
-                    print("- dates:") ; print(dates)
-                if dates is None:
+                    print("- releases:") ; pprint(releases)
+                if releases is None:
                     # Use crude logic to estimate when to re-fetch
                     if 'LastFetch' in md.keys():
                         do_fetch = md['LastFetch'] < (dt_now - td_1d*30)
                     else:
                         do_fetch = True
                 else:
-                    idx = dates.index.get_loc(df.columns.max().date())
-                    if idx == dates.shape[0] - 1:
-                        raise Exception('Function _get_release_dates() failed to return estimations of future earnings releases')
-                    next_release = dates.iloc[idx+1]
+                    next_release = None
+                    last_d = df.columns.max().date()
+                    for r in releases:
+                        # Release is newer than cache
+                        try:
+                            if r.period_end <= last_d:
+                                continue
+                        except yfcd.AmbiguousComparisonException:
+                            # Treat as match
+                            continue
+
+                        try:
+                            fetched_long_after_release = md['LastFetch'].date() > (r.release_date + yf_max_grace_days_period)
+                        except yfcd.AmbiguousComparisonException:
+                            fetched_long_after_release = False
+                        if not fetched_long_after_release:
+                            next_release = r
+                            break
+                    if next_release is None:
+                        pprint(releases)
+                        print("- last_d =", last_d)
+                        raise Exception('Failed to determine next release after cached financials')
                     if debug:
-                        print("- next_release:", next_release.to_dict(), 'period ending =', next_release.name)
-                    rd = next_release['Release date']
-                    rdc = yfcd.Confidence(int(next_release['RD confidence']))
-                    if rdc != yfcd.Confidence.High:
-                        rde = DateEstimate(rd, rdc)
-                        if rde.isclose(d_today):
-                            next_release_in_future = False
-                        else:
-                            next_release_in_future = rde > d_today
-                    else:
+                        print("- last_d =", last_d, ", last_fetch =", md['LastFetch'])
+                        print("- next_release:", next_release)
+                    rd = next_release.release_date
+                    try:
                         next_release_in_future = rd > d_today
+                    except yfcd.AmbiguousComparisonException:
+                        next_release_in_future = False
                     if debug:
                         print("- next_release_in_future =", next_release_in_future)
                     if not next_release_in_future:
+                        try:
+                            fair_to_expect_Yahoo_updated = (d_today-rd) >= yf_min_grace_days_period
+                        except yfcd.AmbiguousComparisonException:
+                            fair_to_expect_Yahoo_updated = True
                         if debug:
-                            print("- expect new release, but did we already fetch recently?")
-                        rd_delta = rd - dt_now.date()
-                        if rdc == yfcd.Confidence.Medium and rd_delta > pd.Timedelta(7, unit='d'):
-                            if 'LastFetch' in md.keys() and md['LastFetch'] < dt_now - td_1d*3:
-                                do_fetch = True
-                        elif rdc == yfcd.Confidence.Low and rd_delta > pd.Timedelta(30, unit='d'):
-                            if 'LastFetch' in md.keys() and md['LastFetch'] < dt_now - td_1d*7:
+                            print("- fair_to_expect_Yahoo_updated =", fair_to_expect_Yahoo_updated)
+                        if fair_to_expect_Yahoo_updated:
+                            if debug:
+                                print("- expect new release, but did we already fetch recently?")
+                            if md['LastFetch'] < (dt_now - yf_spam_window):
                                 do_fetch = True
 
         if debug:
             print("- do_fetch =", do_fetch)
         if do_fetch:
-            if df is not None:
-                raise Exception('Review whether should be re-fetching financials')
+            if print_fetches:
+                msg = f"{self.ticker}: fetching {name}"
+                if md is not None:
+                    msg += f" (last fetch = {md['LastFetch']})"
+                print(msg)
             df_new = getattr(self.dat, name)
             fetch_dt = pd.Timestamp.utcnow().tz_convert(self.tzName)
             if md is None:
-                md_old = None
                 md = {'FetchDates':{}}
-            else:
-                md_old = dict(md)
             for dt in df_new.columns:
                 md['FetchDates'][dt] = fetch_dt
             md['LastFetch'] = fetch_dt
@@ -919,20 +337,46 @@ class FinancialsManager:
                 df = df_new
             elif df_new is not None and not df_new.empty:
                 df_pruned = df.drop([c for c in df.columns if c in df_new], axis=1)
-                if df_pruned.empty:
-                    print("- df:", df.columns, df.shape)
-                    print("- df_new:", df_new.columns, df_new.shape)
-                    print("- metadata old:") ; pprint(md_old)
-                    print(" - release dates:") ; print(dates)
-                    raise Exception('Why asking Yahoo for financials when nothing new ready?')
-                    df = df_new
-                else:
-                    print("- df:", df.columns) ; print(df)
-                    print("- df_new:", df_new.columns) ; print(df_new)
-                    print("- df_pruned:") ; print(df_pruned)
-                    raise Exception('need to implement merging 2x financials tables, review, particularly row names')
+                df_new_pruned = df_new.drop([c for c in df_new.columns if c in df], axis=1)
+                if df_pruned.empty and df_new_pruned.empty:
+                    if hasattr(next_release.release_date, 'confidence') and next_release.release_date.confidence == yfcd.Confidence.Low:
+                        # Probably not released yet
+                        pass
+                    # else:
+                    #     # Update: also check if a large amount of time has passed since release.
+                    #     # Will Yahoo ever have it?
+                    #     td_since_release = d_today - next_release.release_date
+                    #     try:
+                    #         Yahoo_very_late = td_since_release > yf_max_grace_days_period
+                    #     except yfcd.AmbiguousComparisonException:
+                    #         Yahoo_very_late = False
+                    #     if Yahoo_very_late:
+                    #         # print("- next_release:", next_release)
+                    #         # print("- df:", df.columns, df.shape)
+                    #         # print("- df_new:", df_new.columns, df_new.shape)
+                    #         # print("- metadata old:") ; pprint(md_old)
+                    #         # print("- td_since_release:", td_since_release)
+                    #         ok = click.confirm(f"WARNING: Yahoo very late uploading newer {finType} for {self.ticker}, is this acceptable?", default=False)
+                    #         if ok:
+                    #             # print(f"WARNING: Yahoo missing newer financials for {self.ticker}")
+                    #             pass
+                    #         else:
+                    #             # print("- next_release:", next_release)
+                    #             # print("- df:", df.columns, df.shape)
+                    #             # print("- df_new:", df_new.columns, df_new.shape)
+                    #             # print("- metadata old:") ; pprint(md_old)
+                    #             raise Exception(f'Why asking Yahoo for {finType} when nothing new ready?')
+                elif not df_new.empty:
+                    if df_pruned.empty:
+                        df = df_new
+                    else:
+                        print("- df:", df.columns) ; print(df)
+                        print("- df_new:", df_new.columns) ; print(df_new)
+                        print("- df_pruned:") ; print(df_pruned)
+                        raise Exception('need to implement merging 2x financials tables, review, particularly row names')
             yfcm.StoreCacheDatum(self.ticker, name, df, metadata=md)
 
+        self._fin_tbl_cache[cache_key] = df
         return df
 
     def _get_interval_from_table(self, tbl):
@@ -940,56 +384,60 @@ class FinancialsManager:
         # debug = True
 
         if debug:
-            print(f"_get_interval_from_table()")
+            print("_get_interval_from_table()")
 
         dates = tbl.columns
 
-        # Ensure only well-populated columns are retained, corresponding to 
-        # report releases
+        # Ensure only well-populated columns are retained, corresponding to report releases
         tbl = self._prune_yf_financial_df(tbl)
         tbl = tbl[tbl.columns.sort_values(ascending=False)]
         dates = tbl.columns
         if debug:
             print("- tbl:") ; print(tbl)
         if len(dates) <= 1:
-            return TimedeltaEstimate(ComparableRelativedelta(months=6), yfcd.Confidence.Medium)
+            return yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=6), yfcd.Confidence.Medium)
 
         interval = None
         intervals = [(dates[i-1] - dates[i]).days for i in range(1,len(dates))]
+        sdm_thresold = 0.1
         if len(intervals) == 1:
             interval = intervals[0]
         else:
             avg = mean(intervals)
             sdm = stdev(intervals) / avg
-            if sdm > 0.02:
+            if sdm > sdm_thresold:
+                # Discard large outliers
                 intervals = np.array(intervals)
                 intervals = intervals[intervals<avg]
                 if len(intervals) == 1:
                     interval = intervals[0]
                 else:
-                    avg = mean(intervals)
-                    sdm = stdev(intervals) / avg
-                    if sdm > 0.02:
-                        print("- raw tbl periods:") ; print(self._get_fin_table(finType, yfcd.ReportingPeriod.Interim, refresh).columns)
+                    avg = np.mean(intervals)
+                    sdm = np.std(intervals) / avg
+                    if sdm > sdm_thresold:
+                        print(f"- avg {avg}, sdm = {sdm}")
+                        print("- raw tbl periods:") ; print(tbl.columns)
                         print("- intervals =", intervals)
                         raise Exception("{0}: earnings interval inference failed - variance too high (sdm={1:.1f}%)".format(self.ticker, sdm*100))
+                    else:
+                        interval = avg
             else:
                 interval = int(avg)
+        if interval is None:
+            print(tbl)
+            raise Exception('Why no interval derived from tbl?')
         if debug:
             print("- interval:", interval)
-        # tol = 30
-        # tol = 40
         tol = 20
-        confident = True
         if abs(interval-365) < tol:
-            return ComparableRelativedelta(years=1)
+            return yfcd.ComparableRelativedelta(years=1)
         elif abs(interval-182) < tol:
-            return ComparableRelativedelta(months=6)
+            return yfcd.ComparableRelativedelta(months=6)
         elif abs(interval-91) < tol:
-            return ComparableRelativedelta(months=3)
+            return yfcd.ComparableRelativedelta(months=3)
         elif abs(interval-274) < tol:
             # 9 months, nonsense, but implies quarterly
-            return TimedeltaEstimate(ComparableRelativedelta(months=3), yfcd.confidence.Medium)
+            return yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=3), yfcd.Confidence.Medium)
         else:
             raise Exception(f"{self.ticker}: interval = {interval} doesn't fit standard intervals")
 
@@ -1007,31 +455,150 @@ class FinancialsManager:
 
         return self._get_interval_from_table(tbl)
 
-    def _get_release_dates(self, finType, period, refresh=True):
+    def get_release_dates(self, period, as_df=False, refresh=True, check=False):
+        # First, check cache:
+        if period == yfcd.ReportingPeriod.Full:
+            cache_key = "full"
+        elif period == yfcd.ReportingPeriod.Interim:
+            cache_key = "interim"
+        else:
+            raise Exception(f"Unknown period value '{period}'")
+        cache_key += "-release-dates"
+        releases, md = None, None
+        if yfcm.IsDatumCached(self.ticker, cache_key):
+            releases, md = yfcm.ReadCacheDatum(self.ticker, cache_key, True)
+            if len(releases) == 0:
+                releases = None
+
+        max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
+        dt_now = pd.Timestamp.now()
+        d_exchange = pd.Timestamp.utcnow().tz_convert(self.tzName).date()
+        if releases is None:
+            if md is None:
+                do_calc = True
+            else:
+                do_calc = md['CalcDate'] < (dt_now - max_age)
+        else:
+            do_calc = False
+
+            # Check if cached release dates need a recalc
+            if md['CalcDate'] < (dt_now - max_age):
+                prev_r, next_r = None, None
+                for i in range(len(releases)-1):
+                    r0 = releases[i]
+                    r1 = releases[i+1]
+                    try:
+                        r_is_history = r0.release_date < d_exchange
+                    except yfcd.AmbiguousComparisonException:
+                        r_is_history = r0.release_date.prob_lt(d_exchange) > 0.9
+                    if r_is_history:
+                        prev_r = r0
+                        next_r = r1
+                if hasattr(prev_r, 'confidence'):
+                    do_calc = True
+                elif hasattr(next_r, 'confidence'):
+                    try:
+                        d_exchange < next_r.release_date
+                    except yfcd.AmbiguousComparisonException:
+                        print("- next release date is estimated, time to recalc:", next_r)
+                        do_calc = True
+                raise Exception('review cached release dates:')
+
+        if do_calc:
+            releases = self._calc_release_dates(period, refresh, check)
+            md = {'CalcDate':pd.Timestamp.now()}
+            if releases is None:
+                yfcm.StoreCacheDatum(self.ticker, cache_key, [], metadata=md)
+            else:
+                yfcm.StoreCacheDatum(self.ticker, cache_key, releases, metadata=md)
+        if releases is None:
+            return None
+
+        if not as_df:
+            return releases
+
+        period_ends = []
+        period_ends_est = []
+        release_dates = []
+        release_dates_est = []
+        delays = []
+        for r in releases:
+            rpe = r.period_end ; rrd = r.release_date
+            if rpe is None or rrd is None:
+                print(r)
+                raise Exception('Release missing dates')
+            period_ends.append(rpe if isinstance(rpe, date) else rpe.date)
+            period_ends_est.append(rpe.confidence if isinstance(rpe, yfcd.DateEstimate) else yfcd.Confidence.High)
+            dt1 = rpe if isinstance(rpe, date) else rpe.date
+            if isinstance(rrd, yfcd.DateRange):
+                rrd_range = rrd.end - rrd.start
+                release_dates_est.append(yfcd.Confidence.High)
+                release_dates.append((rrd.start, rrd.end))
+                midpoint = rrd.start + timedelta(days=rrd_range.days//2)
+                delays.append(midpoint - dt1)
+            elif isinstance(rrd, yfcd.yfcd.DateRangeEstimate):
+                release_dates_est.append(rrd.confidence)
+                rrd_range = rrd.end - rrd.start
+                midpoint = rrd.start + rrd_range*0.5
+                if isinstance(midpoint, datetime):
+                    midpoint = midpoint.date()
+                release_dates.append((rrd.start, rrd.end))
+                delays.append(midpoint - dt1)
+            else:
+                release_dates.append(rrd if isinstance(rrd, date) else rrd.date)
+                release_dates_est.append(rrd.confidence if isinstance(rrd, yfcd.DateEstimate) else yfcd.Confidence.High)
+                dt2 = rrd if isinstance(rrd, date) else rrd.date
+                delays.append(dt2 - dt1)
+        df = pd.DataFrame({'Period end':period_ends, 'PE confidence':period_ends_est, 'Release date':release_dates, 'RD confidence':release_dates_est, 'Delay':delays})
+        df['Period end'] = pd.to_datetime(df['Period end'])
+        df['Period end'] = df['Period end'].dt.tz_localize(self.tzName)
+        df = df.set_index('Period end')
+
+        # Set timezone
+        # release_dates_formatted = []
+        # for i in range(df.shape[0]):
+        #     idx = df.index[i]
+        #     x = df['Release date'].iloc[i]
+        #     if isinstance(x, tuple):
+        #         x = (pd.to_datetime(x[0]).tz_localize(self.tzName), pd.to_datetime(x[1]).tz_localize(self.tzName))
+        #     else:
+        #         x = pd.to_datetime(x).tz_localize(self.tzName)
+        #     release_dates_formatted.append(x)
+        # df['Release date'] = release_dates_formatted
+
+        return df
+
+    def _calc_release_dates(self, period, refresh=True, check=False):
         debug = False
         # debug = True
 
         if debug:
-            print(f"_get_release_dates({finType}, {period}, refresh={refresh})")
+            print(f"_calc_release_dates({period}, refresh={refresh})")
 
-        if not isinstance(finType, yfcd.Financials):
-            raise Exception('Argument finType must be type Financials')
         if not isinstance(period, yfcd.ReportingPeriod):
             raise Exception('Argument period must be type ReportingPeriod')
+        yfcu.TypeCheckBool(refresh, 'refresh')
+        yfcu.TypeCheckBool(check, 'check')
 
-        tbl = self._get_fin_table(finType, period, refresh)
+        # Get period ends
+        tbl = None
+        finType = None
+        for f in yfcd.Financials:
+            t = self._get_fin_table(f, period, refresh)
+            t = self._prune_yf_financial_df(t)
+            if tbl is None:
+                tbl = t ; finType = f
+            elif t is not None and t.shape[1] > tbl.shape[1]:
+                tbl_wasnt_empty = not tbl.empty
+                tbl = t ; finType = f
+                if tbl_wasnt_empty:
+                    break
+
         if tbl is None or tbl.empty:
             return None
-
         tbl_cols = tbl.columns
         if isinstance(tbl_cols[0], (datetime, pd.Timestamp)):
             tbl_cols = [c.date() for c in tbl_cols]
-
-        tbl = self._prune_yf_financial_df(tbl)
-        tbl_cols = tbl.columns
-        if isinstance(tbl_cols[0], (datetime, pd.Timestamp)):
-            tbl_cols = [c.date() for c in tbl_cols]
-
         period_ends = [d.date() for d in tbl.columns if d.date() <= d_today]
         period_ends.sort(reverse=True)
         if debug:
@@ -1039,47 +606,54 @@ class FinancialsManager:
             for x in period_ends:
                 print(x)
 
-        cal_release_dates_tagged = self._get_tagged_calendar_dates(refresh)
+        # Get calendar
+        cal_release_dates = self._get_calendar_dates(refresh)
         if debug:
-            print("- cal_release_dates_tagged:")
-            for x in cal_release_dates_tagged:
-                print(x)
-
-        release_dates_tagged = []
-        limit = 16
-        try:
-            edf = self.get_earnings_dates(limit=limit, refresh=refresh, clean=False)
-        except Exception as ex:
-            if "No data found, symbol may be delisted" in str(ex):
-                edf = None
+            if len(cal_release_dates) == 0:
+                print("- calendar empty")
             else:
-                print("Ticker ", self.ticker)
-                raise
-        if edf is not None:
-            while edf.index[-1] > tbl.columns.min().tz_localize(self.tzName):
-                limit += 4
-                edf_old = edf ; edf = self.get_earnings_dates(limit=limit, refresh=refresh, clean=False)
-                if edf.equals(edf_old):
-                    # Yahoo has no more data
-                    break
-        if edf is not None and edf.empty:
-            raise Exception("Investigate why edf empty")
-        if debug:
-            print("- edf:")
-            print(edf)
+                print("- cal_release_dates:")
+                for x in cal_release_dates:
+                    print(x)
 
+        # Get earnings dates
+        edf = self.get_earnings_dates(start=tbl.columns.min().date(), refresh=refresh, clean=False)
+
+        # Get full year end date
+        tbl = None
+        for f in yfcd.Financials:
+            t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh=False)  # minimise fetches
+            t = self._prune_yf_financial_df(t)
+            if t is not None and not t.empty:
+                tbl = t
+                break
+        if tbl is None and refresh:
+            for f in yfcd.Financials:
+                t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh)
+                t = self._prune_yf_financial_df(t)
+                if t is not None and not t.empty:
+                    tbl = t
+                    break
+        if not tbl.empty:
+            year_end = tbl.columns.max().date()
+        else:
+            year_end = None
+        if pd.isna(year_end):
+            print(tbl.iloc[0:4])
+            raise Exception("'year_end' is NaN")
+        if debug:
+            print("- year_end =", year_end)
+
+        # Clean earnings dates
         if (edf is None) or (edf.shape[0]==0):
             if debug:
                 print("- earnings_dates table is empty")
-            release_dates = cal_release_dates_tagged
+            release_dates = cal_release_dates
         else:
             # Prune old dates
             f_old = edf.index.date < period_ends[-1]
             if f_old.any():
                 edf = edf[~f_old]
-            if debug:
-                print("- edf after prune-old:")
-                print(edf)
 
             if edf.shape[0] > 1:
                 # Drop dates that occurred just before another
@@ -1089,86 +663,62 @@ class FinancialsManager:
                 x_near = np.abs(d) < pd.Timedelta(5, "days")
                 if x_near.any():
                     edf = edf[~x_near]
-                # if debug:
-                #     print("- edf after prune-near-dups:")
-                #     print(edf)
                 edf = edf.sort_index(ascending=False)
 
-            if debug:
-                print("- edf pruned:")
-                print(edf)
+            release_dates = cal_release_dates
 
             for i in range(edf.shape[0]):
                 dt = edf.index[i].date()
                 r = edf.iloc[i]
-
                 td = None
-
                 if td is None:
                     if pd.isnull(r["Reported EPS"]) and pd.isnull(r["Surprise(%)"]) and not r['Date confirmed?']:
-                    # if pd.isnull(r["EPS Estimate"]) and pd.isnull(r["Reported EPS"]) and pd.isnull(r["Surprise(%)"]) and not r['Date confirmed?']:
-                        # td = DateEstimate(dt, True)
-                        td = DateEstimate(dt, yfcd.Confidence.Medium)
+                        td = yfcd.DateEstimate(dt, yfcd.Confidence.Medium)
                     else:
                         td = dt
 
-                if td not in release_dates_tagged:
-                    # Protect again duplicate rows
-                    release_dates_tagged.append(td)
-            if debug:
-                if len(release_dates_tagged) == 0:
-                    print("- release_dates_tagged: EMPTY")
-                else:
-                    print("- release_dates_tagged:")
-                    for e in release_dates_tagged:
-                        print(e)
-            release_dates = release_dates_tagged
-
-            for x in cal_release_dates_tagged:
+                # Protect against duplicating entries in calendar
                 duplicate = False
-                for y in release_dates:
-                    # if abs(x - y) < timedelta(days=10):
-                    if abs(x - y) < timedelta(days=20):
-                        duplicate = True
+                for c in release_dates:
+                    diff = c - td
+                    try:
+                        duplicate = diff > timedelta(days=-20) and diff < timedelta(days=20)
+                    except yfcd.AmbiguousComparisonException:
+                        p1 = diff.prob_gt(timedelta(days=-20))
+                        p2 = diff.prob_lt(timedelta(days=20))
+                        duplicate = p1 > 0.9 and p2 > 0.9
+                    if duplicate:
                         break
                 if not duplicate:
-                    release_dates.append(x)
-            release_dates.sort(reverse=True)
-        if len(release_dates) == 0:
-            # raise Exception("Failed to generate any earnings release date for ", self.ticker)
-            return None
+                    release_dates.append(td)
         if debug:
+            print("- edf:")
+            print(edf)
+            release_dates.sort(reverse=True)
             print("- release_dates:")
-            for x in release_dates:
-                print(x)
+            pprint(release_dates)
+
+        # Deduce interval
+        if period == yfcd.ReportingPeriod.Full:
+            interval_td = interval_str_to_days['ANNUAL']
+        else:
+            interval_td = self._get_interval(finType, refresh)
+        if debug:
+            print(f"- interval_td = {interval_td}")
 
         # Now combine known dates into 'Earnings Releases':
         if debug:
             print("# Now combine known dates into 'Earnings Releases':")
         releases = []
         for d in period_ends:
-            # r = EarningsRelease(d, False, None)
-            r = EarningsRelease(d, None)
+            r = EarningsRelease(interval_td, d, None, year_end)
             releases.append(r)
         if debug:
             releases.sort()
             print("> releases with known period-end-dates:")
-            for r in releases:
-                print(r)
+            pprint(releases)
 
-        if period == yfcd.ReportingPeriod.Full:
-            interval, confident = 'ANNUAL', True
-            interval_td = interval_str_to_days[interval]
-        else:
-            interval_td = self._get_interval(finType, refresh)
-        if debug:
-            print(f"- interval_td={interval_td}")
-
-        if debug:
-            print("- interval_td =", interval_td)
-        interval_td_half = interval_td / 2
-
-        # Fill gap between last release and now with estimated releases
+        # Fill gap between last release and now+9mo with estimated releases
         if debug:
             print("# Fill gap between last release and now with estimated releases")
         releases.sort(reverse=True)
@@ -1184,192 +734,280 @@ class FinancialsManager:
                 print("interval_td = {0}".format(interval_td))
                 raise Exception("Infinite loop detected while estimating next financial report")
 
-            if debug:
-                print(f"- loop {ct}")
+            next_period_end = yfcd.DateEstimate(interval_td + last_release.period_end, yfcd.Confidence.High)
 
-            next_period_end = DateEstimate(interval_td + last_release.period_end, yfcd.Confidence.Medium)
-            if debug:
-                print("  - next_period_end:", next_period_end)
-            # # days_since_last = next_period_end - last_report.period_end
-            # days_since_last = next_period_end - last_release.period_end
-            # if debug:
-            #     print("  - days_since_last:", days_since_last)
-
-            # try:
-            #     report_expected = (days_since_last + timedelta(days=10)) > interval_td
-            # except Exception:
-            #     print("- interval_td =", interval_td, type(interval_td))
-            #     print("- next_period_end =", next_period_end, type(next_period_end))
-            #     print("- days_since_last =", days_since_last, type(days_since_last))
-            #     raise
-            # r = EarningsRelease(next_period_end, report_expected, None)
-            r = EarningsRelease(next_period_end, None)
+            r = EarningsRelease(interval_td, next_period_end, None, year_end)
 
             releases.insert(0, r)
             last_release = r
             if debug:
-                print("  - inserted:", r)
+                print("Inserting:", r)
 
             try:
-                if r.period_end > d_today:
+                if r.period_end > (d_today+timedelta(days=270)):
                     break
-            except Exception as e:
-                if "Ambiguous" in str(e):
+            except yfcd.AmbiguousComparisonException:
+                p = r.period_end.prob_gt(d_today+timedelta(days=270))
+                if p > 0.9:
                     break
-                else:
-                    raise
         if debug:
             releases.sort()
-            print("> releases with expected period-end-dates:")
-            for r in releases:
-                print(r)
+            print("# Intermediate set of releases:")
+            pprint(releases)
+
+        if release_dates is None or len(release_dates) == 0:
+            if debug:
+                print("No release dates in Yahoo so estimating all with Low confidence")
+            for i in range(len(releases)):
+                releases[i].release_date = yfcd.DateEstimate(releases[i].period_end+timedelta(days=5)+yfcd.confidence_to_buffer[yfcd.Confidence.Low], yfcd.Confidence.Low)
+            return releases
+        release_dates.sort()
 
         # Add more releases to ensure their date range fully overlaps with release dates
         release_dates.sort()
         releases.sort()
         ct = 0
-        while releases[0].period_end > release_dates[0]:
+        while True:
+            try:
+                gt_than = releases[0].period_end > release_dates[0]
+            except yfcd.AmbiguousComparisonException:
+                if hasattr(releases[0].period_end, 'prob_gt'):
+                    p = releases[0].period_end.prob_gt(release_dates[0])
+                else:
+                    p = release_dates[0].prob_lt(releases[0].period_end)
+                gt_than = p > 0.9
+            if not gt_than:
+                break
+
             ct += 1
             if ct > 100:
                 raise Exception("Infinite loop detected while adding release objects")
-            prev_period_end = releases[0].period_end.date - interval_td
-            prev_period_end = DateEstimate(prev_period_end, yfcd.Confidence.Medium)
+            prev_period_end = releases[-1].period_end - interval_td
+            conf = yfcd.Confidence.High
+            if isinstance(prev_period_end, date):
+                prev_period_end = yfcd.DateEstimate(prev_period_end, conf)
+            else:
+                prev_period_end = yfcd.DateEstimate(prev_period_end.date, min(prev_period_end.confidence, conf))
 
-            # # report_expected = abs((releases[0].period_end - prev_period_end) -report_interval) < timedelta(days=10)
-            # # r = EarningsRelease(prev_period_end, report_expected, None)
-            # r = EarningsRelease(prev_period_end, False, None)
-            r = EarningsRelease(prev_period_end, None)
+            r = EarningsRelease(interval_td, prev_period_end, None, year_end)
 
             releases.insert(0, r)
             if debug:
-                print("Inserting: ", r)
+                print("Inserting:", r)
         ct = 0
-        # while releases[-1].period_end+earnings_interval < release_dates[-1]:
-        while releases[-1].period_end+interval_td < release_dates[-1]:
+        while True:
+            try:
+                less_than = releases[-1].period_end+interval_td < release_dates[-1]
+            except yfcd.AmbiguousComparisonException:
+                p = (releases[-1].period_end+interval_td).prob_lt(release_dates[-1])
+                less_than = p > 0.5
+            if not less_than:
+                break
+
             ct += 1
             if ct > 20:
                 raise Exception("Infinite loop detected while adding release objects")
-            next_period_end = interval_td + releases[-1].period_end.date
-            next_period_end = DateEstimate(next_period_end, yfcd.Confidence.Medium)
+            next_period_end = releases[-1].period_end + interval_td
+            if isinstance(next_period_end, date):
+                next_period_end = yfcd.DateEstimate(next_period_end, yfcd.Confidence.Medium)
+            else:
+                next_period_end = yfcd.DateEstimate(next_period_end.date, min(next_period_end.confidence, yfcd.Confidence.Medium))
 
-            # # report_expected = abs((next_period_end-releases[-1].period_end) -report_interval) < timedelta(days=10)
-            # # r = EarningsRelease(next_period_end, report_expected, None)
-            # r = EarningsRelease(next_period_end, False, None)r = EarningsRelease(next_period_end, False, None)
-            r = EarningsRelease(next_period_end, None)
+            r = EarningsRelease(interval_td, next_period_end, None, year_end)
             releases.append(r)
             if debug:
-                print("Appending: ", r)
+                print("Appending:", r)
+        # Fill in gaps in periods with estimates:
+        for i in range(len(releases)-2, -1, -1):
+            while True:
+                r0 = releases[i]
+                r1 = releases[i+1]
+                try:
+                    diff = r1.period_end - r0.period_end
+                    gap_too_large = (diff/1.5) > interval_td
+                except yfcd.AmbiguousComparisonException:
+                    gap_too_large = False
+                if gap_too_large:
+                    new_r = EarningsRelease(interval_td, r1.period_end - interval_td, None, year_end)
+                    if debug:
+                        print(f"Inserting release estimate into gap: {new_r} (diff={diff}, interval_td={interval_td}, {type(interval_td)})")
+                    releases.insert(i+1, new_r)
+                else:
+                    break
         if debug:
             releases.sort()
-            print("> releases with additional releases to cover date range:")
-            for r in releases:
-                print(r)
+            print("# Final set of releases:")
+            pprint(releases)
 
         # Assign known dates to appropriate release(s) without dates
         if debug:
             print("# Assigning known dates to releases ...")
-        releases.sort(reverse=True)
-        release_dates.sort(reverse=True)
-        # New method: find nearest date that doesn't exceed max delay:
-        release_delay_min = timedelta(days=3)
-        # release_delay_min = relativedelta(days=3)
-        # release_delay_min = ComparableRelativedelta(days=3)
-        # release_delay_max = interval_td + release_delay_min
-        # release_delay_max = interval_td_half + release_delay_min
-        year_end = self._get_fin_table(finType, yfcd.ReportingPeriod.Full, refresh).columns.max().date()
-        interim_interval = self._earnings_interval(with_report=False, refresh=refresh)
-        if debug:
-            print("- year_end =", year_end)
-            print("- interim_interval =", interim_interval)
-        interim_release_delay_max = interim_interval
-        annual_release_delay_max = interim_interval + timedelta(days=10)
-        if debug:
-            print(f"- interim release_delay range = {release_delay_min} -> {interim_release_delay_max}")
-            print(f"- annual release_delay range = {release_delay_min} -> {annual_release_delay_max}")
-        nearest_match = None  # tuple(i, j, delay)
-        release_dates_assigned = np.full(len(release_dates), False)
-        ctr = len(release_dates)*len(releases)
-        while nearest_match is None:
-            for i in range(len(releases)):
-                r = releases[i]
-
-                r_is_end_of_year = False
-                rpe = r.period_end
-                diff = (rpe - year_end)
-                if diff < timedelta(days=-10):
-                    diff *= -1
-                if debug:
-                    print("- diff =", diff)
-                diff = diff % timedelta(days=365)
-                if debug:
-                    print("- diff modulus =", diff)
-                if diff > timedelta(days=-15) and diff < timedelta(days=15):
-                    # Aligns wit annual release date
-                    r_is_end_of_year = True
-                if debug:
-                    print("- r_is_end_of_year =", r_is_end_of_year)
-                if r_is_end_of_year:
-                    release_delay_max = annual_release_delay_max
-                else:
-                    release_delay_max = interim_release_delay_max
-                if debug:
-                    print("- release_delay_max =", release_delay_max)
-
-                if debug:
-                    print(f"- releases[{i}] = {r}")
-                if r.release_date is not None:
-                    continue
-                for j in range(len(release_dates)):
-                    if release_dates_assigned[j]:
-                        continue
-                    if debug:
-                        print("  - release_dates[j] =", release_dates[j])
-                    dt = release_dates[j]
-                    delay = dt - r.period_end
-                    if debug:
-                        print(f"    - delay={delay}")
-                    if isinstance(delay, (relativedelta, ComparableRelativedelta)):
-                        raise Exception(f'How is delay a {type(delay)}?')
-                    if isinstance(delay, relativedelta):
-                        delay = ComparableRelativedelta(days=delay.days)
-                    if debug:
-                        print(f"    - delay={delay}")
-                    if delay <= timedelta(0):
-                        continue
-                    if delay >= release_delay_min and delay <= release_delay_max and \
-                        ( (nearest_match is None) or (delay < nearest_match[2]) ):
-                        if debug:
-                            print(f"      - - matching i={i} with j={j}")
-                        nearest_match = (i, j, delay)
-                    elif nearest_match is not None and delay > nearest_match[2]:
-                        # Dates are sorted, so a larger delay mean have already found closest
-                        break
+        releases = sort_estimates(releases)
+        release_dates.sort()
+        for i in range(len(release_dates)):
+            dt = release_dates[i]
             if debug:
-                print(f"nearest_match: {nearest_match}")
-            if nearest_match is not None:
-                i = nearest_match[0]
-                j = nearest_match[1]
-                releases[i].release_date = release_dates[j]
-                release_dates_assigned[j] = True
-                nearest_match = None
-            else:
-                break
-            ctr -= 1
-            if ctr <= 0:
-                raise Exception("infinite loop detected")
+                print("- dt =", dt)
+            # Find most recent period-end:
+            rj = 0
+            for j in range(1, len(releases)):
+                try:
+                    if releases[j].period_end > (dt-company_release_delay):
+                        break
+                except yfcd.AmbiguousComparisonException:
+                    if hasattr(releases[j].period_end, "prob_gt"):
+                        p = releases[j].period_end.prob_gt(dt-company_release_delay)
+                    else:
+                        p = (dt-company_release_delay).prob_lt(releases[j].period_end)
+                    if debug:
+                        print(f"  - prob. that {releases[j].period_end} > {dt-company_release_delay} = {100.0*p:.1f}%")
+                    if p > 0.5:
+                        break
+                rj = j
+            r = releases[rj]
+            if debug:
+                print("  - rj =", rj, ",  r =", r)
+            if r.release_date is not None:
+                # Already assigned an earlier release date.
+
+                dt_is_for_same_period = False
+                if isinstance(dt, date) and dt in edf.index.date:
+                    if isinstance(r.release_date, date) and r.release_date in edf.index.date:
+                        # Not great because assumes two consecutive earnings don't report same EPS
+                        dt_is_for_same_period1 = edf['Reported EPS'].loc[str(dt)].iloc[0] == edf['Reported EPS'].loc[str(r.release_date)].iloc[0]
+                        dt_is_for_same_period2 = edf['EPS Estimate'].loc[str(dt)].iloc[0] == edf['EPS Estimate'].loc[str(r.release_date)].iloc[0]
+                        dt_is_for_same_period = dt_is_for_same_period1 and dt_is_for_same_period2
+                if dt_is_for_same_period:
+                    # Assume the earlier release was just a preliminary cash-flow update, and that
+                    # this later release is the full financials report
+                    if debug:
+                        print(f"  - assume earlier release {r.release_date} was just a preliminary cash-flow update, and that")
+                        print(f"  - this later release {dt} is the full financials report")
+                    r.release_date = dt
+                    continue
+
+                dt_is_better = False
+                if not hasattr(dt, 'confidence'):
+                    if hasattr(r.release_date, 'confidence'):
+                        # Maybe the previously-assigned date was estimate, from bad Yahoo data
+                        dt_is_better = True
+                else:
+                    if hasattr(r.release_date, 'confidence') and dt.confidence > r.release_date.confidence:
+                        dt_is_better = True
+                if debug:
+                    print("  - dt_is_better =", dt_is_better)
+                if dt_is_better:
+                    if debug:
+                        print(f"  - dt={dt} is more accurate than date already assigned to {r}. so overwrite with dt")
+                        print(f"  - discarding previously assigned dt={r.release_date}")
+                    r.release_date = dt
+                    continue
+
+                try:
+                    quarterly = interval_td <= timedelta(days=100)
+                except yfcd.AmbiguousComparisonException:
+                    quarterly = True
+                if not quarterly:
+                    # Not quarterly releases so can't safely reassign dates.
+                    # Probably this date 'dt' is for a cashflow update, not
+                    # full earnings release.
+                    # So treat this date 'dt' unassignable.
+                    if debug:
+                        print(f"  - because not quarterly, have to discard unassigned date {dt}")
+                    continue
+
+                r_is_end_of_year = r.is_end_of_year()
+                if debug:
+                    print("  - r_is_end_of_year =", r_is_end_of_year)
+
+                # if r_is_end_of_year and rj > 0:
+                #     # For annual reports, allow reassigned date to previous release,
+                #     # because annual reports can take longer to release.
+                #     if (releases[rj-1].release_date is not None) and (not dt_is_better):
+                #         # print("- dt =", dt)
+                #         # print("- dt_is_for_same_period =", dt_is_for_same_period)
+                #         # print("- r_is_end_of_year =", r_is_end_of_year)
+                #         # print("- this release:", releases[rj])
+                #         # print("- previous release:", releases[rj-1])
+                #         # print("- edf:")
+                #         # print(edf.drop(['FetchDate'], axis=1))
+                #         # print(edf.columns)
+                #         # print("- release_dates:") ; pprint(release_dates)
+                #         # raise Exception('Expected prior report to not be assigned date')
+                #         # Update:
+                #         # If this date not better, then just discard.
+                #         pass
+                #     else:
+                #         if debug:
+                #             print(f"  - reassigning dt={releases[rj].release_date} to previous report {releases[rj-1]}")
+                #         releases[rj-1].release_date = r.release_date
+                #         r.release_date = dt
+                # else:
+                #     if debug:
+                #         print(f"  - discarding previously assigned dt={releases[rj].release_date}")
+                # Update: refactor logic
+                if r_is_end_of_year or dt_is_better:
+                    # First, decide whether to reassign assigned date to previous release
+                    if rj > 0 and releases[rj-1].release_date is None:
+                        # if debug:
+                        #     print(f"  - reassigning dt={releases[rj].release_date} to previous report {releases[rj-1]}")
+                        # releases[rj-1].release_date = r.release_date
+                        #
+                        # But what if I don't? Might be causing trouble no benefit
+                        pass
+                    else:
+                        if debug:
+                            print(f"  - discarding previously assigned dt={releases[rj].release_date}")
+                    r.release_date = dt
+
+            if debug:
+                print(f"  - assigning dt={dt} to report={r}")
+            r.release_date = dt
         if debug:
             releases.sort()
             print("> releases with known release dates:")
             for r in releases:
                 print(r)
+
+        # Discard date assignments where delays are much higher than average
+        delays = [(r.release_date - r.period_end) for r in releases if r.release_date is not None]
+        if len(delays) >= 3:
+            delays = sort_estimates(delays)
+            median_delay = delays[len(delays)//2]
+            delays = [(r.release_date - r.period_end) if r.release_date is not None else timedelta(0) for r in releases]
+            outliers = np.ones(len(delays), dtype=bool)
+            for i in range(len(delays)):
+                r = releases[i]
+                r_is_end_of_year = r.is_end_of_year()
+                if debug:
+                    print("  - r_is_end_of_year =", r_is_end_of_year)
+
+                threshold = median_delay*3
+                if r_is_end_of_year:
+                    threshold += timedelta(days=30)
+                try:
+                    outliers[i] = delays[i] > threshold
+                except yfcd.AmbiguousComparisonException:
+                    if hasattr(delays[i], 'prob_gt'):
+                        p = delays[i].prob_gt(threshold)
+                    else:
+                        p = threshold.prob_lt(delays[i])
+                    outliers[i] = p > 0.9
+            for i in np.where(outliers)[0]:
+                if debug:
+                    print(f"discarding a release date because delay far above median {median_delay}:", releases[i])
+                releases[i].release_date = None
+
         # For any releases still without release dates, estimate with the following heuristics:
         # 1 - if release 12 months before/after has a date (or a multiple of 12), use that +/- 12 months
         # 2 - else used previous release + interval
+        if debug:
+            print("# Estimating release dates from other releases at similar time-of-year")
         report_delay = None
         releases.sort()
         if any([r.release_date is None for r in releases]):
-            for interval in [365, 365//2, 365//4]:
-                interval_td = timedelta(days=interval)
+            for try_interval in [365, 365//2, 365//4]:
+                itd = timedelta(days=try_interval)
                 for i in range(len(releases)):
                     if releases[i].release_date is None:
                         # Need to find a similar release to extrapolate date from
@@ -1379,54 +1017,88 @@ class FinancialsManager:
                             if i2==i:
                                 continue
                             if releases[i2].release_date is not None:
-                                # # rem = abs(releases[i].period_end - releases[i2].period_end).days % interval
-                                # rem = (releases[i].period_end - releases[i2].period_end) % interval_td
-                                if releases[i2].period_end > releases[i].period_end:
-                                    rem = (releases[i2].period_end - releases[i].period_end) % interval_td
+                                if period == yfcd.ReportingPeriod.Full:
+                                    tolerance = timedelta(days=40)
                                 else:
-                                    rem = (releases[i].period_end - releases[i2].period_end) % interval_td
+                                    tolerance = timedelta(days=10)
+                                if releases[i2].period_end > releases[i].period_end:
+                                    rem = (releases[i2].period_end - releases[i].period_end) % itd
+                                else:
+                                    rem = (releases[i].period_end - releases[i2].period_end) % itd
                                 try:
-                                    match = (rem < timedelta(days=10)) or abs(rem-interval_td) < timedelta(days=10)
-                                except Exception as e:
-                                    if "Ambiguous" in str(e):
-                                        match = True
-                                    else:
-                                        raise
+                                    m1 = rem < tolerance
+                                except yfcd.AmbiguousComparisonException:
+                                    m1 = rem.prob_lt(tolerance) > 0.9
+                                try:
+                                    m2 = abs(rem-itd) < tolerance
+                                except yfcd.AmbiguousComparisonException:
+                                    m2 = abs(rem-itd).prob_lt(tolerance) > 0.9
+                                match = m1 or m2
                                 if match:
                                     if debug:
-                                        print(f"- matching {releases[i]} with {releases[i2]} for interval {interval}")
+                                        print(f"- matching '{releases[i]}' with '{releases[i2]}' for interval '{try_interval}'")
                                     delay = releases[i2].release_date - releases[i2].period_end
                                     dt = delay + releases[i].period_end
-                                    if isinstance(dt, date):
-                                        dt = DateEstimate(dt, yfcd.Confidence.Medium)
+
+                                    r_is_end_of_year = releases[i].is_end_of_year()
+                                    if debug:
+                                        print("  - r_is_end_of_year =", r_is_end_of_year)
+                                    if r_is_end_of_year and try_interval != 365:
+                                        # Annual reports take longer than interims, so add on some more days
+                                        if debug:
+                                            print("  - adding 14d to dt")
+                                        dt += timedelta(days=14)
+
+                                    if not hasattr(dt, 'confidence'):
+                                        if r_is_end_of_year and try_interval != 365:
+                                            confidence = yfcd.Confidence.Low
+                                        else:
+                                            confidence = yfcd.Confidence.Medium
+                                        if isinstance(dt, date):
+                                            dt = yfcd.DateEstimate(dt, confidence)
+                                        elif isinstance(dt, yfcd.DateRange):
+                                            dt = yfcd.DateRangeEstimate(dt.start, dt.end, confidence)
+                                        else:
+                                            raise Exception('Need to ensure this value has confidence:', dt)
                                     else:
-                                        confidences = [yfcd.Confidence.Medium]
-                                        if isinstance(releases[i2].period_end, (DateEstimate, DateRangeEstimate)):
+                                        if r_is_end_of_year and try_interval != 365:
+                                            confidences = [yfcd.Confidence.Low]
+                                        else:
+                                            confidences = [yfcd.Confidence.Medium]
+                                        if isinstance(releases[i2].period_end, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
                                             confidences.append(releases[i2].period_end.confidence)
-                                        if isinstance(releases[i2].release_date, (DateEstimate, DateRangeEstimate)):
+                                        if isinstance(releases[i2].release_date, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
                                             confidences.append(releases[i2].release_date.confidence)
                                         dt.confidence = min(confidences)
-                                    if debug:
-                                        print("- dt =", dt)
 
                                     if i > 0 and (releases[i-1].release_date is not None):
                                         too_close_to_previous = False
-                                        if isinstance(releases[i-1].release_date, DateEstimate):
-                                            too_close_to_previous = releases[i-1].release_date.isclose(dt)
-                                        else:
-                                            too_close_to_previous = (dt-releases[i-1].release_date) < timedelta(days=30)
+                                        try:
+                                            if isinstance(releases[i-1].release_date, yfcd.DateEstimate):
+                                                too_close_to_previous = releases[i-1].release_date.isclose(dt)
+                                            else:
+                                                if releases[i-1].is_end_of_year():
+                                                    threshold = timedelta(days=1)
+                                                else:
+                                                    threshold = timedelta(days=30)
+                                                if debug:
+                                                    diff = dt-releases[i-1].release_date
+                                                    print(f"  - diff = {diff}")
+                                                    print(f"  - threshold = {threshold}")
+                                                too_close_to_previous = (dt-releases[i-1].release_date) < threshold
+                                        except yfcd.AmbiguousComparisonException:
+                                            p = (dt-releases[i-1].release_date).prob_lt(threshold)
+                                            too_close_to_previous = p > 0.9
                                         if too_close_to_previous:
                                             if debug:
-                                                print("- would be too close to previous release date")
+                                                print(f"  - dt '{dt}' would be too close to previous release date '{releases[i-1]}'")
                                             # Too close to last release date
                                             continue
                                     releases[i].release_date = dt
                                     date_set = True
                                     if debug:
-                                        print("- estimated release date {} of period-end {} from period-end {}".format(releases[i].release_date, releases[i].period_end, releases[i2].period_end))
+                                        print("  - estimated release date {} of period-end {} from period-end {}".format(releases[i].release_date, releases[i].period_end, releases[i2].period_end))
                                     break
-
-
 
                         if date_set and (report_delay is not None):
                             releases[i].release_date.date += report_delay
@@ -1441,14 +1113,14 @@ class FinancialsManager:
                 any_release_has_date = True
                 break
         if not any_release_has_date:
-            # raise Exception(f"Unable to map all {period} financials to release dates")
+            if debug:
+                print(f"- unable to map all {period} financials to release dates")
             return None
 
         # Check for any releases still missing a release date that could be the Last earnings release:
         if any([r.release_date is None for r in releases]):
             for i in range(len(releases)):
                 r = releases[i]
-                # print("Analysing release: {0}".format(r))
                 if r.release_date is None:
                     problem = False
                     if i == len(releases)-1:
@@ -1465,53 +1137,86 @@ class FinancialsManager:
             for r in releases:
                 print(r)
 
-        period_ends = []
-        period_ends_est = []
-        release_dates = []
-        release_dates_est = []
-        delays = []
+        if check:
+            self._check_release_dates(releases, finType, period, refresh)
+
+        return releases
+
+    def _check_release_dates(self, releases, finType, period, refresh):
+        if period == yfcd.ReportingPeriod.Full:
+            interval_td = interval_str_to_days['ANNUAL']
+        else:
+            interval_td = self._get_interval(finType, refresh)
+
+        for i0 in range(len(releases)-1):
+            r0 = releases[i0]
+            r0rd = r0.release_date
+            if hasattr(r0rd, 'confidence') and r0rd.confidence == yfcd.Confidence.Low:
+                continue
+            for i1 in range(i0+1, len(releases)):
+                r1 = releases[i1]
+                r1rd = r1.release_date
+                if hasattr(r1rd, 'confidence') and r1rd.confidence == yfcd.Confidence.Low:
+                    continue
+                #
+                if isinstance(r0rd, date) and isinstance(r1rd, date):
+                    isclose = r0rd == r1rd
+                elif isinstance(r0rd, date):
+                    isclose = r1rd.isclose(r0rd)
+                else:
+                    isclose = r0rd.isclose(r1rd)
+                if isclose:
+                    print(r0)
+                    print(r1)
+                    raise Exception(f'{self.ticker} Release dates have been assigned multiple times')
+
+                if not r0.is_end_of_year():
+                    try:
+                        # bad_order = r0.release_date > r1.period_end
+                        bad_order = r0.release_date > (r1.period_end+timedelta(days=7))
+                    except yfcd.AmbiguousComparisonException:
+                        p = r0.release_date.prob_gt(r1.period_end+timedelta(days=7))
+                        if debug:
+                            print(f"- prob. that {r0.release_date} > {r1.period_end+timedelta(days=7)} = {p*100.0:.1f}%")
+                        bad_order = p > 0.9
+                    # try:
+                    #     bad_order = bad_order and ((r1.period_end - r0.period_end)*2.0 > interval_td)
+                    # except yfcd.AmbiguousComparisonException:
+                    #     bad_order = False
+                    if bad_order:
+                        pprint(releases)
+                        print(r0)
+                        print(r1)
+                        raise Exception(f'{self.ticker} Some releases dates are after next period ends')
+        #
         for r in releases:
-            rpe = r.period_end ; rrd = r.release_date
-            period_ends.append(rpe if isinstance(rpe, date) else rpe.date)
-            period_ends_est.append(rpe.confidence if isinstance(rpe, DateEstimate) else yfcd.Confidence.High)
-            release_dates.append(rrd if isinstance(rrd, date) else rrd.date)
-            release_dates_est.append(rrd.confidence if isinstance(rrd, DateEstimate) else yfcd.Confidence.High)
-            dt1 = rpe if isinstance(rpe, date) else rpe.date
-            dt2 = rrd if isinstance(rrd, date) else rrd.date
-            delays.append(dt2 - dt1)
-        df = pd.DataFrame({'Period end':period_ends, 'PE confidence':period_ends_est, 'Release date':release_dates, 'RD confidence':release_dates_est, 'Delay':delays})
-        df = df.set_index('Period end')
-
-        # Final sanity tests
-        if (df['Delay'] < pd.Timedelta(0)).any():
-            print(df)
-            raise Exception('Release dates contains negative delays')
-        std_pct_mean = df['Delay'].std() / df['Delay'].mean()
-        if std_pct_mean > 0.5:
-            print(df)
-            raise Exception(f'Release date delays have high variance ({std_pct_mean*100:.1}%)')
-        if ((df['Release date'].iloc[:-1] - df.index[1:]) > pd.Timedelta(0)).any():
-            print(df)
-            raise Exception('Some releases dates are after next period ends')
-        if ((df['Release date'].iloc[:-1] - df['Release date'].iloc[1:]) > pd.Timedelta(0)).any():
-            print(df)
-            raise Exception('Some releases dates are after next release date')
-
-        return df
+            try:
+                is_negative = r.release_date < r.period_end
+            except yfcd.AmbiguousComparisonException:
+                p = r.release_date.prob_lt(r.period_end)
+                is_negative = p > 0.9
+            if is_negative:
+                diff = r.release_date - r.period_end
+                print("- rd =", r.release_date, type(r.release_date))
+                print("- pe =", r.period_end, type(r.period_end))
+                print("- diff =", diff, type(diff))
+                print(r)
+                raise Exception('Release dates contains negative delays')
 
     def _prune_yf_financial_df(self, df):
-        # Rarely table contain duplicate data at different timepoints.
-        # - instances: OPG.L, ROG.SW
-        # Possibly YF is at fault. It may be backfilling 6-monthly data to populate 3-monthly table
-        # Keep the latest of each duplicate
+        debug = False
+        # debug = True
 
         if df is None or df.empty:
             return df
 
-        # dates = df.columns
         ## Fiddly to put dates into a list and sort without reordering dataframe and without down-casting the date types!
         dates = [d for d in df.columns]
         dates.sort()
+
+        cache_key = tuple([df.index[0]] + dates)
+        if cache_key in self._pruned_tbl_cache:
+            return self._pruned_tbl_cache[cache_key]
 
         # Drop duplicated columns
         if len(set(dates)) != len(dates):
@@ -1520,8 +1225,8 @@ class FinancialsManager:
             dates = [d for d in df.columns]
             dates.sort()
 
-
         # Drop mostly-NaN duplicated dates:
+        df_modified = False
         if len(set(dates)) != len(dates):
             for dt in set(dates):
                 dff = df[dt]
@@ -1533,13 +1238,13 @@ class FinancialsManager:
                     for i in range(n_dups):
                         dt_idx = dt_indices[i]
                         is_mostly_nans[i] = df.iloc[:,dt_idx].isnull().sum() > int(df.shape[0]*0.75)
-                    # if is_mostly_nans.sum() == 1:
                     if is_mostly_nans.sum() == n_dups-1:
                         ## All but one column are mostly nans, perfect!
                         drop_indices = dt_indices[is_mostly_nans]
                         indices = np.array(range(df.shape[1]))
                         keep_indices = indices[~np.isin(indices, drop_indices)]
                         df = df.iloc[:,keep_indices].copy()
+                        df_modified = True
 
                 dff = df[dt]
                 if len(dff.shape) == 2 and dff.shape[1] == 2:
@@ -1570,12 +1275,13 @@ class FinancialsManager:
                         indices = np.array(range(df.shape[1]))
                         keep_indices = indices[~np.isin(indices, drop_indices)]
                         df = df.iloc[:,keep_indices].copy()
-
+                        df_modified = True
+        if df_modified:
             dates = [d for d in df.columns]
             dates.sort()
 
-
         # If duplicated date columns is very similar, then drop right-most:
+        df_modified = False
         if len(set(dates)) != len(dates):
             for dt in set(dates):
                 dff = df[dt]
@@ -1583,19 +1289,14 @@ class FinancialsManager:
                     dff.columns = [str(dff.columns[i])+str(i) for i in range(dff.shape[1])]
                     # r = dff.diff(axis=1)
                     r = (dff[dff.columns[0]] - dff[dff.columns[1]]).abs() / dff[dff.columns[0]]
-                    # r = r.mean()
                     r = r.sum()
-                    # print(r)
-                    # print(f"- r = {r}")
-                    # print(dff[dff.columns[0]])
-                    # raise Exception("here")
                     if r < 0.15:
-                        # num_na1 = 
                         df = df.drop(dt, axis=1)
                         df[dt] = dff[dff.columns[0]]
+                        df_modified = True
+        if df_modified:
             dates = [d for d in df.columns]
             dates.sort()
-
 
         if len(set(dates)) != len(dates):
             print(df)
@@ -1604,66 +1305,109 @@ class FinancialsManager:
 
         # Search for mostly-nan columns, where the non-nan values are exact match to an adjacent column.
         # Replace those nans with adjacent column values.
+        # Optimise:
+        df_isnull = df.isnull()
+        df_isnull_sums = df_isnull.sum()
+        nan_threshold = int(df.shape[0]*0.75)
         for i1 in range(1, len(dates)):
             d1 = dates[i1]
             d0 = dates[i1-1]
-            d0_mostly_nans = df[d0].isnull().sum() > int(df.shape[0]*0.75)
-            d1_mostly_nans = df[d1].isnull().sum() > int(df.shape[0]*0.75)
+            d0_mostly_nans = df_isnull_sums[d0] > nan_threshold
+            d1_mostly_nans = df_isnull_sums[d1] > nan_threshold
             if d0_mostly_nans and not d1_mostly_nans:
-                # f = np_and(np_not(df[d0].isnull()), np_not(df[d1].isnull()))
-                f = (~df[d0].isnull()) & (~df[d1].isnull())
-                if sum(f) >= 2:
+                f = (~df_isnull[d0]) & (~df_isnull[d1])
+                if np.sum(f) >= 2:
                     # At least two actual values
                     if np.array_equal(df.loc[f,d0], df.loc[f,d1]):
                         # and those values match
                         df[d0] = df[d1].copy()
             elif d1_mostly_nans and not d0_mostly_nans:
-                # f = np_and(np_not(df[d1].isnull()), np_not(df[d0].isnull()))
-                f = (~df[d1].isnull()) & (~df[d0].isnull())
-                if sum(f) >= 2:
+                f = (~df_isnull[d1]) & (~df_isnull[d0])
+                if np.sum(f) >= 2:
                     # At least two actual values
                     if np.array_equal(df.loc[f,d1], df.loc[f,d0]):
                         # and those values match
                         df[d1] = df[d0].copy()
 
         # Drop mostly-nan columns:
+        df_modified = False
         for i in range(len(dates)-1, -1, -1):
             d = dates[i]
             # if df[d].isnull().sum() == df.shape[0]:
             #   # Full of nans, drop column:
-            if df[d].isnull().sum() > int(df.shape[0]*0.75):
+            if np.sum(df[d].isnull()) > nan_threshold:
                 # Mostly nans, drop column
+                if debug:
+                    print(f"_prune_yf_financial_df(): column {d} is mostly NaNs")
                 df = df.drop(d, axis=1)
+                df_modified = True
+        if df_modified:
+            dates = [d for d in df.columns]
+            dates.sort()
+
         # # Then drop all columns devoid of data (NaN and 0.0):
         # for i in range(len(dates)-1, -1, -1):
-        #   d = dates[i]
-        #   fnan = df[d].isnull()
-        #   fzero = df[d]==0.0
-        #   if sum(np_or(fnan, fzero)) == df.shape[0]:
-        #       # Completely devoid of data, drop column
-        #       df = df.drop(d, axis=1)
+        #     d = dates[i]
+        #     fnan = df[d].isnull()
+        #     fzero = df[d]==0.0
+        #     if sum(np_or(fnan, fzero)) == df.shape[0]:
+        #         # Completely devoid of data, drop column
+        #         df = df.drop(d, axis=1)
 
-        dates = [d for d in df.columns]
-        dates.sort()
+        # Search for populated columns, where values are very similar.
+        similarity_pct_threshold = 0.8
+        for i in range(len(dates)-2, -1, -1):
+            d1 = dates[i+1]
+            d0 = dates[i]
+            delta = d1 - d0
+            similarity_pct = np.sum(df[d0] == df[d1]) / df.shape[0]
+            if df.shape[0] > 10 and delta < timedelta(days=45) and similarity_pct > similarity_pct_threshold:
+                if debug:
+                    print(f"{d0.date()} very similar & close to {d1.date()}, discarding later")
+                # df = df.drop(d1, axis=1)
+                # Instead of arbitrarily dropping one date, be smart.
+                # Keep the one that makes most sense relative to distances to other dates
+                diffs0 = [] ; diffs1 = []
+                if i > 0:
+                    diffs0.append((dates[i] - dates[i-1]).days)
+                    diffs1.append((dates[i+1] - dates[i-1]).days)
+                if i < (len(dates)-2):
+                    diffs0.append((dates[i+2] - dates[i]).days)
+                    diffs1.append((dates[i+2] - dates[i+1]).days)
+                diffs0 = [min(abs(d-91), abs(d-182), abs(d-365)) for d in diffs0]
+                diffs1 = [min(abs(d-91), abs(d-182), abs(d-365)) for d in diffs1]
+                if mean(diffs0) < mean(diffs1):
+                    df = df.drop(d1, axis=1)
+                else:
+                    df = df.drop(d0, axis=1)
+                dates = [d for d in df.columns]
+                dates.sort()
 
         if len(set(dates)) != len(dates):
             print(f"Dates: {dates}")
             raise Exception("Duplicate dates found in financial df")
 
-        # Remove columns which YF created by backfilling, e.g. with AI.PA and KOD.L
+        # Remove columns which YF created by backfilling
         df = df[df.columns.sort_values(ascending=False)]
         dates = [d for d in df.columns]
         for i1 in range(1, len(dates)):
             d0 = dates[i1-1]
             d1 = dates[i1]
-            df.loc[df[d0].isna(), d0] = 0.0
-            df.loc[df[d1].isna(), d1] = 0.0
-            if np.array_equal(df[d0].values, df[d1].values):
+            d0_values = df[d0].copy()
+            d1_values = df[d1].copy()
+            d0_values.loc[d0_values.isna()] = 0.0
+            d1_values.loc[d1_values.isna()] = 0.0
+            if np.array_equal(d0_values.values, d1_values.values):
+                if debug:
+                    print(f"_prune_yf_financial_df(): column {d0} appears backfilled by Yahoo")
                 df = df.drop(d0, axis=1)
         df = df[df.columns.sort_values(ascending=True)]
 
         if df.empty:
             raise Exception("_prune_yf_financial_df() has removed all columns")
+
+        self._pruned_tbl_cache[cache_key] = df
+
         return df
 
     def _earnings_interval(self, with_report, refresh=True):
@@ -1681,12 +1425,11 @@ class FinancialsManager:
 
         interval = None
         inference_successful = False
-        inference_accurate_enough = False
 
         if not with_report:
-            edf = self.get_earnings_dates(refresh=False)
+            edf = self.get_earnings_dates(start=d_today-timedelta(days=730), refresh=False)
             if (edf is None or edf.shape[0] <= 3) and refresh:
-                edf = self.get_earnings_dates(refresh=refresh)
+                edf = self.get_earnings_dates(start=d_today-timedelta(days=730), refresh=refresh)
             if edf is not None and edf.shape[0] > 3:
                 # First, remove duplicates:
                 deltas = np.flip((np.diff(np.flip(edf.index.date)) / pd.Timedelta(1, unit='D')))
@@ -1704,7 +1447,7 @@ class FinancialsManager:
                 else:
                     # Discard large outliers
                     z_scores = np.abs(stats.zscore(deltas))
-                    deltas_pruned = deltas[z_scores < 1.5]
+                    deltas_pruned = deltas[z_scores < 1.4]
                     # Discard small deltas
                     deltas_pruned = deltas_pruned[deltas_pruned > 10.0]
 
@@ -1713,8 +1456,6 @@ class FinancialsManager:
                 if debug:
                     print("- interval_days:", interval_days)
                 if std_pct_mean < 0.68:
-                    # tol = 30
-                    # tol = 40
                     tol = 20
                     if abs(interval_days-365) < tol:
                         interval = 'ANNUAL'
@@ -1722,14 +1463,8 @@ class FinancialsManager:
                         interval = 'HALF'
                     elif abs(interval_days-91) < tol:
                         interval = 'QUART'
-                    else:
-                        print("- edf:") ; print(edf)
-                        print("- deltas:") ; print(deltas)
-                        print("- z_scores:") ; print(z_scores)
-                        print("- deltas_pruned:") ; print(deltas_pruned)
-                        print("- std_pct_mean:", std_pct_mean)
-                        raise Exception(f"{self.ticker}: interval_days = {interval_days} doesn't fit standard intervals")
-                    return interval_str_to_days[interval]
+                    if interval is not None:
+                        return interval_str_to_days[interval]
 
         if debug:
             print("- insufficient data in earnings_dates, analysing financials columns")
@@ -1751,7 +1486,6 @@ class FinancialsManager:
             # Expect all 3x financials present
             if tbl_bs is None or tbl_bs.empty or tbl_fi is None or tbl_fi.empty or tbl_cf is None or tbl_cf.empty:
                 # Cannot be sure, but can estimate from any present table
-                inference_accurate_enough = False
                 if tbl_bs is not None and not tbl_bs.empty:
                     tbl = tbl_bs
                 elif tbl_fi is not None and not tbl_fi.empty:
@@ -1759,11 +1493,9 @@ class FinancialsManager:
                 else:
                     tbl = tbl_cf
             else:
-                inference_accurate_enough = True
                 tbl = tbl_bs
         else:
             # Use whichever is available with most columns
-            inference_accurate_enough = True
             tbl = tbl_bs
             if tbl_fi is not None and len(tbl_fi.columns) > len(tbl.columns):
                 tbl = tbl_fi
@@ -1777,12 +1509,13 @@ class FinancialsManager:
             return self._get_interval_from_table(tbl)
 
         if not inference_successful:
-            interval = TimedeltaEstimate(interval_str_to_days['HALF'], yfcd.Confidence.Medium)
+            interval = yfcd.TimedeltaEstimate(interval_str_to_days['HALF'], yfcd.Confidence.Medium)
 
         return interval
 
-    def get_earnings_dates(self, limit=12, refresh=True, clean=True):
-        yfcu.TypeCheckInt(limit, 'limit')
+    def get_earnings_dates(self, start, refresh=True, clean=True):
+        start_dt, start = yfcu.ProcessUserDt(start, self.tzName)
+        yfcu.TypeCheckDateStrict(start, 'start')
         yfcu.TypeCheckBool(refresh, 'refresh')
         yfcu.TypeCheckBool(clean, 'clean')
 
@@ -1790,20 +1523,43 @@ class FinancialsManager:
         # debug = True
 
         if debug:
-            print(f"get_earnings_dates(limit={limit}, refresh={refresh})")
+            print(f"get_earnings_dates(start={start}, refresh={refresh})")
 
+        dt_now = pd.Timestamp.utcnow().tz_convert(self.tzName)
+
+        last_fetch = None
         if self._earnings_dates is None:
             if yfcm.IsDatumCached(self.ticker, "earnings_dates"):
-                self._earnings_dates = yfcm.ReadCacheDatum(self.ticker, "earnings_dates")
-                self._earnings_dates = self._earnings_dates.drop_duplicates()
-            elif refresh:
-                self._earnings_dates = self._fetch_earnings_dates(limit, refresh)
-                yfcm.StoreCacheDatum(self.ticker, "earnings_dates", self._earnings_dates)
-                return self._earnings_dates
+                if debug:
+                    print("- retrieving earnings dates from cache")
+                self._earnings_dates, md = yfcm.ReadCacheDatum(self.ticker, "earnings_dates", True)
 
+                if md is None:
+                    raise Exception("f{self.ticker}: Why earnings_dates metadata None?")
+                    md = {}
+                if 'LastFetch' not in md:
+                    raise Exception("f{self.ticker}: Why earnings_dates metadata missing 'LastFetch'?")
+                    fp = yfcm.GetFilepath(self.ticker, "earnings_dates")
+                    last_fetch = datetime.fromtimestamp(os.path.getmtime(fp)).astimezone()
+                    md['LastFetch'] = last_fetch
+                    yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', md['LastFetch'])
+                if self._earnings_dates.empty:
+                    self._earnings_dates = None
+                else:
+                    edf_clean = self._clean_earnings_dates(self._earnings_dates, refresh)
+                    if len(edf_clean) < len(self._earnings_dates):
+                        # This is ok, because since the last fetch, the calendar can be updated which then allows resolving a 
+                        # near-duplication in earnings_dates.
+                        yfcm.StoreCacheDatum(self.ticker, "earnings_dates", edf_clean)
+                    self._earnings_dates = edf_clean
+
+        last_fetch = yfcm.ReadCacheMetadata(self.ticker, "earnings_dates", "LastFetch")
+        if debug:
+            print("- last_fetch =", last_fetch)
+
+        # Ensure column 'Date confirmed?' is present, and update with calendar
         df_modified = False
         if self._earnings_dates is not None:
-            # Ensure column 'Date confirmed?' is present, and update with calendar
             if 'Date confirmed?' not in self._earnings_dates.columns:
                 self._earnings_dates['Date confirmed?'] = False
                 df_modified = True
@@ -1813,176 +1569,254 @@ class FinancialsManager:
                 for dt in self._earnings_dates.index:
                     if abs(dt.date() - x) < timedelta(days=7):
                         # Assume same release
-                        if not self._earnings_dates['Date confirmed?'].loc[dt]:
-                            self._earnings_dates.loc[dt, 'Date confirmed?'] = True
-                            df_modified = True
-                            break
+                        try:
+                            if not self._earnings_dates['Date confirmed?'].loc[dt]:
+                                self._earnings_dates.loc[dt, 'Date confirmed?'] = True
+                                df_modified = True
+                                break
+                        except Exception:
+                            print("- dt:", dt)
+                            print("- edf:") ; print(self._earnings_dates)
+                            raise
 
-        if not refresh and self._earnings_dates is None:
-            return None
+        if not refresh:
+            if df_modified:
+                yfcm.StoreCacheDatum(self.ticker, "earnings_dates", self._earnings_dates)
 
-        dt_now = pd.Timestamp.utcnow().tz_convert(self.tzName)
-        max_age = pd.Timedelta('7d')
-        df = self._earnings_dates.copy()
+            if debug:
+                print("get_earnings_dates() returning")
+            if self._earnings_dates is not None:
+                if start_dt > self._earnings_dates.index[-1]:
+                    return self._earnings_dates.sort_index().loc[start_dt:].sort_index(ascending=False).copy()
+                else:
+                    return self._earnings_dates.copy()
+            else:
+                return None
+
+        # Limit spam:
+        yf_start_date = yfcm.ReadCacheMetadata(self.ticker, 'earnings_dates', 'start_date')
         if debug:
-            print(f'- cached earnings_dates has {df.shape[0]} rows')
+            print("- yf_start_date =", yf_start_date)
+        if last_fetch is not None:
+            if (last_fetch + pd.Timedelta('14d')) > dt_now:
+                # Avoid spamming Yahoo for data it doesn't have (empty earnings_dates).
+                if self._earnings_dates is None:
+                    # Already attempted a fetch recently, Yahoo has nothing.
+                    if debug:
+                        print("avoiding refetch")
+                    refresh = False
 
-        last_fetch = self._earnings_dates['FetchDate'].max()
-        if debug:
-            print("- last_fetch =", last_fetch)
-        if (dt_now - last_fetch) < pd.Timedelta('7d'):
-            refresh = False
+                # Avoid spamming Yahoo for new future dates
+                if self._earnings_dates is not None:
+                    if yf_start_date is not None:
+                        # Cache has all previous earnings dates
+                        refresh = False
+                    elif start > self._earnings_dates.index.date[-1]:
+                        refresh = False
+            if debug:
+                print("- refresh =", refresh)
 
         if refresh:
-            # f_na = df['Reported EPS'].isna()
-            f_na = df['Reported EPS'].isna().to_numpy()
-            f_nna = ~f_na
-            # df['Expired?'] = f_na & (df.index < dt_now) & ((dt_now - df['FetchDate']) > max_age)
-            # f_expired = df['Expired?'].to_numpy()
-            # f_expired = f_na & (df.index < dt_now) & ((dt_now - df['FetchDate']) > max_age)
-            f_expired = f_na & (df.index < dt_now) & ((dt_now - df['FetchDate']) > max_age).to_numpy()
-            # f_final = (df['FetchDate'] - pd.Timedelta(days=30)) > df.index
-            n = df.shape[0]
-            if debug:
-                print("- n =", n)
-
             ei = self._earnings_interval(with_report=False, refresh=False)
-            if isinstance(ei, TimedeltaEstimate):
+            if isinstance(ei, yfcd.TimedeltaEstimate):
                 # Don't care about confidence
                 ei = ei.td
-            elif isinstance(ei, TimedeltaRangeEstimate):
+            elif isinstance(ei, yfcd.TimedeltaRangeEstimate):
                 ei = mean([ei.td1, ei.td2])
-            if isinstance(ei, (ComparableRelativedelta, relativedelta)):
+            if isinstance(ei, (yfcd.ComparableRelativedelta, relativedelta)):
                 # Convert to normal Timedelta, don't need 100% precision
                 if ei.months == 3:
                     ei = pd.Timedelta('91d')
                 elif ei.months == 6:
-                    ei = pd.Timedelta('180d')
+                    ei = pd.Timedelta('182d')
+                elif ei.months == 12 or ei.years==1:
+                    # ei = pd.Timedelta('365d')
+                    # Don't believe it
+                    ei = pd.Timedelta('182d')
                 else:
-                    raise Exception(ei)
-
-            if debug:
-                print("- cached df:") ; print(df)
+                    raise Exception(ei, type(ei))
 
             lookahead_dt = dt_now + pd.Timedelta('365d')
             if debug:
+                print("- ei =", ei)
                 print("- lookahead_dt =", lookahead_dt)
 
-            # n_intervals_missing_after = int(round((lookahead_dt - df.index[0]) / ei))
-            n_intervals_missing_after = int(round(Decimal((lookahead_dt - df.index[0]) / ei)))
-            any_expired = f_expired.any()
-            if not any_expired:
-                n_intervals_to_refresh_expired = 0
-                n_before_expired = n
+            next_rd = None
+            if self._earnings_dates is None or (start_dt < self._earnings_dates.index[-1] and yf_start_date is None):
+                total_refetch = True
+                n_intervals_to_fetch = int(math.floor(Decimal(1.25*(lookahead_dt - start_dt) / ei)))
             else:
-                earliest_expired_dt = df.index[f_expired][-1]
+                total_refetch = False
+                df = self._earnings_dates.copy()
+                f_na = df['Reported EPS'].isna().to_numpy()
+                f_nna = ~f_na
+                f_expired = f_na & (df.index < dt_now) & ((dt_now - df['FetchDate']) > pd.Timedelta('7d')).to_numpy()
+                n = df.shape[0]
                 if debug:
-                    print("- earliest_expired_dt =", earliest_expired_dt)
-                f_certain = f_nna & (~f_expired)
-                # f_certain = f_certain | df['Date confirmed?'].to_numpy()
-                # latest_certain_dt_idx = np.where(f_certain)[0]
-                certain_idxs = np.where(f_certain)[0]
-                if len(certain_idxs) == 0:
-                    n_intervals_to_refresh_expired = (lookahead_dt - earliest_expired_dt) / ei +1.0
-                    n_before_expired = 0
+                    print("- n =", n)
+
+                n_intervals_missing_after = int(math.floor(Decimal((lookahead_dt - df.index[0]) / ei)))
+                any_expired = f_expired.any()
+                if debug:
+                    print("- n_intervals_missing_after =", n_intervals_missing_after)
+                    print("- any_expired =", any_expired)
+                if not any_expired:
+                    # ToDo: avoid refetching if next earnings after last fetch is (far) in future.
+                    if f_nna.any():
+                        if debug:
+                            print("- checking against release dates ...")
+                        rds = self.get_release_dates(yfcd.ReportingPeriod.Interim, as_df=False, refresh=False)
+                        if rds is not None:
+                            latest_certain_dt = df.index[np.where(f_nna)[0][0]].date()
+                            for i in range(len(rds)):
+                                try:
+                                    in_future = rds[i].release_date > latest_certain_dt
+                                except yfcd.AmbiguousComparisonException:
+                                    p = rds[i].release_date.prob_gt(latest_certain_dt)
+                                    in_future = p > 0.9
+                                if in_future:
+                                    next_rd = rds[i]
+                                    break
+                            try: 
+                                next_rd_in_future = next_rd.release_date > (d_today + timedelta(days=7))
+                            except yfcd.AmbiguousComparisonException:
+                                p = next_rd.release_date.prob_gt(d_today + timedelta(days=7))
+                                next_rd_in_future = p > 0.9
+                            if next_rd_in_future:
+                                # Avoid fetching while far from next earnings release
+                                n_intervals_missing_after = 0
+                    n_intervals_to_fetch = n_intervals_missing_after
                 else:
-                    latest_certain_dt_idx = np.where(f_certain)[0][0]
-                    n_before_expired = n - latest_certain_dt_idx - 1
-                    if debug:
-                        print("- latest_certain_dt_idx =", latest_certain_dt_idx)
-                    latest_certain_dt = df.index[latest_certain_dt_idx]
-                    if debug:
-                        print("- latest_certain_dt =", latest_certain_dt)
-                    n_intervals_to_refresh_expired = (lookahead_dt - latest_certain_dt) / ei
-                n_intervals_to_refresh_expired *= 1.2  # allow for Yahoo randomly duplicating releases
-                if debug:
-                    print("- n_intervals_to_refresh_expired =", n_intervals_to_refresh_expired)
-                n_intervals_to_refresh_expired = int(round(n_intervals_to_refresh_expired+0.95))
-                if debug:
-                    print("- n_intervals_to_refresh_expired =", n_intervals_to_refresh_expired)
-            n_intervals_to_fetch = n_intervals_missing_after + n_intervals_to_refresh_expired
+                    earliest_expired_idx = np.where(f_expired)[0][-1]
+                    n_intervals_expired = earliest_expired_idx + 1
+                    n_intervals_to_fetch = n_intervals_expired + n_intervals_missing_after
+
+            if n_intervals_to_fetch > 0:
+                # Ensure always fetching more than necessary
+                n_intervals_to_fetch += 8
             if debug:
                 print("- n_intervals_to_fetch =", n_intervals_to_fetch)
-            if debug:
-                print("- n_before_expired =", n_before_expired)
 
-            # latest_known_dt = df.index[f_nna][0]
-            latest_known_dt = df.index[~f_expired][0]
-            if debug:
-                print("- latest_known_dt =", latest_known_dt)
-            latest_known_dt_idx = df.index.get_loc(latest_known_dt)
-            if debug:
-                print("- latest_known_dt_idx =", latest_known_dt_idx)
-            total_refetch = False
-            start_date = yfcm.ReadCacheMetadata(self.ticker, 'earnings_dates', 'start_date')
-            if any_expired:
-                if limit > (n_intervals_to_refresh_expired + n_before_expired):
-                    if start_date is None or start_date < self._earnings_dates.index[-1]:
-                        total_refetch = True
-            elif limit > (n_intervals_missing_after + n):
-                if start_date is None or start_date < self._earnings_dates.index[-1]:
-                    total_refetch = True
-            if debug:
-                print("- total_refetch =", total_refetch)
-            if total_refetch:
-                # Just do a total refetch and replace
+            if n_intervals_to_fetch > 0:
                 if debug:
-                    print("DEBUG: Total refetch")
-                self._earnings_dates = self._fetch_earnings_dates(limit, refresh)
-                df_modified = True
-                if self._earnings_dates.shape[0] < limit:
-                    yfcm.WriteCacheMetadata(self.ticker, 'earnings_dates', 'start_date', self._earnings_dates.index.min())
-            elif n_intervals_to_refresh_expired > 0:
-                # Just update cached table, then return requested subset
-                if debug:
-                    print("DEBUG: Smart fetch of expired data")
-                new_df = self._fetch_earnings_dates(n_intervals_to_refresh_expired, refresh)
+                    print("- total_refetch =", total_refetch)
+                try:
+                    new_df = self._fetch_earnings_dates(n_intervals_to_fetch, refresh)
+                except Exception:
+                    print("- self._earnings_dates:") ; print(self._earnings_dates)
+                    print("- start:", start)
+                    print("- yf_start_date:", yf_start_date)
+                    print("- last_fetch:", last_fetch)
+                    print("- ei:", ei)
+                    print("- next_rd:", next_rd)
+                    print("- n_intervals_to_fetch:", n_intervals_to_fetch)
+                    raise
+                # Sanity test:
+                if new_df is not None and not new_df.empty:
+                    edf_clean = self._clean_earnings_dates(new_df, refresh)
+                    if len(edf_clean) < len(new_df):
+                        print("- edf:") ; print(new_df[['EPS Estimate', 'Reported EPS', 'FetchDate']])
+                        print("- after clean:") ; print(edf_clean[['EPS Estimate', 'Reported EPS', 'FetchDate']])
+                        raise Exception(f'{self.ticker}: We literally just fetched earnings dates, why not cleaned?')
+                        yfcm.StoreCacheDatum(self.ticker, "earnings_dates", edf_clean)
+
+                yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', dt_now)
                 if debug:
                     print("- new_df:") ; print(new_df)
-                if new_df.shape[0] < n_intervals_to_refresh_expired:
-                    yfcm.WriteCacheMetadata(self.ticker, 'earnings_dates', 'start_date', new_df.index.min())
-                df2 = self._earnings_dates[self._earnings_dates.index < new_df.index[-1]]
-                df3 = pd.concat([new_df, df2])
-                if debug:
-                    print("- df3:") ; print(df3)
-                self._earnings_dates = df3
-                df_modified = True
+                if new_df is not None and not new_df.empty:
+                    if self._earnings_dates is not None:
+                        df_old = self._earnings_dates[self._earnings_dates.index < (new_df.index[-1]-timedelta(days=14))]
+                        if not df_old.empty:
+                            new_df = pd.concat([new_df, df_old])
+                        if debug:
+                            print("- new_df:") ; print(new_df)
+                    self._earnings_dates = new_df
+                    df_modified = True
 
         if df_modified:
-            yfcm.StoreCacheDatum(self.ticker, "earnings_dates", self._earnings_dates)
+            if self._earnings_dates is None:
+                yfcm.StoreCacheDatum(self.ticker, "earnings_dates", pd.DataFrame())
+            else:
+                yfcm.StoreCacheDatum(self.ticker, "earnings_dates", self._earnings_dates)
 
-        # if limit > self._earnings_dates.shape[0]:
-        #     raise Exception(f"After updating earnings_dates, don't have enough rows! nrows={self._earnings_dates.shape[0]}, limit={limit}")
-        #     # No more history to fetch.
-
-        if limit < self._earnings_dates.shape[0]:
-            df = self._earnings_dates.iloc[:limit].copy()
+        df = None
+        if debug:
+            print("get_earnings_dates() returning")
+        if self._earnings_dates is not None:
+            if start_dt > self._earnings_dates.index[-1]:
+                df = self._earnings_dates.sort_index().loc[start_dt:].sort_index(ascending=False)
+            else:
+                df = self._earnings_dates
+            if clean:
+                df = df.drop(["FetchDate", "Date confirmed?"], axis=1, errors='ignore')
+            return df.copy()
         else:
-            df = self._earnings_dates.copy()
-        if clean:
-            df = df.drop(["FetchDate", "Date confirmed?"], axis=1)
-        return df
+            return None
+
+    def _clean_earnings_dates(self, edf, refresh=True):
+        edf = edf.sort_index(ascending=False)
+
+        # In rare cases, Yahoo has duplicated a date with different company name.
+        # Retain the row with most data.
+        for i in range(len(edf)-1, 0, -1):
+            if edf.index[i-1] == edf.index[i]:
+                mask = np.ones(len(edf), dtype=bool)
+                if edf.iloc[i-1].isna().sum() > edf.iloc[i].isna().sum():
+                    # Discard row i-1
+                    mask[i-1] = False
+                else:
+                    # Discard row i
+                    mask[i] = False
+                edf = edf[mask].copy()
+
+        for i in range(len(edf)-2, -1, -1):
+            if (edf.index[i]-edf.index[i+1]) < timedelta(days=7):
+                # One must go
+                # if edf['Date confirmed?'].iloc[i]:
+                if edf['FetchDate'].iloc[i] > edf['FetchDate'].iloc[i+1]:
+                    edf = edf.drop(edf.index[i+1])
+                # elif edf['Date confirmed?'].iloc[i+1]:
+                elif edf['FetchDate'].iloc[i+1] > edf['FetchDate'].iloc[i]:
+                    edf = edf.drop(edf.index[i])
+                else:
+                    # Cross-check against calendar
+                    cal = self.get_calendar(refresh)
+                    dts = cal['Earnings Date']
+                    if len(dts) == 1 and dts[0] in [edf.index[i].date(), edf.index[i+1].date()]:
+                        if edf.index[i].date() == dts[0]:
+                            edf = edf.drop(edf.index[i+1])
+                        else:
+                            edf = edf.drop(edf.index[i])
+                    else:
+                        # print(edf.iloc[i:i+2])
+                        # raise Exception('Review how to handle 2x almost-equal earnings dates.')
+                        pass  # Can't do anything with certainty
+
+        return edf
 
     def _fetch_earnings_dates(self, limit, refresh=True):
+        yfcu.TypeCheckInt(limit, "limit")
+        yfcu.TypeCheckBool(refresh, "refresh")
+        
         debug = False
         # debug = True
 
         if debug:
-            print(f"_fetch_earnings_dates(limit={limit}, refresh={refresh})")
+            print(f"{self.ticker}: _fetch_earnings_dates(limit={limit}, refresh={refresh})")
+        elif print_fetches:
+            print(f"{self.ticker}: fetching {limit} earnings dates")
 
-        yfcu.TypeCheckInt(limit, "limit")
-        yfcu.TypeCheckBool(refresh, "refresh")
-        
         df = self.dat.get_earnings_dates(limit)
-        if df is None:
+        if df is None or df.empty:
             if debug:
                 print("- Yahoo returned None")
-            return df
-        if debug:
-            print(f"- Yahoo returned {df.shape[0]} rows")
-        if df.empty:
             return None
         df['FetchDate'] = pd.Timestamp.utcnow().tz_convert(self.tzName)
+
+        if df.shape[0] < limit:
+            if debug:
+                print("- detected earnings_dates start at", df.index.min())
+            yfcm.WriteCacheMetadata(self.ticker, 'earnings_dates', 'start_date', df.index.min())
 
         cal = self.get_calendar(refresh)
         df['Date confirmed?'] = False
@@ -1994,7 +1828,7 @@ class FinancialsManager:
                     df.loc[dt, 'Date confirmed?'] = True
                     break
 
-        df = df.drop_duplicates()
+        df = self._clean_earnings_dates(df, refresh)
 
         return df
 
@@ -2007,6 +1841,7 @@ class FinancialsManager:
             if yfcm.IsDatumCached(self.ticker, "calendar"):
                 self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
                 if "FetchDate" not in self._calendar.keys():
+                    raise Exception(f"{self.ticker}: calendar missing FetchDate")
                     fp = yfcm.GetFilepath(self.ticker, "calendar")
                     mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
                     self._calendar["FetchDate"] = mod_dt
@@ -2016,6 +1851,9 @@ class FinancialsManager:
 
         if not refresh:
             return self._calendar
+
+        if print_fetches:
+            print(f"{self.ticker}: Fetching calendar (last fetch = {self._calendar['FetchDate'].date()})")
 
         c = self.dat.calendar
         c["FetchDate"] = pd.Timestamp.now()
@@ -2032,51 +1870,55 @@ class FinancialsManager:
                 msg += f"{c}" + "\n"
                 raise Exception(msg)
 
-        yfcm.StoreCacheDatum(self.ticker, "calendar", c)
+        if c is not None:
+            yfcm.StoreCacheDatum(self.ticker, "calendar", c)
         self._calendar = c
         return self._calendar
 
-    def _get_tagged_calendar_dates(self, refresh=True):
+    def _get_calendar_dates(self, refresh=True):
         yfcu.TypeCheckBool(refresh, 'refresh')
 
         debug = False
         # debug = True
 
-        cal = self.get_calendar(refresh)
-        if cal is not None and len(cal) == 0:
-            cal = None
-        cal_release_dates = None if cal is None else cal["Earnings Date"]
-
-        # Tag earnings dates in calendar with whether was estimated:
-        if cal_release_dates is None:
-            cal_release_dates_tagged = []
-        else:
-            # cal_release_dates = [d.date() for d in cal_release_dates]  # update: already date
-            cal_release_dates_tagged = []
-            cal_release_dates.sort()
-            last = None
-            for d in cal_release_dates:
-                if last is None:
-                    last = d
-                else:
-                    diff = d - last
-                    if diff <= timedelta(days=15):
-                        # Looks like a date range so tag last-added date as estimate. And change data to be middle of range
-                        last = DateRange(last, d)
-                        cal_release_dates_tagged.append(last)
-                        last = None
-                    else:
-                        print("- cal_release_dates:") ; print(cal_release_dates)
-                        print("- diff =", diff)
-                        raise Exception(f"Implement/rejig this execution path (tkr={self.ticker})")
-            if last is not None:
-                cal_release_dates_tagged.append(last)
         if debug:
-            if len(cal_release_dates_tagged) == 0:
-                print("- cal_release_dates_tagged: EMPTY")
+            print(f"_get_calendar_dates(refresh={refresh})")
+
+        cal = self.get_calendar(refresh)
+        if cal is None or len(cal) == 0:
+            return None
+        if debug:
+            print(f"- cal = {cal}")
+
+        cal_release_dates = []
+        cal_release_dates.sort()
+        last = None
+        for d in cal["Earnings Date"]:
+            if last is None:
+                last = d
             else:
-                print("- cal_release_dates_tagged:")
-                for e in cal_release_dates_tagged:
+                diff = d - last
+                if debug:
+                    print(f"- diff = {diff}")
+                if diff <= timedelta(days=15):
+                    # Looks like a date range so tag last-added date as estimate. And change data to be middle of range
+                    last = yfcd.DateRange(last, d)
+                    cal_release_dates.append(last)
+                    last = None
+                else:
+                    print("- cal_release_dates:") ; print(cal_release_dates)
+                    print("- diff =", diff)
+                    raise Exception(f"Implement/rejig this execution path (tkr={self.ticker})")
+        if last is not None:
+            cal_release_dates.append(last)
+        if debug:
+            print(f"- cal_release_dates = {cal_release_dates}")
+        if debug:
+            if len(cal_release_dates) == 0:
+                print("- cal_release_dates: EMPTY")
+            else:
+                print("- cal_release_dates:")
+                for e in cal_release_dates:
                     print(e)
 
-        return cal_release_dates_tagged
+        return cal_release_dates
