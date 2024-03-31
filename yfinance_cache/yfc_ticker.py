@@ -42,9 +42,6 @@ class Ticker:
 
         self._institutional_holders = None
 
-        exchange, tz_name = self._getExchangeAndTz()
-        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
-
         self._sustainability = None
 
         self._recommendations = None
@@ -62,6 +59,9 @@ class Ticker:
 
         self._tz = None
         self._exchange = None
+
+        exchange, tz_name = self._getExchangeAndTz()
+        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
 
     def history(self,
                 interval="1d",
