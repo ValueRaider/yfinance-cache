@@ -347,7 +347,7 @@ class Ticker:
 
     def _getExchangeAndTz(self):
         if self._tz is not None and self._exchange is not None:
-            return self._tz, self._exchange
+            return self._exchange, self._tz
 
         exchange, tz_name = None, None
         try:
@@ -367,7 +367,7 @@ class Ticker:
             raise Exception(f"{self.ticker}: exchange and timezone not available")
         self._tz = tz_name
         self._exchange = exchange
-        return self._tz, self._exchange
+        return self._exchange, self._tz
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
