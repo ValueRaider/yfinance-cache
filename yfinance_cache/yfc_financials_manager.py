@@ -370,10 +370,27 @@ class FinancialsManager:
                     if df_pruned.empty:
                         df = df_new
                     else:
-                        print("- df:", df.columns) ; print(df)
-                        print("- df_new:", df_new.columns) ; print(df_new)
-                        print("- df_pruned:") ; print(df_pruned)
-                        raise Exception('need to implement merging 2x financials tables, review, particularly row names')
+                        # Before merging, check for new/missing fields. Insert any with value NaN.
+                        missing_keys = [k for k in df_pruned.index if not k in df_new.index]
+                        new_keys = [k for k in df_new.index if not k in df_pruned.index]
+                        actions = []
+                        for k in missing_keys:
+                            actions.append((k, "missing", df_pruned.index.get_loc(k)))
+                        for k in new_keys:
+                            actions.append((k, "new", df_new.index.get_loc(k)))
+                        actions = sorted(actions, key=lambda x: x[2])
+                        for a in actions:
+                            k = a[0]
+                            if a[1] == 'missing':
+                                empty_row = pd.DataFrame(data={c:[np.nan] for c in df_new.columns}, index=[k])
+                                idx = df_pruned.index.get_loc(k)
+                                df_new = pd.concat([df_new.iloc[:idx], empty_row, df_new.iloc[idx:]])
+                            else:
+                                empty_row = pd.DataFrame(data={c:[np.nan] for c in df_pruned.columns}, index=[k])
+                                idx = df_new.index.get_loc(k)
+                                df_pruned = pd.concat([df_pruned.iloc[:idx], empty_row, df_pruned.iloc[idx:]])
+                        df_new = df_new.reindex(df_pruned.index)
+                        df = pd.concat([df_new, df_pruned], axis=1)
             yfcm.StoreCacheDatum(self.ticker, name, df, metadata=md)
 
         self._fin_tbl_cache[cache_key] = df
@@ -502,7 +519,9 @@ class FinancialsManager:
                     except yfcd.AmbiguousComparisonException:
                         print("- next release date is estimated, time to recalc:", next_r)
                         do_calc = True
-                raise Exception('review cached release dates:')
+                # print("- releases:") ; pprint(releases)
+                # print("- md:") ; pprint(md)
+                # raise Exception('review cached release dates')
 
         if do_calc:
             releases = self._calc_release_dates(period, refresh, check)
