@@ -2047,7 +2047,7 @@ class PriceHistory:
                         df = df.sort_index()
 
         # Improve tolerance to calendar missing a recent new holiday:
-        if (df is None) or df.empty:
+        if df is None or df.empty:
             return None
 
         n = df.shape[0]
@@ -2320,6 +2320,9 @@ class PriceHistory:
                                 intervals.loc[dt, "interval_close"] = df.index[idx] + self.itd
                     else:
                         raise Exception("Problem with dates returned by Yahoo, see above")
+
+        if df is None or df.empty:
+            return None
 
         df = df.copy()
 
