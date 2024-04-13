@@ -488,22 +488,26 @@ class Ticker:
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
+        md = None
         if yfcm.IsDatumCached(self.ticker, "info"):
             self._info, md = yfcm.ReadCacheDatum(self.ticker, "info", True)
             if 'FetchDate' not in self._info.keys():
+                # Old bug meant this could happen
                 fp = yfcm.GetFilepath(self.ticker, 'info')
                 mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
                 self._info['FetchDate'] = mod_dt
-                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', mod_dt)
+                md['LastCheck'] = mod_dt
+                yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
-        if self._info is not None:
-            if md is None:
-                md = {}
-            if not 'LastCheck' in md.keys():
-                md['LastCheck'] = self._info['FetchDate']
-                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
-            if max(self._info['FetchDate'], md['LastCheck']) + max_age > pd.Timestamp.now():
-                return self._info
+            if self._info is not None:
+                if md is None:
+                    md = {}
+                if not 'LastCheck' in md.keys():
+                    # Old bug meant this could happen
+                    md['LastCheck'] = self._info['FetchDate']
+                    yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
+                if max(self._info['FetchDate'], md['LastCheck']) + max_age > pd.Timestamp.now():
+                    return self._info
 
         i = self.dat.info
         i['FetchDate'] = pd.Timestamp.now()
@@ -532,7 +536,10 @@ class Ticker:
                 return self._info
 
         self._info = i
-        yfcm.StoreCacheDatum(self.ticker, "info", self._info)
+        if md is None:
+            md = {}
+        mf['LastCheck'] = i['FetchDate']
+        yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
         exchange, tz_name = self._getExchangeAndTz()
         yfct.SetExchangeTzName(exchange, tz_name)
