@@ -371,8 +371,8 @@ class FinancialsManager:
                         df = df_new
                     else:
                         # Before merging, check for new/missing fields. Insert any with value NaN.
-                        missing_keys = [k for k in df_pruned.index if not k in df_new.index]
-                        new_keys = [k for k in df_new.index if not k in df_pruned.index]
+                        missing_keys = [k for k in df_pruned.index if k not in df_new.index]
+                        new_keys = [k for k in df_new.index if k not in df_pruned.index]
                         actions = []
                         for k in missing_keys:
                             actions.append((k, "missing", df_pruned.index.get_loc(k)))
@@ -1162,10 +1162,10 @@ class FinancialsManager:
         return releases
 
     def _check_release_dates(self, releases, finType, period, refresh):
-        if period == yfcd.ReportingPeriod.Full:
-            interval_td = interval_str_to_days['ANNUAL']
-        else:
-            interval_td = self._get_interval(finType, refresh)
+        # if period == yfcd.ReportingPeriod.Full:
+        #     interval_td = interval_str_to_days['ANNUAL']
+        # else:
+        #     interval_td = self._get_interval(finType, refresh)
 
         for i0 in range(len(releases)-1):
             r0 = releases[i0]
@@ -1195,8 +1195,6 @@ class FinancialsManager:
                         bad_order = r0.release_date > (r1.period_end+timedelta(days=7))
                     except yfcd.AmbiguousComparisonException:
                         p = r0.release_date.prob_gt(r1.period_end+timedelta(days=7))
-                        if debug:
-                            print(f"- prob. that {r0.release_date} > {r1.period_end+timedelta(days=7)} = {p*100.0:.1f}%")
                         bad_order = p > 0.9
                     # try:
                     #     bad_order = bad_order and ((r1.period_end - r0.period_end)*2.0 > interval_td)
