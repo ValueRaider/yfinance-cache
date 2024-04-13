@@ -79,7 +79,7 @@ def TypeCheckYear(var, varName):
     if not isinstance(var, int):
         raise Exception("'{}' must be int not {}".format(varName, type(var)))
     if var < 1900 or var > 2200:
-        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, type(var)))
+        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, var))
 def TypeCheckTimedelta(var, varName):
     if not isinstance(var, timedelta):
         raise TypeError(f"'{varName}' must be timedelta not {type(var)}")
