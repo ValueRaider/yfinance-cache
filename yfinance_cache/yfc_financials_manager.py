@@ -416,15 +416,19 @@ class FinancialsManager:
 
         interval = None
         intervals = [(dates[i-1] - dates[i]).days for i in range(1,len(dates))]
+        intervals = np.array(intervals)
         sdm_thresold = 0.1
         if len(intervals) == 1:
             interval = intervals[0]
         else:
-            avg = mean(intervals)
-            sdm = stdev(intervals) / avg
+            # First, discard impossibly small intervals:
+            f_too_small = intervals < 60
+            if f_too_small.any():
+                intervals = intervals[~f_too_small]
+            avg = np.mean(intervals)
+            sdm = np.std(intervals) / avg
             if sdm > sdm_thresold:
                 # Discard large outliers
-                intervals = np.array(intervals)
                 intervals = intervals[intervals<avg]
                 if len(intervals) == 1:
                     interval = intervals[0]
@@ -1166,6 +1170,11 @@ class FinancialsManager:
         #     interval_td = interval_str_to_days['ANNUAL']
         # else:
         #     interval_td = self._get_interval(finType, refresh)
+
+        # Ignore releases with no date:
+        # - can happen with nonsense financials dates from Yahoo that
+        #   even my prune function couldn't safely remove
+        releases = [r for r in releases if r.release_date is not None]
 
         for i0 in range(len(releases)-1):
             r0 = releases[i0]
