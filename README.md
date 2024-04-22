@@ -151,5 +151,4 @@ Available on PIP: `pip install yfinance_cache`
 
 ## Limitations
 
-- only price data is checked if refresh needed
 - intraday pre/post price data not available
