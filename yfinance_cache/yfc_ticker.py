@@ -538,7 +538,7 @@ class Ticker:
         self._info = i
         if md is None:
             md = {}
-        mf['LastCheck'] = i['FetchDate']
+        md['LastCheck'] = i['FetchDate']
         yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
         exchange, tz_name = self._getExchangeAndTz()
