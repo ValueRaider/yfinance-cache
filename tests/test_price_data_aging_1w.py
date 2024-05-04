@@ -51,7 +51,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         dts = []
         answers = []
         week_start_day = date(2022, 2, 7)
-        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h
+        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h+self.td1d
         for d in range(7, 12):
             day = date(2022, 2,d)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
@@ -59,7 +59,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             answers.append(answer+lag)
 
         week_start_day = date(2022, 2, 14)
-        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h + self.td1d  # Monday holiday
+        answer = datetime.combine(week_start_day + 7*self.td1d, self.market_open, self.market_tz) + self.td4h+self.td1d + self.td1d  # Monday holiday
         for d in range(14, 19):
             day = date(2022, 2,d)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
@@ -125,7 +125,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         dts = []
         answers = []
         week_start_day = date(2022, 4, 4)
-        answer = datetime.combine(date(2022, 4, 11), self.nze_market_open_time, tz) + self.td4h
+        answer = datetime.combine(date(2022, 4, 11), self.nze_market_open_time, tz) + self.td4h+self.td1d
         for d in range(4, 9):
             day = date(2022, 4, d)
 
@@ -137,7 +137,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
             answers.append(answer+lag)
 
         week_start_day = date(2022, 4, 11)
-        answer = datetime.combine(date(2022, 4, 19), time(10), tz) + self.td4h
+        answer = datetime.combine(date(2022, 4, 19), time(10), tz) + self.td4h+self.td1d
         for d in range(11, 16):
             day = date(2022, 4, d)
             
@@ -179,7 +179,7 @@ class Test_PriceDataAging_1W(unittest.TestCase):
         lag = timedelta(0)
         dts = []
         answers = []
-        answer = datetime.combine(date(2022, 5, 9), time(8), tz) + self.td4h
+        answer = datetime.combine(date(2022, 5, 9), time(8), tz) + self.td4h+self.td1d
         for d in range(3, 7):  # 2nd is holiday
             day = date(2022, 5, d)
             dt = datetime.combine(day, time(14, 30), tz)

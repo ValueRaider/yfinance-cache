@@ -6,6 +6,7 @@ from .yfc_multi import download
 from .yfc_logging import EnableLogging, DisableLogging
 from .yfc_cache_manager import _option_manager as options
 
-from .yfc_upgrade import _init_options
+from .yfc_upgrade import _init_options, _reset_cached_cals
 _init_options()
+_reset_cached_cals()
 

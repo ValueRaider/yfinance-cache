@@ -25,3 +25,29 @@ def _init_options():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w'):
         pass
+
+def _reset_cached_cals():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-reset-cals")
+    if os.path.isfile(state_fp):
+        return
+
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    import shutil
+    dp = yfcm.GetCacheDirpath()
+    for d in os.listdir(dp):
+        if d.startswith("exchange-"):
+            shutil.rmtree(os.path.join(dp, d))
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+

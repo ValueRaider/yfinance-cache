@@ -88,7 +88,7 @@ class Test_Yfc_Backend(Test_Base):
         ## Only use high-volume stocks:
         tkr_candidates = ["AZN.L", "ASML.AS", "BHG.JO", "INTC", "MEL.NZ"]
 
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
 
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)

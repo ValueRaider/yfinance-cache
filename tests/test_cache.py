@@ -10,6 +10,7 @@ import json, pickle
 from time import sleep
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
+import pandas as pd
 
 from pprint import pprint
 
@@ -66,7 +67,7 @@ class Test_Yfc_Cache(unittest.TestCase):
     def test_cache_store_expiry(self):
         value = 123
 
-        dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         exp = dt + timedelta(seconds=1)
 
         yfcm.StoreCacheDatum(self.ticker, self.objName, value, expiry=exp)
@@ -118,7 +119,7 @@ class Test_Yfc_Cache(unittest.TestCase):
         var_grp = "annuals"
         value = 123
 
-        dt = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         exp = dt + timedelta(seconds=1)
 
         yfcm.StoreCachePackedDatum(self.ticker, var, value, expiry=exp)
@@ -147,7 +148,7 @@ class Test_Yfc_Cache(unittest.TestCase):
         json_values.append(int(1))
         json_values.append(float(1))
         json_values.append([1, 3])
-        json_values.append(datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")))
+        json_values.append(pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")))
         json_values.append(timedelta(seconds=2.01))
 
         pkl_values = []
@@ -194,7 +195,7 @@ class Test_Yfc_Cache(unittest.TestCase):
         key = "k1"
         value = 123
         md = {key:value}
-        exp = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + timedelta(hours=1)
+        exp = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")) + timedelta(hours=1)
 
         yfcm.StoreCacheDatum(self.ticker, self.objName, value, expiry=exp, metadata=md)
         obj,mdc = yfcm.ReadCacheDatum(self.ticker, self.objName, return_metadata_too=True)
