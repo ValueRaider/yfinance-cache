@@ -194,9 +194,13 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         week_start_d = start_d - self.td1d*start_d.weekday()
         week2_start_d = week_start_d -7*self.td1d
         week1_start_d = week2_start_d -7*self.td1d
-        days  = [week1_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]
-        days += [week2_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]
-
+        days = []
+        for d in [week1_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]:
+            if yfct.ExchangeOpenOnDay(self.exchange, d):
+                days.append(d)
+        for d in [week2_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]:
+            if yfct.ExchangeOpenOnDay(self.exchange, d):
+                days.append(d)
 
         for lag in lags:
             responses = yfct.CalcIntervalLastDataDt_batch(self.exchange, days, interval, yf_lag=lag)

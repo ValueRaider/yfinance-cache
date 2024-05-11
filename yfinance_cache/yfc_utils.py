@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import re
@@ -35,7 +35,7 @@ class CustomNanCheckingDataFrame(pd.DataFrame):
         if 'Repaired?' not in self.columns:
             return
         if self['Repaired?'].isna().any():
-            raise Exception(f"NaNs detected in column 'Repaired?'!")
+            raise Exception("NaNs detected in column 'Repaired?'!")
 
 
 def TypeCheckStr(var, varName):
@@ -48,7 +48,7 @@ def TypeCheckFloat(var, varName):
     if not isinstance(var, (float, np.float32, np.float64)):
         raise TypeError(f"'{varName}' must be float not {type(var)}")
 def TypeCheckInt(var, varName):
-    if not isinstance(var, (int, np.int32, np.int64)):
+    if isinstance(var, bool) or not isinstance(var, (int, np.int32, np.int64)):
         raise TypeError(f"'{varName}' must be int not {type(var)}")
 def TypeCheckIterable(var, varName):
     if not isinstance(var, (list, set, np.ndarray, pd.Series)):
@@ -79,7 +79,7 @@ def TypeCheckYear(var, varName):
     if not isinstance(var, int):
         raise Exception("'{}' must be int not {}".format(varName, type(var)))
     if var < 1900 or var > 2200:
-        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, type(var)))
+        raise Exception("'{}' must be in range 1900-2200 not {}".format(varName, var))
 def TypeCheckTimedelta(var, varName):
     if not isinstance(var, timedelta):
         raise TypeError(f"'{varName}' must be timedelta not {type(var)}")
@@ -184,6 +184,25 @@ def CalculateRounding(n, sigfigs):
         return sigfigs - GetSigFigs(round(n))
 
 
+def ProcessUserDt(dt, tz_name):
+    d = None
+    tz = ZoneInfo(tz_name)
+    if isinstance(dt, str):
+        d = datetime.strptime(dt, "%Y-%m-%d").date()
+        dt = datetime.combine(d, time(0), tz)
+    elif isinstance(dt, date) and not isinstance(dt, datetime):
+        d = dt
+        dt = datetime.combine(dt, time(0), tz)
+    elif not isinstance(dt, datetime):
+        raise Exception("Argument 'dt' must be str, date or datetime")
+    dt = dt.replace(tzinfo=tz) if dt.tzinfo is None else dt.astimezone(tz)
+
+    if d is None and dt.time() == datetime.time(0):
+        d = dt.date()
+
+    return dt, d
+
+
 def GetCSF0(df):
     if "Stock Splits" not in df:
         raise Exception("DataFrame does not contain column 'Stock Splits")
@@ -198,7 +217,7 @@ def GetCSF0(df):
     else:
         ss_rcp = 1.0/ss
         csf = ss_rcp.sort_index(ascending=False).cumprod().sort_index(ascending=True).shift(-1, fill_value=1.0)
-    csf0 = csf[0]
+    csf0 = csf.iloc[0]
 
     ss0 = ss.iloc[0]
     if ss0 != 1.0:
@@ -215,7 +234,7 @@ def GetCDF0(df, close_day_before=None):
 
     df = df.sort_index(ascending=True)
 
-    cdf = df["CDF"][0]
+    cdf = df["CDF"].iloc[0]
     if cdf != 1.0:
         # Yahoo's dividend adjustment has tiny variation (~1e-6),
         # so use mean to minimise accuracy loss of adjusted->deadjust->adjust
@@ -225,7 +244,7 @@ def GetCDF0(df, close_day_before=None):
             raise Exception("Mean CDF={} is sig. different to CDF[0]={}".format(cdf_mean, cdf))
         cdf = cdf_mean
 
-    div0 = df["Dividends"][0]
+    div0 = df["Dividends"].iloc[0]
     if div0 != 0.0:
         if close_day_before is None:
             raise Exception("Dividend in most recent row so need to know yesterday's close")
@@ -341,7 +360,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
     df_yf = df_yf[~df_yf[yfcd.yf_price_data_cols].isna().any(axis=1)]
 
     # Drop mismatching indices for value check
-    h = h[h.index.isin(df_yf.index)]
+    h = h[h.index.isin(df_yf.index)].copy()
+    h = h[h['Final?'].to_numpy()]
     df_yf = df_yf[df_yf.index.isin(h.index)]
     n = h.shape[0]
 

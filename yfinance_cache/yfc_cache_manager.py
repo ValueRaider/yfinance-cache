@@ -2,6 +2,7 @@ import os
 import pickle
 import json
 import appdirs
+from pandas import Timedelta
 
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
@@ -11,8 +12,8 @@ from . import yfc_utils as yfcu
 
 # To reduce #files in cache, store some YF objects together into same file (including metadata)
 packed_data_cats = {}
-packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials"]
-packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials"]
+packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials", "quarterly_income_stmt"]
+packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials", "income_stmt"]
 
 quarterly_objects = packed_data_cats["quarterlys"]
 annual_objects    = packed_data_cats["annuals"]
@@ -41,6 +42,9 @@ def SetCacheDirpath(dp):
     if verbose:
         print("Set cache dir to {0}".format(cacheDirpath))
 
+    global _option_manager
+    _option_manager = OptionsManager()
+
 
 def IsObjectInPackedData(objectName):
     for k in packed_data_cats.keys():
@@ -62,19 +66,22 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
 
     fp = None
     if obj is not None:
-        if isinstance(obj, (list, int, float, str, datetime, date, timedelta)):
+        if isinstance(obj, list) and (len(obj)==0 or isinstance(obj[0], (int, float, str, datetime, date, timedelta))):
             ext = "json"
-            ext2 = "pkl"
+            ext_bad = "pkl"
+        elif isinstance(obj, (int, float, str, datetime, date, timedelta)):
+            ext = "json"
+            ext_bad = "pkl"
         else:
             ext = "pkl"
-            ext2 = "json"
+            ext_bad = "json"
         fp = os.path.join(GetCacheDirpath(), ticker, objectName) + "."+ext
-        fp2 = os.path.join(GetCacheDirpath(), ticker, objectName) + "."+ext2
-        if os.path.isfile(fp2):
+        fp_bad = os.path.join(GetCacheDirpath(), ticker, objectName) + "."+ext_bad
+        if os.path.isfile(fp_bad):
             if prune:
-                os.remove(fp2)
+                os.remove(fp_bad)
             else:
-                raise Exception("For {} object {}/{}, a {} file already exists".format(ext, ticker, objectName, ext2))
+                raise Exception("For {} object {}/{}, a {} file already exists".format(ext, ticker, objectName, ext_bad))
     else:
         fp_base = os.path.join(GetCacheDirpath(), ticker, objectName)
         json_exists = os.path.isfile(fp_base+".json")
@@ -84,6 +91,8 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
         elif json_exists:
             fp = fp_base + ".json"
         elif pkl_exists:
+            fp = fp_base + ".pkl"
+        elif "release-dates" in objectName or "earnings_dates" in objectName:
             fp = fp_base + ".pkl"
     return fp
 def GetFilepathPacked(ticker, objectName):
@@ -359,7 +368,7 @@ def ReadCacheMetadata(ticker, objectName, key):
             md      = objData["metadata"] if "metadata" in objData else None
     else:
         d = _ReadData(ticker, objectName)
-        if "metadata" not in d:
+        if d is None or "metadata" not in d:
             return None
         md = d["metadata"]
         if verbose:
@@ -385,11 +394,12 @@ def WriteCacheMetadata(ticker, objectName, key, value):
 
     d = _ReadData(ticker, objectName)
     if d is None:
-        raise Exception("'{}/{}' not in cache, cannot add metadata".format(ticker, objectName))
+        d = {"data":None}
 
     if "metadata" in d:
         if value is None:
-            del d["metadata"][key]
+            if key in d["metadata"]:
+                del d["metadata"][key]
         else:
             d["metadata"][key] = value
     elif value is not None:
@@ -429,3 +439,66 @@ def WriteCachePackedMetadata(ticker, objectName, key, value):
 
 
 ResetCacheDirpath()
+
+
+class NestedOptions:
+    def __init__(self, name, data):
+        self.__dict__['name'] = name
+        self.__dict__['data'] = data
+
+    def __getattr__(self, key):
+        return self.data.get(key)
+
+    def __setattr__(self, key, value):
+        if self.name == 'max_ages':
+            # Type-check value
+            Timedelta(value)
+
+        self.data[key] = value
+        global _option_manager
+        _option_manager._save_option()
+
+    def __len__(self):
+        return len(self.__dict__['data'])
+
+    def __repr__(self):
+        return json.dumps(self.data, indent=4)
+
+class OptionsManager:
+    def __init__(self):
+        self._initialised = False
+
+    def _load_option(self):
+        self._initialised = True  # prevent infinite loop
+        d = GetCacheDirpath()
+        self.option_file = os.path.join(d, 'options.json')
+        try:
+            with open(self.option_file, 'r') as file:
+                self.options = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.options = {}
+            # Initialise
+            self.__getattr__('max_ages').calendar = '7d'
+            self.__getattr__('max_ages').info = '45d'
+
+    def _save_option(self):
+        with open(self.option_file, 'w') as file:
+            json.dump(self.options, file, indent=4)
+
+    def __getattr__(self, key):
+        if not self._initialised:
+            self._load_option()
+
+        if key not in self.options:
+            self.options[key] = {}
+        return NestedOptions(key, self.options[key])
+
+    def __repr__(self):
+        if not self._initialised:
+            self._load_option()
+
+        return json.dumps(self.options, indent=4)
+
+# Global instance
+_option_manager = OptionsManager()
+

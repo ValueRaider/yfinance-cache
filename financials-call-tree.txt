@@ -1,0 +1,80 @@
+bs_F:
+    fintbl_F
+
+bs_T:
+    fintbl_T
+
+cf_F:
+    fintbl_F
+
+cf_T:
+    fintbl_T
+
+icstmt_F:
+    fintbl_F
+
+icstmt_T:
+    fintbl_T
+
+tg_caldts_T:
+    cal_T
+
+tg_caldts_F:
+    cal_F
+
+fetch_dts_T:
+    cal_T
+
+fetch_dts_F:
+    cal_F
+
+edts_T:
+    cal_T
+
+edts_F:
+    cal_F
+
+edts_T:
+    cal_T
+    e_int_F
+    fetch_dts_T
+
+edts_F:
+    cal_F
+
+e_int_T:
+    edts_F
+    edts_T
+    bs_F
+    icstmt_F
+    cf_F
+    bs_T
+    icstmt_T
+    cf_T
+
+e_int_F:
+    edts_F
+    bs_F
+    icstmt_F
+    cf_F
+
+reldts_T:
+    fintbl_T
+    tg_caldts_T
+    edts_T
+    int_T
+
+reldts_F:
+    fintbl_F
+    tg_caldts_F
+    edts_F
+    int_F
+
+int_T:
+    fintbl_T
+
+int_F:
+    fintbl_F
+
+fintbl_T:
+    reldts_F

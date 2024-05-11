@@ -84,7 +84,7 @@ class Test_Unadjust(Test_Base):
         if not isinstance(cached_df.index, pd.DatetimeIndex):
             cached_df.index = pd.to_datetime(cached_df.index, utc=True)
         cached_df.index = cached_df.index.tz_convert(tz)
-        last_adjust_dt = datetime.combine(date(2022,7,30), time(12,0), ZoneInfo(tz))
+        last_adjust_dt = datetime.combine(date(2022,7,30), time(12,0), ZoneInfo(tz)).astimezone(ZoneInfo('UTC'))
         cache_dp = os.path.join(self.tempCacheDir.name, tkr)
         with open(os.path.join(cache_dp, "history-1d.pkl"), 'wb') as f:
             # md = {"LastDivAdjustDt":last_adjust_dt, "LastSplitAdjustDt":last_adjust_dt}
@@ -122,7 +122,7 @@ class Test_Unadjust(Test_Base):
         if not isinstance(cached_df.index, pd.DatetimeIndex):
             cached_df.index = pd.to_datetime(cached_df.index, utc=True)
         cached_df.index = cached_df.index.tz_convert(tz)
-        last_adjust_dt = datetime.combine(date(2022,5,28), time(12,0), ZoneInfo(tz))
+        last_adjust_dt = datetime.combine(date(2022,5,28), time(12,0), ZoneInfo(tz)).astimezone(ZoneInfo('UTC'))
         cache_dp = os.path.join(self.tempCacheDir.name, tkr)
         with open(os.path.join(cache_dp, "history-1d.pkl"), 'wb') as f:
             # md = {"LastDivAdjustDt":last_adjust_dt, "LastSplitAdjustDt":last_adjust_dt}
@@ -346,6 +346,7 @@ class Test_Unadjust(Test_Base):
             end_d -= timedelta(days=end_d.weekday()+2)
         start_d = end_d - timedelta(days=5) - timedelta(days=8*7)
         td_1d = timedelta(days=1)
+        td_5d = timedelta(days=5)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -379,7 +380,7 @@ class Test_Unadjust(Test_Base):
             # Now compare against YF hourly
             # Note: Yahoo doesn't dividend-adjust hourly
             df_yfc = dat.history(start=start_d, end=end_d, interval="1h", adjust_divs=False)
-            df_yf = dat_yf.history(start=start_d, end=end_d, interval="1h", repair=True)
+            df_yf = dat_yf.history(start=start_d-td_5d, end=end_d+td_5d, interval='1h', repair=True).loc[str(start_d):str(end_d-td_1d)]
             # Discard 0-volume data at market close
             sched = yfct.GetExchangeSchedule(dat.fast_info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
             sched["_date"] = sched.index.date
@@ -404,6 +405,7 @@ class Test_Unadjust(Test_Base):
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
         end1_d = start2_d - timedelta(days=2)
         start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        td_5d = timedelta(days=5)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -439,7 +441,7 @@ class Test_Unadjust(Test_Base):
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h", adjust_divs=False)
-            df_yf = dat_yf.history(start=start1_d, interval="1h", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, interval='1h', repair=True).loc[str(start1_d):]
             # Discard 0-volume data at market close
             td_1d = timedelta(days=1)
             sched = yfct.GetExchangeSchedule(dat.fast_info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
@@ -465,6 +467,7 @@ class Test_Unadjust(Test_Base):
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
         end1_d = start2_d - timedelta(days=2)
         start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        td_5d = timedelta(days=5)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -500,7 +503,7 @@ class Test_Unadjust(Test_Base):
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h", adjust_divs=False)
-            df_yf = dat_yf.history(start=start1_d, interval="1h", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, interval='1h', repair=True).loc[str(start1_d):]
             # Discard 0-volume data at market close
             td_1d = timedelta(days=1)
             sched = yfct.GetExchangeSchedule(dat.fast_info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
@@ -528,6 +531,7 @@ class Test_Unadjust(Test_Base):
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
         end1_d = start2_d - timedelta(days=2)
         start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        td_5d = timedelta(days=5)
 
         # print("Fetching ranges: {}->{} then {}->{} then {}->{}".format(start3_d,end3_d , start1_d,end1_d , start2_d,end2_d))
         for tkr in self.tkrs:
@@ -564,7 +568,7 @@ class Test_Unadjust(Test_Base):
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h", adjust_divs=False)
-            df_yf = dat_yf.history(start=start1_d, interval="1h", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, interval='1h', repair=True).loc[str(start1_d):]
             # Discard 0-volume data at market close
             td_1d = timedelta(days=1)
             sched = yfct.GetExchangeSchedule(dat.fast_info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)
@@ -592,6 +596,7 @@ class Test_Unadjust(Test_Base):
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
         end1_d = start2_d - timedelta(days=2)
         start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        td_5d = timedelta(days=5)
 
         # print("Fetching ranges: {}->{} then {}->{} then {}->{}".format(start1_d,end1_d , start3_d,end3_d , start2_d,end2_d))
         for tkr in self.tkrs:
@@ -627,7 +632,7 @@ class Test_Unadjust(Test_Base):
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h", adjust_divs=False)
-            df_yf = dat_yf.history(start=start1_d, interval="1h", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, interval='1h', repair=True).loc[str(start1_d):]
             # Discard 0-volume data at market close
             td_1d = timedelta(days=1)
             sched = yfct.GetExchangeSchedule(dat.fast_info["exchange"], df_yf.index.date.min(), df_yf.index.date.max()+td_1d)

@@ -24,7 +24,7 @@ class TestYfAssumptions(unittest.TestCase):
 
 		self.dat = yf.Ticker(self.tkr, session=self.session)
 
-		self.day = date(year=2022, month=1, day=10)
+		self.day = date(year=2024, month=1, day=10)
 
 		self.exchange = "NMS"
 		self.market_tz = ZoneInfo('US/Eastern')
@@ -46,12 +46,12 @@ class TestYfAssumptions(unittest.TestCase):
 			day -= timedelta(days=1)
 		sched = yfct.GetExchangeSchedule(self.exchange, day, day+timedelta(days=1))
 
-		startDt = sched["open"][0]
-		endDt   = sched["open"][0]+timedelta(minutes=1)
+		startDt = sched["open"].iloc[0]
+		endDt   = sched["open"].iloc[0]+timedelta(minutes=1)
 		df = self.dat.history(interval=i, start=startDt, end=endDt+timedelta(minutes=5))
 		df = df[df.index<endDt]
 		intervals = list(df.index.to_pydatetime())
-		answers = [sched["open"][0]]
+		answers = [sched["open"].iloc[0]]
 		try:
 			self.assertEqual(intervals, answers)
 		except:

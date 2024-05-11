@@ -2,6 +2,25 @@ import numpy as np
 import unittest
 from pprint import pprint
 
+import os
+import time
+def take_directory_snapshot(directory_path):
+    snapshot = {}
+    for root, dirs, files in os.walk(directory_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                stats = os.stat(file_path)
+                snapshot[file_path] = {
+                    'size': stats.st_size,
+                    'modification_time': time.ctime(stats.st_mtime)
+                }
+            except FileNotFoundError:
+                # The file might have been deleted between os.walk and os.stat
+                continue
+    return snapshot
+
+
 class Test_Base(unittest.TestCase):
     def verify_df(self, df, answer, rtol=None, different=False):
         if (df is None or df.shape[0]==0) and (answer is None or answer.shape[0]==0):
@@ -26,7 +45,7 @@ class Test_Base(unittest.TestCase):
                 pprint("{} ...".format(missing_from_answer[0:5]))
 
             if len(missing_from_answer) > 0:
-                print("First day missing from answer:")
+                print("First day missing/different from answer:")
                 print("df:")
                 print(df[df.index.date==missing_from_answer[0].date()])
                 print("answer:")
@@ -40,7 +59,7 @@ class Test_Base(unittest.TestCase):
                 pprint("{} ...".format(missing_from_df[0:5]))
 
             if len(missing_from_df) > 0:
-                print("First day missing from df:")
+                print("First day missing/different from df:")
                 print("df:")
                 print(df[df.index.date==missing_from_df[0].date()])
                 print("answer:")
@@ -100,8 +119,8 @@ class Test_Base(unittest.TestCase):
                         print("{}/{} diffs in column {}".format(sum(f), df.shape[0], dc))
 
                 last_diff_idx = np.where(f)[0][-1]
-                x = df[dc][last_diff_idx]
-                y = answer[dc][last_diff_idx]
+                x = df[dc].iloc[last_diff_idx]
+                y = answer[dc].iloc[last_diff_idx]
                 last_diff = x - y
                 print("- last_diff: {} - {} = {}".format(x, y, last_diff))
                 print("- answer:")

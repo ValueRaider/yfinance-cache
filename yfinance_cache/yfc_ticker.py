@@ -6,6 +6,7 @@ from . import yfc_utils as yfcu
 from . import yfc_logging as yfcl
 from . import yfc_time as yfct
 from . import yfc_prices_manager as yfcp
+from . import yfc_financials_manager as yfcf
 
 import numpy as np
 import pandas as pd
@@ -35,21 +36,11 @@ class Ticker:
 
         self._splits = None
 
-        self._financials = None
-        self._quarterly_financials = None
+        self._shares = None
 
         self._major_holders = None
 
         self._institutional_holders = None
-
-        self._balance_sheet = None
-        self._quarterly_balance_sheet = None
-
-        self._cashflow = None
-        self._quarterly_cashflow = None
-
-        self._earnings = None
-        self._quarterly_earnings = None
 
         self._sustainability = None
 
@@ -65,6 +56,12 @@ class Ticker:
 
         self._debug = False
         # self._debug = True
+
+        self._tz = None
+        self._exchange = None
+
+        exchange, tz_name = self._getExchangeAndTz()
+        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
 
     def history(self,
                 interval="1d",
@@ -121,7 +118,7 @@ class Ticker:
                     else:
                         period = pd.Timedelta(period)
             if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
-                raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(perio)}")
+                raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(period)}")
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
                 raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
@@ -199,7 +196,7 @@ class Ticker:
                     raise
             if sched_14d is None:
                 raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start_dt.date(), start_dt.date()+14*td_1d, self.ticker))
-            if sched_14d["open"][0] > dt_now:
+            if sched_14d["open"].iloc[0] > dt_now:
                 # Requested date range is in future
                 return None
         else:
@@ -215,8 +212,8 @@ class Ticker:
             else:
                 sched = yfct.GetExchangeSchedule(exchange, start_dt.date(), end_dt.date()+td_1d)
             n = sched.shape[0]
-            start_d = start_dt.date() if start_dt < sched["open"][0] else start_dt.date()+td_1d
-            end_d = end_dt.date()+td_1d if end_dt >= sched["close"][n-1] else end_dt.date()
+            start_d = start_dt.date() if start_dt < sched["open"].iloc[0] else start_dt.date()+td_1d
+            end_d = end_dt.date()+td_1d if end_dt >= sched["close"].iloc[n-1] else end_dt.date()
 
         if self._histories_manager is None:
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
@@ -341,14 +338,17 @@ class Ticker:
         return self._histories_manager.GetHistory(interval).h
 
     def _getExchangeAndTz(self):
+        if self._tz is not None and self._exchange is not None:
+            return self._exchange, self._tz
+
         exchange, tz_name = None, None
         try:
-            exchange = self.info['exchange']
-            if "exchangeTimezoneName" in self.info:
-                tz_name = self.info["exchangeTimezoneName"]
+            exchange = self.get_info('9999d')['exchange']
+            if "exchangeTimezoneName" in self.get_info('9999d'):
+                tz_name = self.get_info('9999d')["exchangeTimezoneName"]
             else:
-                tz_name = self.info["timeZoneFullName"]
-        except:
+                tz_name = self.get_info('9999d')["timeZoneFullName"]
+        except Exception:
             md = yf.Ticker(self.ticker, session=self.session).history_metadata
             if 'exchangeName' in md.keys():
                 exchange = md['exchangeName']
@@ -357,7 +357,9 @@ class Ticker:
 
         if exchange is None or tz_name is None:
             raise Exception(f"{self.ticker}: exchange and timezone not available")
-        return exchange, tz_name
+        self._tz = tz_name
+        self._exchange = exchange
+        return self._exchange, self._tz
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
@@ -468,35 +470,76 @@ class Ticker:
         return v
 
     def _process_user_dt(self, dt):
-        d = None
         exchange, tz_name = self._getExchangeAndTz()
-        tz_exchange = ZoneInfo(tz_name)
-        if isinstance(dt, str):
-            d = datetime.datetime.strptime(dt, "%Y-%m-%d").date()
-            dt = datetime.datetime.combine(d, datetime.time(0), tz_exchange)
-        elif isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
-            d = dt
-            dt = datetime.datetime.combine(dt, datetime.time(0), tz_exchange)
-        elif not isinstance(dt, datetime.datetime):
-            raise Exception("Argument 'dt' must be str, date or datetime")
-        dt = dt.replace(tzinfo=tz_exchange) if dt.tzinfo is None else dt.astimezone(tz_exchange)
-
-        if d is None and dt.time() == datetime.time(0):
-            d = dt.date()
-
-        return dt, d
+        return yfcu.ProcessUserDt(dt, tz_name)
 
     @property
     def info(self):
+        return self.get_info()
+
+    def get_info(self, max_age=None):
         if self._info is not None:
             return self._info
 
-        if yfcm.IsDatumCached(self.ticker, "info"):
-            self._info = yfcm.ReadCacheDatum(self.ticker, "info")
-            return self._info
+        if max_age is None:
+            max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+        elif not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age < pd.Timedelta(0):
+            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
-        self._info = self.dat.info
-        yfcm.StoreCacheDatum(self.ticker, "info", self._info)
+        md = None
+        if yfcm.IsDatumCached(self.ticker, "info"):
+            self._info, md = yfcm.ReadCacheDatum(self.ticker, "info", True)
+            if 'FetchDate' not in self._info.keys():
+                # Old bug meant this could happen
+                fp = yfcm.GetFilepath(self.ticker, 'info')
+                mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                self._info['FetchDate'] = mod_dt
+                md['LastCheck'] = mod_dt
+                yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
+
+            if self._info is not None:
+                if md is None:
+                    md = {}
+                if not 'LastCheck' in md.keys():
+                    # Old bug meant this could happen
+                    md['LastCheck'] = self._info['FetchDate']
+                    yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
+                if max(self._info['FetchDate'], md['LastCheck']) + max_age > pd.Timestamp.now():
+                    return self._info
+
+        i = self.dat.info
+        i['FetchDate'] = pd.Timestamp.now()
+
+        if self._info is not None:
+            # Check new info is not downgrade
+            diff = len(i) - len(self._info)
+            diff_pct = float(diff) / float(len(self._info))
+            if diff_pct < -0.1 and diff < -10:
+                msg = 'When fetching new info, significant amount of data has disappeared\n'
+                missing_keys = [k for k in self._info.keys() if k not in i.keys()]
+                new_keys = [k for k in i.keys() if k not in self._info.keys()]
+                msg += "- missing: "
+                msg += str({k:self._info[k] for k in missing_keys}) + '\n'
+                msg += "- new: "
+                msg += str({k:i[k] for k in new_keys}) + '\n'
+
+                # msg += "\nKeep new data?"
+                # keep = click.confirm(msg, default=False)
+                # if not keep:
+                #     return self._info
+                #
+                msg += "\nDiscarding fetched info."
+                print(f'{self.ticker}: {msg}')
+                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', i['FetchDate'])
+                return self._info
+
+        self._info = i
+        if md is None:
+            md = {}
+        md['LastCheck'] = i['FetchDate']
+        yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
         exchange, tz_name = self._getExchangeAndTz()
         yfct.SetExchangeTzName(exchange, tz_name)
@@ -511,7 +554,7 @@ class Ticker:
         if yfcm.IsDatumCached(self.ticker, "fast_info"):
             try:
                 self._fast_info = yfcm.ReadCacheDatum(self.ticker, "fast_info")
-            except:
+            except Exception:
                 pass
             else:
                 return self._fast_info
@@ -546,31 +589,127 @@ class Ticker:
         yfcm.StoreCacheDatum(self.ticker, "splits", self._splits)
         return self._splits
 
-    @property
-    def financials(self):
-        if self._financials is not None:
-            return self._financials
 
-        if yfcm.IsDatumCached(self.ticker, "financials"):
-            self._financials = yfcm.ReadCacheDatum(self.ticker, "financials")
-            return self._financials
+    def get_shares(self, start=None, end=None, max_age='30d'):
+        debug = False
+        # debug = True
 
-        self._financials = self.dat.financials
-        yfcm.StoreCacheDatum(self.ticker, "financials", self._financials)
-        return self._financials
+        max_age = pd.Timedelta(max_age)
 
-    @property
-    def quarterly_financials(self):
-        if self._quarterly_financials is not None:
-            return self._quarterly_financials
+        # Process dates
+        exchange, tz = self._getExchangeAndTz()
+        dt_now = pd.Timestamp.utcnow().tz_convert(tz)
+        if start is not None:
+            start_dt, start_d = self._process_user_dt(start)
+            start = start_d
+        if end is not None:
+            end_dt, end_d = self._process_user_dt(end)
+            end = end_d
+        if end is None:
+            end_dt = dt_now
+            end = dt_now.date()
+        if start is None:
+            start = end - pd.Timedelta(days=548)  # 18 months
+        if start >= end:
+            raise Exception("Start date must be before end")
+        if debug:
+            print("- start =", start, " end =", end)
 
-        if yfcm.IsDatumCached(self.ticker, "quarterly_financials"):
-            self._quarterly_financials = yfcm.ReadCacheDatum(self.ticker, "quarterly_financials")
-            return self._quarterly_financials
+        if self._shares is None:
+            if yfcm.IsDatumCached(self.ticker, "shares"):
+                if debug:
+                    print("- init shares from cache")
+                self._shares = yfcm.ReadCacheDatum(self.ticker, "shares")
+            else:
+                if debug:
+                    print("- fetching shares")
+                self._shares = self._fetch_shares(start, end)
+                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+                # return self._shares
+                f_na = self._shares['Shares'].isna()
+                return self._shares[~f_na]
 
-        self._quarterly_financials = self.dat.quarterly_financials
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_financials", self._quarterly_financials)
-        return self._quarterly_financials
+        if debug:
+            print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
+
+        td_1d = datetime.timedelta(days=1)
+        last_row = self._shares.iloc[-1]
+        if pd.isna(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
+            if debug:
+                print("- dropping last row from cached")
+            self._shares = self._shares.drop(self._shares.index[-1])
+
+        if not isinstance(self._shares.index, pd.DatetimeIndex):
+            self._shares.index = pd.to_datetime(self._shares.index).tz_localize(tz)
+        if self._shares['Shares'].dtype == 'float':
+            # Convert to Int, and add a little to avoid rounding errors
+            self._shares['Shares'] = (self._shares['Shares']+0.01).round().astype('Int64')
+
+        if start < self._shares.index[0].date():
+            df_pre = self._fetch_shares(start, self._shares.index[0])
+            if df_pre is not None:
+                self._shares = pd.concat([df_pre, self._shares])
+        if (end-td_1d) > self._shares.index[-1].date() and \
+            (end - self._shares.index[-1].date()) > max_age:
+            df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
+            if df_post is not None:
+                self._shares = pd.concat([self._shares, df_post])
+
+        self._shares = self._shares
+        yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+
+        f_na = self._shares['Shares'].isna()
+        shares = self._shares[~f_na]
+        i0 = np.searchsorted(shares.index, start_dt)
+        i1 = np.searchsorted(shares.index, end_dt)
+        return shares.iloc[i0:i1]
+
+    def _fetch_shares(self, start, end):
+        td_1d = datetime.timedelta(days=1)
+
+        exchange, tz = self._getExchangeAndTz()
+        if isinstance(end, datetime.datetime):
+            end_dt = end
+            end_d = end.date()
+        else:
+            end_dt = pd.Timestamp(end).tz_localize(tz)
+            end_d = end
+        if isinstance(start, datetime.datetime):
+            start_dt = start
+            start_d = start.date()
+        else:
+            start_dt = pd.Timestamp(start).tz_localize(tz)
+            start_d = start
+
+        end_d = min(end_d, datetime.date.today() + td_1d)
+
+        df = self.dat.get_shares_full(start_d, end_d)
+        if df is None:
+            return df
+        if df.empty:
+            return None
+
+        # Convert to Pandas Int for NaN support
+        df = df.astype('Int64')
+
+        # Currently, yfinance uses ceil(end), so fix:
+        if df.index[-1].date() == end_d:
+            df.drop(df.index[-1])
+            if df.empty:
+                return None
+
+        fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
+        df = pd.DataFrame(df, columns=['Shares'])
+
+        if start_d < df.index[0].date():
+            df.loc[start_dt] = np.nan
+        if (end_d-td_1d) > df.index[-1].date():
+            df.loc[end_dt] = np.nan
+        df = df.sort_index()
+
+        df['FetchDate'] = fetch_dt
+
+        return df
 
     @property
     def major_holders(self):
@@ -599,82 +738,83 @@ class Ticker:
         return self._institutional_holders
 
     @property
-    def balance_sheet(self):
-        if self._balance_sheet is not None:
-            return self._balance_sheet
-
-        if yfcm.IsDatumCached(self.ticker, "balance_sheet"):
-            self._balance_sheet = yfcm.ReadCacheDatum(self.ticker, "balance_sheet")
-            return self._balance_sheet
-
-        self._balance_sheet = self.dat.balance_sheet
-        yfcm.StoreCacheDatum(self.ticker, "balance_sheet", self._balance_sheet)
-        return self._balance_sheet
-
-    @property
-    def quarterly_balance_sheet(self):
-        if self._quarterly_balance_sheet is not None:
-            return self._quarterly_balance_sheet
-
-        if yfcm.IsDatumCached(self.ticker, "quarterly_balance_sheet"):
-            self._quarterly_balance_sheet = yfcm.ReadCacheDatum(self.ticker, "quarterly_balance_sheet")
-            return self._quarterly_balance_sheet
-
-        self._quarterly_balance_sheet = self.dat.quarterly_balance_sheet
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_balance_sheet", self._quarterly_balance_sheet)
-        return self._quarterly_balance_sheet
-
-    @property
-    def cashflow(self):
-        if self._cashflow is not None:
-            return self._cashflow
-
-        if yfcm.IsDatumCached(self.ticker, "cashflow"):
-            self._cashflow = yfcm.ReadCacheDatum(self.ticker, "cashflow")
-            return self._cashflow
-
-        self._cashflow = self.dat.cashflow
-        yfcm.StoreCacheDatum(self.ticker, "cashflow", self._cashflow)
-        return self._cashflow
-
-    @property
-    def quarterly_cashflow(self):
-        if self._quarterly_cashflow is not None:
-            return self._quarterly_cashflow
-
-        if yfcm.IsDatumCached(self.ticker, "quarterly_cashflow"):
-            self._quarterly_cashflow = yfcm.ReadCacheDatum(self.ticker, "quarterly_cashflow")
-            return self._quarterly_cashflow
-
-        self._quarterly_cashflow = self.dat.quarterly_cashflow
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_cashflow", self._quarterly_cashflow)
-        return self._quarterly_cashflow
-
-    @property
     def earnings(self):
-        if self._earnings is not None:
-            return self._earnings
-
-        if yfcm.IsDatumCached(self.ticker, "earnings"):
-            self._earnings = yfcm.ReadCacheDatum(self.ticker, "earnings")
-            return self._earnings
-
-        self._earnings = self.dat.earnings
-        yfcm.StoreCacheDatum(self.ticker, "earnings", self._earnings)
-        return self._earnings
+        return self._financials_manager.get_earnings()
 
     @property
     def quarterly_earnings(self):
-        if self._quarterly_earnings is not None:
-            return self._quarterly_earnings
+        return self._financials_manager.get_quarterly_earnings()
 
-        if yfcm.IsDatumCached(self.ticker, "quarterly_earnings"):
-            self._quarterly_earnings = yfcm.ReadCacheDatum(self.ticker, "quarterly_earnings")
-            return self._quarterly_earnings
+    @property
+    def income_stmt(self):
+        return self._financials_manager.get_income_stmt()
 
-        self._quarterly_earnings = self.dat.quarterly_earnings
-        yfcm.StoreCacheDatum(self.ticker, "quarterly_earnings", self._quarterly_earnings)
-        return self._quarterly_earnings
+    @property
+    def quarterly_income_stmt(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def financials(self):
+        return self._financials_manager.get_income_stmt()
+
+    @property
+    def quarterly_financials(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def balance_sheet(self):
+        return self._financials_manager.get_balance_sheet()
+
+    @property
+    def quarterly_balance_sheet(self):
+        return self._financials_manager.get_quarterly_balance_sheet()
+
+    @property
+    def cashflow(self):
+        return self._financials_manager.get_cashflow()
+
+    @property
+    def quarterly_cashflow(self):
+        return self._financials_manager.get_quarterly_cashflow()
+
+    def get_earnings_dates(self, limit=12):
+        return self._financials_manager.get_earnings_dates(limit)
+
+    def get_release_dates(self, period='quarterly', as_df=False, check=True):
+        if not period in ['annual', 'quarterly']:
+            raise ValueError(f'period argument must be "annual" or "quarterly", not "{period}"')
+        if period == 'annual':
+            period = yfcd.ReportingPeriod.Full
+        else:
+            period = yfcd.ReportingPeriod.Interim
+
+        releases = self._financials_manager.get_release_dates(period, as_df, refresh=True, check=check)
+        if releases is None:
+            return releases
+
+        if as_df:
+            # Format:
+            releases['Period end uncertainty'] = '0d'
+            f = releases['PE confidence'] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, 'Period end uncertainty'] = '+-7d'
+            f = releases['PE confidence'] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, 'Period end uncertainty'] = '+-45d'
+            releases = releases.drop('PE confidence', axis=1)
+
+            releases['Release date uncertainty'] = '0d'
+            f = releases['RD confidence'] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, 'Release date uncertainty'] = '+/-7d'
+            f = releases['RD confidence'] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, 'Release date uncertainty'] = '+/-45d'
+            releases = releases.drop('RD confidence', axis=1)
+
+            releases = releases.drop('Delay', axis=1)
+
+        return releases
 
     @property
     def sustainability(self):
@@ -704,16 +844,7 @@ class Ticker:
 
     @property
     def calendar(self):
-        if self._calendar is not None:
-            return self._calendar
-
-        if yfcm.IsDatumCached(self.ticker, "calendar"):
-            self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
-            return self._calendar
-
-        self._calendar = self.dat.calendar
-        yfcm.StoreCacheDatum(self.ticker, "calendar", self._calendar)
-        return self._calendar
+        return self._financials_manager.get_calendar()
 
     @property
     def inin(self):
@@ -792,7 +923,7 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         debug_interval = yfcd.intervalStrToEnum[debug_interval]
 
     d = yfcm.GetCacheDirpath()
-    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and '_' not in x]
+    tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and os.path.isdir(os.path.join(d, x)) and '_' not in x]
     # tkrs = tkrs[:5]
     # tkrs = tkrs[:20]
     # tkrs = tkrs[tkrs.index("DDOG"):]

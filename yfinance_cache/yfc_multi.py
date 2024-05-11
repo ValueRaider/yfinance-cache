@@ -38,7 +38,7 @@ def download(tickers,
         try:
             import tqdm
             have_tqdm = True
-        except e:
+        except Exception:
             have_tqdm = False
 
     if threads:
