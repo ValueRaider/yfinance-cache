@@ -10,7 +10,7 @@ import scipy.stats as stats
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 import os
-from statistics import mean, stdev
+from statistics import mean
 import math
 from decimal import Decimal
 from pprint import pprint
@@ -274,7 +274,9 @@ class FinancialsManager:
                         do_fetch = True
                 else:
                     next_release = None
-                    last_d = df.columns.max().date()
+                    # last_d = df.columns.max().date()
+                    # Update: analyse pruned dates:
+                    last_d = self._prune_yf_financial_df(df).columns.max().date()
                     for r in releases:
                         # Release is newer than cache
                         try:
@@ -1559,25 +1561,27 @@ class FinancialsManager:
                 if debug:
                     print("- retrieving earnings dates from cache")
                 self._earnings_dates, md = yfcm.ReadCacheDatum(self.ticker, "earnings_dates", True)
-
                 if md is None:
-                    raise Exception("f{self.ticker}: Why earnings_dates metadata None?")
                     md = {}
-                if 'LastFetch' not in md:
-                    raise Exception("f{self.ticker}: Why earnings_dates metadata missing 'LastFetch'?")
-                    fp = yfcm.GetFilepath(self.ticker, "earnings_dates")
-                    last_fetch = datetime.fromtimestamp(os.path.getmtime(fp)).astimezone()
-                    md['LastFetch'] = last_fetch
-                    yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', md['LastFetch'])
-                if self._earnings_dates.empty:
-                    self._earnings_dates = None
+                if self._earnings_dates is None:
+                    # Fine, just means last call failed to get earnings_dates
+                    pass
                 else:
-                    edf_clean = self._clean_earnings_dates(self._earnings_dates, refresh)
-                    if len(edf_clean) < len(self._earnings_dates):
-                        # This is ok, because since the last fetch, the calendar can be updated which then allows resolving a 
-                        # near-duplication in earnings_dates.
-                        yfcm.StoreCacheDatum(self.ticker, "earnings_dates", edf_clean)
-                    self._earnings_dates = edf_clean
+                    if 'LastFetch' not in md:
+                        raise Exception("f{self.ticker}: Why earnings_dates metadata missing 'LastFetch'?")
+                        fp = yfcm.GetFilepath(self.ticker, "earnings_dates")
+                        last_fetch = datetime.fromtimestamp(os.path.getmtime(fp)).astimezone()
+                        md['LastFetch'] = last_fetch
+                        yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', md['LastFetch'])
+                    if self._earnings_dates.empty:
+                        self._earnings_dates = None
+                    else:
+                        edf_clean = self._clean_earnings_dates(self._earnings_dates, refresh)
+                        if len(edf_clean) < len(self._earnings_dates):
+                            # This is ok, because since the last fetch, the calendar can be updated which then allows resolving a 
+                            # near-duplication in earnings_dates.
+                            yfcm.StoreCacheDatum(self.ticker, "earnings_dates", edf_clean)
+                        self._earnings_dates = edf_clean
 
         last_fetch = yfcm.ReadCacheMetadata(self.ticker, "earnings_dates", "LastFetch")
         if debug:

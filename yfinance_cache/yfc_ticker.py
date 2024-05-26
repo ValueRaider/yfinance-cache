@@ -502,7 +502,7 @@ class Ticker:
             if self._info is not None:
                 if md is None:
                     md = {}
-                if not 'LastCheck' in md.keys():
+                if 'LastCheck' not in md.keys():
                     # Old bug meant this could happen
                     md['LastCheck'] = self._info['FetchDate']
                     yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
@@ -781,7 +781,7 @@ class Ticker:
         return self._financials_manager.get_earnings_dates(limit)
 
     def get_release_dates(self, period='quarterly', as_df=False, check=True):
-        if not period in ['annual', 'quarterly']:
+        if period not in ['annual', 'quarterly']:
             raise ValueError(f'period argument must be "annual" or "quarterly", not "{period}"')
         if period == 'annual':
             period = yfcd.ReportingPeriod.Full
