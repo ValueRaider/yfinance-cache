@@ -283,7 +283,7 @@ class Test_Yfc_Financials(unittest.TestCase):
         self.assertTrue(cal_dts is None or len(cal_dts)==0)
     def _test_tagged_calendar_dates_withRefresh(self):
         # Preset the cache
-        cal = {'Earnings Date': [date(2024, 4, 26), date(2024, 4, 30)], 'FetchDate': datetime.utcnow()}
+        cal = {'Earnings Date': [date(2024, 4, 26), date(2024, 4, 30)], 'FetchDate': pd.Timestamp.utcnow()}
         yfcm.StoreCacheDatum(self.T, "calendar", cal)
 
         cal_dts = self.fin._get_tagged_calendar_dates(refresh=True)

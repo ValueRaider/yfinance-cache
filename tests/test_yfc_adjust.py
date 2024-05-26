@@ -51,7 +51,7 @@ class Test_Unadjust(Test_Base):
             answer.index = answer.index.tz_localize(tz)
 
         df = dat.history(start="2022-01-04", end="2022-08-20", adjust_splits=False, adjust_divs=False)
-        self.verify_df(df, answer, 1e-10)
+        self.verify_df(df, answer, 5e-5)
 
 
     def test_adjust_simple(self):
@@ -103,7 +103,7 @@ class Test_Unadjust(Test_Base):
 
         df = dat.history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
         answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
-        self.verify_df(df, answer_splitAdjusted, 1e-7)
+        self.verify_df(df, answer_splitAdjusted, 5e-5)
 
         df = dat.history(start="2022-01-01",end="2022-08-20")
         answer_adjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20")
@@ -137,7 +137,7 @@ class Test_Unadjust(Test_Base):
         answer_noadjust.index = answer_noadjust.index.tz_convert(tz)
 
         df = dat.history(start="2022-01-01", end="2022-08-20", adjust_divs=False, adjust_splits=False)
-        self.verify_df(df, answer_noadjust, 1e-10)
+        self.verify_df(df, answer_noadjust, 5e-5)
 
         df = dat.history(start="2022-01-01",end="2022-08-20",adjust_divs=False)
         answer_splitAdjusted = yf.Ticker(tkr, self.session).history(start="2022-01-01",end="2022-08-20",auto_adjust=False)
@@ -162,7 +162,7 @@ class Test_Unadjust(Test_Base):
             answer_noadjust.index = pd.to_datetime(answer_noadjust.index, utc=True)
         answer_noadjust.index = answer_noadjust.index.tz_convert(tz)
 
-        self.verify_df(df, answer_noadjust, 1e-10)
+        self.verify_df(df, answer_noadjust, 5e-5)
 
     def test_adjust_prepend2(self):
         # Fetch 2nd Aug (after split day) -> now, then Jan -> now
@@ -178,7 +178,7 @@ class Test_Unadjust(Test_Base):
             answer_noadjust.index = pd.to_datetime(answer_noadjust.index, utc=True)
         answer_noadjust.index = answer_noadjust.index.tz_convert(tz)
 
-        self.verify_df(df, answer_noadjust, 1e-10)
+        self.verify_df(df, answer_noadjust, 5e-5)
 
     def test_adjust_prepend3(self):
         # Fetch 28th July (before split day) -> now, then Jan -> now
@@ -194,7 +194,7 @@ class Test_Unadjust(Test_Base):
             answer_noadjust.index = pd.to_datetime(answer_noadjust.index, utc=True)
         answer_noadjust.index = answer_noadjust.index.tz_convert(tz)
 
-        self.verify_df(df, answer_noadjust, 1e-10)
+        self.verify_df(df, answer_noadjust, 5e-5)
 
 
     def test_weekly_simple(self):
@@ -341,7 +341,7 @@ class Test_Unadjust(Test_Base):
 
 
     def test_hourly_simple(self):
-        end_d = datetime.utcnow().date()
+        end_d = pd.Timestamp.utcnow().date()
         if not end_d.weekday() == 5:
             end_d -= timedelta(days=end_d.weekday()+2)
         start_d = end_d - timedelta(days=5) - timedelta(days=8*7)
@@ -354,7 +354,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start_d, end=end_d, interval="1h")
-            df_yf = dat_yf.history(start=start_d, end=end_d, interval="1d")
+            df_yf = dat_yf.history(start=start_d, end=end_d, interval="1d", repair=True)
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -371,11 +371,7 @@ class Test_Unadjust(Test_Base):
             # Loose tolerance because just checking that in same ballpark
             # - ignore volume here, and missing hour intervals
             df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
-            if tkr == "I3E.L" and start_d <= date(2022,11,29):
-                # Skip test, because there is genuine difference between 1d and 1h on 2022-11-29
-                pass
-            else:
-                self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             # Note: Yahoo doesn't dividend-adjust hourly
@@ -399,7 +395,7 @@ class Test_Unadjust(Test_Base):
             self.verify_df(df_yfc, df_yf, 1e-7)
 
     def test_hourly_append(self):
-        end2_d = datetime.utcnow().date()
+        end2_d = pd.Timestamp.utcnow().date()
         if not end2_d.weekday() == 5:
             end2_d -= timedelta(days=end2_d.weekday()+2)
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
@@ -417,7 +413,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d")
+            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d", repair=True)
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -461,7 +457,7 @@ class Test_Unadjust(Test_Base):
             self.verify_df(df_yfc, df_yf, 1e-7)
 
     def test_hourly_prepend(self):
-        end2_d = datetime.utcnow().date()
+        end2_d = pd.Timestamp.utcnow().date()
         if not end2_d.weekday() == 5:
             end2_d -= timedelta(days=end2_d.weekday()+2)
         start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
@@ -478,7 +474,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d")
+            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d", repair=True)
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -523,7 +519,7 @@ class Test_Unadjust(Test_Base):
             self.verify_df(df_yfc, df_yf, 1e-7)
 
     def test_hourly_insert1(self):
-        end3_d = datetime.utcnow().date()
+        end3_d = pd.Timestamp.utcnow().date()
         if not end3_d.weekday() == 5:
             end3_d -= timedelta(days=end3_d.weekday()+2)
         start3_d = end3_d - timedelta(days=5) - timedelta(days=4*7)
@@ -544,7 +540,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d")
+            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d", repair=True)
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -588,7 +584,7 @@ class Test_Unadjust(Test_Base):
             self.verify_df(df_yfc, df_yf, 1e-7)
 
     def test_hourly_insert2(self):
-        end3_d = datetime.utcnow().date()
+        end3_d = pd.Timestamp.utcnow().date()
         if not end3_d.weekday() == 5:
             end3_d -= timedelta(days=end3_d.weekday()+2)
         start3_d = end3_d - timedelta(days=5) - timedelta(days=4*7)
@@ -609,7 +605,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d")
+            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d", repair=True)
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1

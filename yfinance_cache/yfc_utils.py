@@ -197,10 +197,20 @@ def ProcessUserDt(dt, tz_name):
         raise Exception("Argument 'dt' must be str, date or datetime")
     dt = dt.replace(tzinfo=tz) if dt.tzinfo is None else dt.astimezone(tz)
 
-    if d is None and dt.time() == datetime.time(0):
+    if d is None and dt.time() == time(0):
         d = dt.date()
 
     return dt, d
+
+
+def RDtoDO(rd):
+    # Convert a relativedelta to Pandas.DateOffset
+    return pd.DateOffset(years=rd.years,
+                         months=rd.months,
+                         days=rd.days,
+                         hours=rd.hours,
+                         minutes=rd.minutes,
+                         seconds=rd.seconds)
 
 
 def GetCSF0(df):
@@ -337,13 +347,13 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
     return groups
 
 
-def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False, debug=False):
+def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_error=False, quiet=False, debug=False):
     if df_yf.empty:
         raise Exception("VerifyPricesDf() has been given empty df_yf")
 
     f_diff_all = pd.Series(np.full(h.shape[0], False), h.index)
 
-    interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+    interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week]#, yfcd.Interval.Months1, yfcd.Interval.Months3]
     istr = yfcd.intervalToString[interval]
 
 
@@ -391,10 +401,15 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             print("- ", dts_missing_from_cache)
         for dt in dts_missing_from_cache:
             f_diff_all.loc[dt] = True
-        divs_bad = True
+        if exit_first_error:
+            return f_diff_all
     if len(dts_missing_from_yf) > 0 and not quiet:
         print("ERROR: Cache contains dividends missing from Yahoo:")
         print(dts_missing_from_yf)
+        for dt in dts_missing_from_yf:
+            f_diff_all.loc[dt] = True
+        if exit_first_error:
+            return f_diff_all
     # - now compare values
     h_divs = h_divs[h_divs.index.isin(yf_divs.index)]
     yf_divs = yf_divs[yf_divs.index.isin(h_divs.index)]
@@ -411,7 +426,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
         if not quiet:
             print(df_diffs)
         f_diff_all = f_diff_all | f_diff
-        divs_bad = True
+        if exit_first_error:
+            return f_diff_all
 
     # Verify stock splits
     # - first compare dates
@@ -467,6 +483,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             cols = ["FetchDate"]
             if "Adj" in column:
                 cols.append("LastDivAdjustDt")
+            else:
+                cols.append("LastSplitAdjustDt")
             cols.append("Repaired?")
             cols.append(c)
             # yahoo_cols = [c]
@@ -492,7 +510,10 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, quiet=False,
             df_diffs["FetchDate"] = df_diffs["FetchDate"].dt.strftime("%Y-%m-%d %H:%M:%S%z")
             if "LastDivAdjustDt" in df_diffs.columns:
                 df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.tz_convert(df.index.tz)
-                df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.strftime("%Y-%m-%d %H:%M:%S%z")
+                df_diffs["LastDivAdjustDt"] = df_diffs["LastDivAdjustDt"].dt.strftime("%Y-%m-%d %H:%M:%S")
+            if "LastSplitAdjustDt" in df_diffs.columns:
+                df_diffs["LastSplitAdjustDt"] = df_diffs["LastSplitAdjustDt"].dt.tz_convert(df.index.tz)
+                df_diffs["LastSplitAdjustDt"] = df_diffs["LastSplitAdjustDt"].dt.strftime("%Y-%m-%d %H:%M:%S")
             if interday:
                 df_diffs.index = df_diffs.index.date
             f_diff_n = sum(f_diff)

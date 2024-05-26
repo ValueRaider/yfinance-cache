@@ -2,7 +2,7 @@ import os
 import pickle
 import json
 import appdirs
-from pandas import Timedelta
+import pandas as pd
 
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
@@ -175,7 +175,7 @@ def ReadCacheDatum(ticker, objectName, return_metadata_too=False):
         expiry = d["expiry"]   if "expiry"   in d else None
 
         if expiry is not None:
-            dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            dtnow = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
             if dtnow >= expiry:
                 if verbose:
                     print("Deleting expired datum '{0}/{1}'".format(ticker, objectName))
@@ -213,7 +213,7 @@ def ReadCachePackedDatum(ticker, objectName, return_metadata_too=False):
         expiry = objData["expiry"]   if "expiry"   in objData else None
 
         if expiry is not None:
-            dtnow = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            dtnow = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
             if dtnow >= expiry:
                 if verbose:
                     print("Deleting expired packed datum '{0}/{1}'".format(ticker, objectName))
@@ -250,7 +250,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None, metadata=None):
     if expiry is not None:
         if isinstance(expiry, yfcd.Interval):
             # Convert interval to actual datetime
-            expiry = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
+            expiry = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
         if not isinstance(expiry, datetime):
             raise Exception("'expiry' must be datetime or yfcd.Interval")
 
@@ -314,7 +314,7 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
     if expiry is not None:
         if isinstance(expiry, yfcd.Interval):
             # Convert interval to actual datetime
-            expiry = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
+            expiry = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
         if not isinstance(expiry, datetime):
             raise Exception("'expiry' must be datetime or yfcd.Interval")
         if (metadata is not None) and "Expiry" in metadata.keys():
@@ -452,7 +452,7 @@ class NestedOptions:
     def __setattr__(self, key, value):
         if self.name == 'max_ages':
             # Type-check value
-            Timedelta(value)
+            pd.Timedelta(value)
 
         self.data[key] = value
         global _option_manager

@@ -13,46 +13,40 @@ yf_min_year = 1950
 class Period(Enum):
     Days1 = 0
     Days5 = 1
-    Week = 2
     Months1 = 10
     Months3 = 11
     Months6 = 12
     Years1 = 20
     Years2 = 21
     Years5 = 22
-    Years10 = 23
     Ytd = 24
     Max = 30
 periodToString = {}
 periodToString[Period.Days1] = "1d"
 periodToString[Period.Days5] = "5d"
-periodToString[Period.Week] = "1wk"
 periodToString[Period.Months1] = "1mo"
 periodToString[Period.Months3] = "3mo"
 periodToString[Period.Months6] = "6mo"
 periodToString[Period.Years1] = "1y"
 periodToString[Period.Years2] = "2y"
 periodToString[Period.Years5] = "5y"
-periodToString[Period.Years10] = "10y"
 periodToString[Period.Ytd] = "ytd"
 periodToString[Period.Max] = "max"
 periodStrToEnum = {v: k for k, v in periodToString.items()}
 periodToTimedelta = {}
 periodToTimedelta[Period.Days1] = timedelta(days=1)
-periodToTimedelta[Period.Days5] = timedelta(days=5)
-periodToTimedelta[Period.Week] = timedelta(days=7)
+periodToTimedelta[Period.Days5] = timedelta(days=7)
 periodToTimedelta[Period.Months1] = relativedelta(months=1)
 periodToTimedelta[Period.Months3] = relativedelta(months=3)
 periodToTimedelta[Period.Months6] = relativedelta(months=6)
 periodToTimedelta[Period.Years1] = relativedelta(years=1)
 periodToTimedelta[Period.Years2] = relativedelta(years=2)
 periodToTimedelta[Period.Years5] = relativedelta(years=5)
-periodToTimedelta[Period.Years10] = relativedelta(years=10)
 
 
+# Months3 = 0
+# Months1 = 2
 class Interval(Enum):
-    Months3 = 0
-    Months1 = 2
     Week = 5
     Days1 = 10
     Hours1 = 20
@@ -74,8 +68,8 @@ intervalToString[Interval.Mins90] = "90m"
 intervalToString[Interval.Hours1] = "1h"
 intervalToString[Interval.Days1] = "1d"
 intervalToString[Interval.Week] = "1wk"
-intervalToString[Interval.Months1] = "1mo"
-intervalToString[Interval.Months3] = "3mo"
+# intervalToString[Interval.Months1] = "1mo"
+# intervalToString[Interval.Months3] = "3mo"
 intervalStrToEnum = {v: k for k, v in intervalToString.items()}
 intervalToTimedelta = {}
 intervalToTimedelta[Interval.Mins1] = timedelta(minutes=1)
@@ -88,8 +82,8 @@ intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
 intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
 intervalToTimedelta[Interval.Days1] = timedelta(days=1)
 intervalToTimedelta[Interval.Week] = timedelta(days=7)
-intervalToTimedelta[Interval.Months1] = relativedelta(months=1)
-intervalToTimedelta[Interval.Months3] = relativedelta(months=3)
+# intervalToTimedelta[Interval.Months1] = relativedelta(months=1)
+# intervalToTimedelta[Interval.Months3] = relativedelta(months=3)
 
 
 exchangeToXcalExchange = {}
@@ -112,6 +106,7 @@ exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
 exchangeToXcalExchange["AMS"] = "XAMS"  # Amsterdam
 exchangeToXcalExchange["ATH"] = "ASEX"  # Athens
 exchangeToXcalExchange["BRU"] = "XBRU"  # Brussels
+exchangeToXcalExchange["BVB"] = "XBSE"  # Bucharest
 exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
 exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
@@ -140,6 +135,9 @@ exchangeToXcalExchange["SES"] = "XSES"  # Singapore
 exchangeToXcalExchange["HKG"] = "XHKG"  # Hong Kong
 exchangeToXcalExchange["ASX"] = "ASX"   # Australia
 exchangeToXcalExchange["NZE"] = "XNZE"  # New Zealand
+exchangeToXcalExchange["SAU"] = "XSAU"  # Saudi Arabia
+# FX
+exchangeToXcalExchange["CCY"] = "IEPA"  # ICE Data Services
 
 exchangesWithBreaks = {"HKG"}
 
@@ -165,6 +163,7 @@ exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
 exchangeToYfLag["ATH"] = timedelta(minutes=15)
 exchangeToYfLag["BRU"] = timedelta(minutes=15)
+exchangeToYfLag["BVB"] = timedelta(minutes=15)
 exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
 exchangeToYfLag["FRA"] = timedelta(minutes=15)
@@ -193,6 +192,10 @@ exchangeToYfLag["SES"] = timedelta(minutes=20)
 exchangeToYfLag["HKG"] = timedelta(minutes=15)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)
 exchangeToYfLag["NZE"] = timedelta(minutes=20)
+exchangeToYfLag["SAU"] = timedelta(minutes=15)
+# FX:
+exchangeToYfLag["CCY"] = timedelta(0)
+exchangeToYfLag["CCC"] = timedelta(0)
 
 # After-market auctions:
 exchangesWithAuction = set()
@@ -219,8 +222,8 @@ yfMaxFetchRange[Interval.Mins60] = timedelta(days=730)
 yfMaxFetchRange[Interval.Hours1] = timedelta(days=730)
 yfMaxFetchRange[Interval.Days1] = None
 yfMaxFetchRange[Interval.Week] = None
-yfMaxFetchRange[Interval.Months1] = None
-yfMaxFetchRange[Interval.Months3] = None
+# yfMaxFetchRange[Interval.Months1] = None
+# yfMaxFetchRange[Interval.Months3] = None
 
 yfMaxFetchLookback = {}
 yfMaxFetchLookback[Interval.Mins1] = timedelta(days=30)
@@ -233,14 +236,14 @@ yfMaxFetchLookback[Interval.Mins60] = timedelta(days=730)
 yfMaxFetchLookback[Interval.Hours1] = timedelta(days=730)
 yfMaxFetchLookback[Interval.Days1] = None
 yfMaxFetchLookback[Interval.Week] = None
-yfMaxFetchLookback[Interval.Months1] = None
-yfMaxFetchLookback[Interval.Months3] = None
+# yfMaxFetchLookback[Interval.Months1] = None
+# yfMaxFetchLookback[Interval.Months3] = None
 
 listing_date_check_tols = {}
 listing_date_check_tols[Interval.Days1] = timedelta(days=7)
 listing_date_check_tols[Interval.Week] = timedelta(days=14)
-listing_date_check_tols[Interval.Months1] = timedelta(days=35)
-listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
+# listing_date_check_tols[Interval.Months1] = timedelta(days=35)
+# listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
 class Financials(Enum):
@@ -425,7 +428,10 @@ class DateIntervalIndex:
         return np.equal(self.array, other.array)
 
     def equals(self, other):
-        return (self == other).all()
+        e = self == other
+        if isinstance(e, np.ndarray):
+            e = e.all()
+        return e
 
     def __str__(self):
         s = "DateIntervalIndex([ "

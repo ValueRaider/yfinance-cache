@@ -128,7 +128,7 @@ class Ticker:
 
         start_d = None ; end_d = None
         start_dt = None ; end_dt = None
-        interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]
+        interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week]#, yfcd.Interval.Months1, yfcd.Interval.Months3]
         if start is not None:
             start_dt, start_d = self._process_user_dt(start)
             if start_dt > dt_now:
@@ -163,10 +163,10 @@ class Ticker:
                 max_age = datetime.timedelta(hours=4)
             elif interval == yfcd.Interval.Week:
                 max_age = datetime.timedelta(hours=60)
-            elif interval == yfcd.Interval.Months1:
-                max_age = datetime.timedelta(days=15)
-            elif interval == yfcd.Interval.Months3:
-                max_age = datetime.timedelta(days=45)
+            # elif interval == yfcd.Interval.Months1:
+            #     max_age = datetime.timedelta(days=15)
+            # elif interval == yfcd.Interval.Months3:
+            #     max_age = datetime.timedelta(days=45)
             else:
                 max_age = 0.5*yfcd.intervalToTimedelta[interval]
             if start is not None:
@@ -361,7 +361,7 @@ class Ticker:
         self._exchange = exchange
         return self._exchange, self._tz
 
-    def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False, debug_interval=None):
+    def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct='none', discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
             quiet = False
         if debug_interval is not None and isinstance(debug_interval, str):
@@ -394,7 +394,7 @@ class Ticker:
             if debug or not correct:
                 yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v} (1st pass)")
                 return v
-        if correct:
+        if correct in ['one', 'all']:
             # Rows were removed so re-fetch. Only do for 1d data
             self.history(start=dt0.date(), quiet=quiet)
 
@@ -430,7 +430,7 @@ class Ticker:
             vi = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
             yfcl.TracePrint(f"{istr}: vi={vi}")
 
-            if not vi and correct:
+            if not vi and correct != 'all':
                 # Stop after correcting first problem, because user won't have been shown the next problem yet
                 yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {vi}")
                 return vi
@@ -909,6 +909,8 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         session:
             Recommend providing a 'requests_cache' session, in case
             you have to abort and resume verification (likely).
+        correct:
+            False, 'one', 'all'
         resume_from_tkr: str
             Resume verification from this ticker (alphabetical order).
             Because maybe you had to abort verification partway.
@@ -924,9 +926,6 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
 
     d = yfcm.GetCacheDirpath()
     tkrs = [x for x in os.listdir(d) if not x.startswith("exchange-") and os.path.isdir(os.path.join(d, x)) and '_' not in x]
-    # tkrs = tkrs[:5]
-    # tkrs = tkrs[:20]
-    # tkrs = tkrs[tkrs.index("DDOG"):]
 
     debug = debug_tkr is not None
     if debug_tkr is not None:
@@ -965,17 +964,18 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         dat = Ticker(tkr, session=session)
 
         try:
-            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=correct, quiet=not debug, debug=debug, debug_interval=debug_interval)
+            discard_old = correct in ['one', 'all']
+            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=discard_old, quiet=not debug, debug=debug, debug_interval=debug_interval)
         except yfcd.NoPriceDataInRangeException as e:
             print(str(e) + " - is it delisted? Aborting verification so you can investigate.")
             return
         if debug:
             return
 
-        if correct:
-            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=False, quiet=not debug, debug=debug, debug_interval=debug_interval)
+        if correct in ['one', 'all']:
+            v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=correct, discard_old=False, quiet=True, debug=debug, debug_interval=debug_interval)
 
-        if not v:
+        if not v and correct != 'all':
             v = dat.verify_cached_prices(rtol=rtol, vol_rtol=vol_rtol, correct=False, discard_old=False, quiet=False, debug=True, debug_interval=debug_interval)
             if halt_on_fail:
                 raise Exception(f"{tkr}: verify failing")

@@ -85,18 +85,24 @@ class Test_Yfc_Interface(Test_Base):
     def test_history_basics1_usa(self):
         # A fetch of prices, then another fetch of same prices, should return identical
 
-        self.assertFalse(os.path.isdir(os.path.join(self.tempCacheDir.name, self.usa_tkr)))
+        self.assertFalse(os.path.isdir(os.path.join(self.tempCacheDir.name, self.usa_tkr, "history-1d.pkl")))
+
+        week_start = date.today()
+        week_start -= timedelta(days=28)
+        week_start -= timedelta(days=week_start.weekday())
+        td_1d = timedelta(days=1)
+        td_7d = timedelta(days=7)
 
         ## Daily 
-        df1 = self.usa_dat.history(interval="1d", start=date(2022,2,7), end=date(2022,2,15))
+        df1 = self.usa_dat.history(interval="1d", start=week_start, end=week_start+td_7d)
         try:
-            self.assertEqual(df1.shape[0], 6)
+            self.assertGreaterEqual(df1.shape[0], 3)
         except:
             print("df1:")
             print(df1)
             print("")
             raise
-        df2 = self.usa_dat.history(interval="1d", start=date(2022,2,7), end=date(2022,2,15))
+        df2 = self.usa_dat.history(interval="1d", start=week_start, end=week_start+td_7d)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -110,11 +116,11 @@ class Test_Yfc_Interface(Test_Base):
         self.assertTrue((df2.index.time==time(0)).all())
 
         ## Daily with actions
-        df1 = self.usa_dat.history(interval="1d", start=date(2022,2,7), end=date(2022,2,15), actions=True)
+        df1 = self.usa_dat.history(interval="1d", start=week_start, end=week_start+td_7d, actions=True)
         self.assertTrue("Dividends" in df1.columns.values)
         self.assertTrue("Stock Splits" in df1.columns.values)
-        self.assertEqual(df1.shape[0], 6)
-        df2 = self.usa_dat.history(interval="1d", start=date(2022,2,7), end=date(2022,2,15), actions=True)
+        self.assertGreaterEqual(df1.shape[0], 3)
+        df2 = self.usa_dat.history(interval="1d", start=week_start, end=week_start+td_7d, actions=True)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -128,14 +134,14 @@ class Test_Yfc_Interface(Test_Base):
         self.assertTrue((df2.index.time==time(0)).all())
 
         ## Hourly
-        df1 = self.usa_dat.history(interval="1h", start=date(2022,2,7), end=date(2022,2,9))
+        df1 = self.usa_dat.history(interval="1h", start=week_start, end=week_start+td_1d*2)
         try:
-            self.assertEqual(df1.shape[0], 14)
+            self.assertGreaterEqual(df1.shape[0], 7)
         except:
             print("df1:")
             print(df1)
             raise
-        df2 = self.usa_dat.history(interval="1h", start=date(2022,2,7), end=date(2022,2,9))
+        df2 = self.usa_dat.history(interval="1h", start=week_start, end=week_start+td_1d*2)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -147,10 +153,10 @@ class Test_Yfc_Interface(Test_Base):
             print("")
             raise
 
-        ## Weekly 
-        df1 = self.usa_dat.history(interval="1wk", start=date(2022,2,7), end=date(2022,2,19))
+        ## Weekly
+        df1 = self.usa_dat.history(interval="1wk", start=week_start, end=week_start+td_1d*14)
         self.assertEqual(df1.shape[0], 2)
-        df2 = self.usa_dat.history(interval="1wk", start=date(2022,2,7), end=date(2022,2,19))
+        df2 = self.usa_dat.history(interval="1wk", start=week_start, end=week_start+td_1d*14)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -180,12 +186,18 @@ class Test_Yfc_Interface(Test_Base):
     def test_history_basics1_nze(self):
         # A fetch of prices, then another fetch of same prices, should return identical
 
-        self.assertFalse(os.path.isdir(os.path.join(self.tempCacheDir.name, self.nze_tkr)))
+        self.assertFalse(os.path.isdir(os.path.join(self.tempCacheDir.name, self.nze_tkr, "history-1d.pkl")))
+
+        week_start = date.today()
+        week_start -= timedelta(days=28)
+        week_start -= timedelta(days=week_start.weekday())
+        td_1d = timedelta(days=1)
+        td_7d = timedelta(days=7)
 
         ## Daily 
-        df1 = self.nze_dat.history(interval="1d", start=date(2022,2,8), end=date(2022,2,15))
-        self.assertEqual(df1.shape[0], 5)
-        df2 = self.nze_dat.history(interval="1d", start=date(2022,2,8), end=date(2022,2,15))
+        df1 = self.nze_dat.history(interval="1d", start=week_start, end=week_start+td_7d)
+        self.assertGreaterEqual(df1.shape[0], 3)
+        df2 = self.nze_dat.history(interval="1d", start=week_start, end=week_start+td_7d)
         try:
             self.verify_df(df1, df2)
         except:
@@ -199,11 +211,11 @@ class Test_Yfc_Interface(Test_Base):
         self.assertTrue((df2.index.time==time(0)).all())
 
         ## Daily with actions
-        df1 = self.nze_dat.history(interval="1d", start=date(2022,2,8), end=date(2022,2,15), actions=True)
+        df1 = self.nze_dat.history(interval="1d", start=week_start, end=week_start+td_7d, actions=True)
         self.assertTrue("Dividends" in df1.columns.values)
         self.assertTrue("Stock Splits" in df1.columns.values)
-        self.assertEqual(df1.shape[0], 5)
-        df2 = self.nze_dat.history(interval="1d", start=date(2022,2,8), end=date(2022,2,15), actions=True)
+        self.assertGreaterEqual(df1.shape[0], 3)
+        df2 = self.nze_dat.history(interval="1d", start=week_start, end=week_start+td_7d, actions=True)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -216,9 +228,9 @@ class Test_Yfc_Interface(Test_Base):
             raise
 
         ## Hourly
-        df1 = self.nze_dat.history(interval="1h", start=date(2022,2,8), end=date(2022,2,10))
-        self.assertEqual(df1.shape[0], 14)
-        df2 = self.nze_dat.history(interval="1h", start=date(2022,2,8), end=date(2022,2,10))
+        df1 = self.nze_dat.history(interval="1h", start=week_start, end=week_start+td_1d*2)
+        self.assertGreaterEqual(df1.shape[0], 7)
+        df2 = self.nze_dat.history(interval="1h", start=week_start, end=week_start+td_1d*2)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -231,9 +243,9 @@ class Test_Yfc_Interface(Test_Base):
             raise
 
         ## Weekly 
-        df1 = self.nze_dat.history(interval="1wk", start=date(2022,2,7), end=date(2022,2,19))
+        df1 = self.nze_dat.history(interval="1wk", start=week_start, end=week_start+td_7d*2)
         self.assertEqual(df1.shape[0], 2)
-        df2 = self.nze_dat.history(interval="1wk", start=date(2022,2,7), end=date(2022,2,19))
+        df2 = self.nze_dat.history(interval="1wk", start=week_start, end=week_start+td_7d*2)
         try:
             self.assertTrue(df1.equals(df2))
         except:
@@ -401,7 +413,7 @@ class Test_Yfc_Interface(Test_Base):
         tkr_candidates = ["BHG.JO", "INTC", "MEL.NZ"]
         interval = yfcd.Interval.Days1
 
-        dt_now_utc = datetime.utcnow()
+        dt_now_utc = pd.Timestamp.utcnow()
         dt_now = dt_now_utc.replace(tzinfo=ZoneInfo("UTC"))
 
         start_d = dt_now_utc.date() -timedelta(days=7)
@@ -428,7 +440,7 @@ class Test_Yfc_Interface(Test_Base):
         # Test 'Final?' column
         tkr_candidates = ["BHG.JO", "INTC", "MEL.NZ"]
 
-        dt_now_utc = datetime.utcnow()
+        dt_now_utc = pd.Timestamp.utcnow()
         dt_now = dt_now_utc.replace(tzinfo=ZoneInfo("UTC"))
 
         # start_d = dt_now_utc.date() - timedelta(days=7)
@@ -601,7 +613,7 @@ class Test_Yfc_Interface(Test_Base):
         del tkr_candidates[tkr_candidates.index("HLTH")]
         del tkr_candidates[tkr_candidates.index("MEL.NZ")]
 
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         start_dt = dt_now - timedelta(days=7)
         end_dt = dt_now+timedelta(days=1)
         start_d = start_dt.date()
@@ -692,7 +704,7 @@ class Test_Yfc_Interface(Test_Base):
         #
         tkr_candidates = ["BHG.JO"]
         #
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         td_1d = timedelta(days=1)
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
@@ -759,7 +771,7 @@ class Test_Yfc_Interface(Test_Base):
         tkr_candidates = self.tkrs
         interval = yfcd.Interval.Days1
         #
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=None)
@@ -801,7 +813,7 @@ class Test_Yfc_Interface(Test_Base):
         tkr_candidates = self.tkrs
         interval = yfcd.Interval.Week
         #
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         d_now = dt_now.date()
         for tkr in tkr_candidates:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -857,7 +869,7 @@ class Test_Yfc_Interface(Test_Base):
         tz = ZoneInfo(tz_name)
         yfct.SetExchangeTzName(exchange, tz_name)
 
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         # d_now = dt_now.date()
         d_now = dt_now.astimezone(tz).date()
         td_1d = timedelta(days=1)
@@ -914,7 +926,7 @@ class Test_Yfc_Interface(Test_Base):
         exchange = dat.fast_info["exchange"]
         yfct.SetExchangeTzName(exchange, dat.fast_info["timezone"])
 
-        dt_now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
         if yfct.IsTimestampInActiveSession(exchange, dt_now):
             df = dat.history(start=start_d, end=end_d, interval="1d", keepna=True)
             idx = 2 # 3rd row = 2022-7-6
