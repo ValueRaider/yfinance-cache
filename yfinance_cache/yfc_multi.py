@@ -69,7 +69,6 @@ def download(tickers,
                         sys.exit(1)
                     if not have_tqdm:
                         yfcu.display_progress_bar(i + 1, len(tickers))
-                    print("")
                 results = result_async.get()
         else:
             partial_func = partial(download_one, 
