@@ -781,10 +781,11 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
         if len(intervals) == 0:
             intervals = None
 
-    if intervals is not None:
-        yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning interval starts {intervals.left[0]} -> {intervals.left[-1]}")
-    else:
-        yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning None")
+    if debug:
+        if intervals is not None:
+            yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning interval starts {intervals.left[0]} -> {intervals.left[-1]}")
+        else:
+            yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning None")
     return intervals
 
 
