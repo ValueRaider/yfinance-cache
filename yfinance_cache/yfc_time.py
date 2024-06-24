@@ -12,6 +12,8 @@ import pandas as pd
 import numpy as np
 import exchange_calendars as xcal
 
+from yfinance_cache import yfc_logging as yfcl
+
 from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
@@ -587,8 +589,9 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
     # debug = True
 
     if debug:
-        print("GetExchangeScheduleIntervals()", locals())
-        print("- types: start={} end={}".format(type(start), type(end)))
+        yfc_logger = yfcl.GetLogger("exchange-"+exchange)
+        yfc_logger.debug("GetExchangeScheduleIntervals()")
+        yfc_logger.debug("- " + str(locals()))
 
     dt_now = pd.Timestamp.utcnow()
     tz = ZoneInfo(GetExchangeTzName(exchange))
@@ -615,16 +618,21 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
                 s = s[s.left >= start_dt]
             if len(s) > 0 and isinstance(s.right[0], datetime):
                 s = s[s.right <= end_dt]
-            if debug:
-                print("- returning cached intervals ({}->{} filtered by {}->{})".format(start_d, end_d, start, end))
+
+            if exclude_future and intraday:
+                s = s[s.left <= dt_now]
+                if debug:
+                    yfc_logger.debug("- returning cached intervals ({}->{} filtered by {}->{})".format(start_d, end_d, start, min(end, dt_now)))
+            elif debug:
+                yfc_logger.debug("- returning cached intervals ({}->{} filtered by {}->{})".format(start_d, end_d, start, end))
         return s
 
     if debug:
-        print("- start_d={}, end_d={}".format(start_d, end_d))
+        yfc_logger.debug("- start_d={}, end_d={}".format(start_d, end_d))
 
     week_starts_sunday = (exchange in ["TLV"]) and (not week7days)
     if debug:
-        print("- week_starts_sunday =", week_starts_sunday)
+        yfc_logger.debug(f"- week_starts_sunday = {week_starts_sunday}")
 
     cal = GetCalendarViaCache(exchange, start_d, end_d)
 
@@ -632,7 +640,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
     # apply datetime limits.
     intervals = None
     istr = yfcd.intervalToString[interval]
-    if istr.endswith('h') or istr.endswith('m'):
+    if intraday:
         if itd > timedelta(minutes=30):
             align = "-30m"
         else:
@@ -642,8 +650,6 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
             return None
         # Transfer IntervalIndex to DataFrame so can modify
         intervals_df = pd.DataFrame(data={"interval_open": ti.left.tz_convert(tz), "interval_close": ti.right.tz_convert(tz)})
-        if exclude_future:
-            intervals_df = intervals_df[intervals_df["interval_open"] <= dt_now]
         if "auction" in cal.schedule.columns:
             sched = GetExchangeSchedule(exchange, start_d, end_d)
             sched.index = sched.index.date
@@ -731,8 +737,8 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
                 return None
             s = s.copy()
         if debug:
-            print("- sched:")
-            print(s)
+            yfc_logger.debug("- sched:")
+            yfc_logger.debug(s)
         if discardTimes:
             open_days = np.array([dt.to_pydatetime().astimezone(tz).date() for dt in s["open"]])
             intervals = yfcd.DateIntervalIndex.from_arrays(open_days, open_days+td_1d, closed="left")
@@ -765,14 +771,20 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
     if cache_key is not None:
         schedIntervalsCache[cache_key] = intervals
 
+    # Only after caching can we prune future intervals
+    if exclude_future and intraday:
+        intervals = intervals[intervals.left <= dt_now]
+
     if intervals is not None:
         if isinstance(intervals.left[0], datetime):
             intervals = intervals[(intervals.left >= start_dt) & (intervals.right <= end_dt)]
         if len(intervals) == 0:
             intervals = None
 
-    if debug:
-        print(f"GetExchangeScheduleIntervals() returning {type(intervals)} {intervals.left[0]} -> {intervals.right[-1]}")
+    if intervals is not None:
+        yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning interval starts {intervals.left[0]} -> {intervals.left[-1]}")
+    else:
+        yfc_logger.debug(f"GetExchangeScheduleIntervals({istr}) returning None")
     return intervals
 
 

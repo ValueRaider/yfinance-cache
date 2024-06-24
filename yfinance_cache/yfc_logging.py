@@ -4,25 +4,29 @@ import os
 from . import yfc_cache_manager as yfcm
 
 
-yfc_logging_mode = False
+yfc_logging_mode = None
 
-def EnableLogging():
+def EnableLogging(mode=logging.INFO):
     global yfc_logging_mode
-    yfc_logging_mode = True
+    ok_values = [logging.INFO, logging.DEBUG]
+    if mode not in ok_values:
+        raise Exception('Logging mode must be one of:', ok_values)
+    yfc_logging_mode = mode
 
 def DisableLogging():
     global yfc_logging_mode
-    yfc_logging_mode = False
+    yfc_logging_mode = None
 
 def IsLoggingEnabled():
     global yfc_logging_mode
-    return yfc_logging_mode
+    return yfc_logging_mode is not None
 
 loggers = {}
 def GetLogger(tkr):
     if tkr in loggers:
         return loggers[tkr]
 
+    global yfc_logging_mode
     tkr_dp = os.path.join(yfcm.GetCacheDirpath(), tkr)
     if not os.path.isdir(tkr_dp):
         os.mkdir(tkr_dp)
@@ -35,8 +39,7 @@ def GetLogger(tkr):
     # screen_handler = logging.StreamHandler(stream=sys.stdout)
     # screen_handler.setFormatter(formatter)
     logger = logging.getLogger(tkr)
-    logger.setLevel(logging.INFO)
-    # logger.setLevel(logging.DEBUG)
+    logger.setLevel(yfc_logging_mode)
     logger.addHandler(log_file_handler)
     logger.propagate = False
 
