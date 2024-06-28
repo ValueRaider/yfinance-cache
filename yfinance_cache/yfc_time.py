@@ -6,8 +6,6 @@ from functools import lru_cache
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
-from multiprocessing import Lock, Manager
-
 import pandas as pd
 import numpy as np
 import exchange_calendars as xcal
@@ -18,10 +16,6 @@ from . import yfc_dat as yfcd
 from . import yfc_cache_manager as yfcm
 from . import yfc_utils as yfcu
 
-
-exchanges_lock = Lock()
-manager = Manager()
-exchange_locks = manager.dict()
 
 exchangeTzCache = {}
 def GetExchangeTzName(exchange):
@@ -39,11 +33,7 @@ def SetExchangeTzName(exchange, tz):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckStr(tz, "tz")
 
-    with exchanges_lock:
-        if exchange not in exchange_locks:
-            exchange_locks[exchange] = manager.Lock()
-    exchange_lock = exchange_locks[exchange]
-
+    exchange_lock = yfcd.exchange_locks[exchange]
     with exchange_lock:
         tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
         if tzc is not None:
@@ -180,10 +170,7 @@ def GetCalendarViaCache(exchange, start, end=None):
 
     cal = None
 
-    with exchanges_lock:
-        if exchange not in exchange_locks:
-            exchange_locks[exchange] = manager.Lock()
-        exchange_lock = exchange_locks[exchange]
+    exchange_lock = yfcd.exchange_locks[exchange]
 
     def _customModSchedule(cal):
         tz = ZoneInfo(GetExchangeTzName(exchange))

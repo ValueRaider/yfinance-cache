@@ -260,6 +260,15 @@ listing_date_check_tols[Interval.Week] = timedelta(days=14)
 # listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
+from multiprocessing import Lock, Manager, current_process
+if current_process().name == 'MainProcess':
+    # Ensure only main (parent) processes creates a manager
+    manager = Manager()
+    exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
+else:
+    exchange_locks = {}
+
+    
 class Financials(Enum):
     IncomeStmt = 0
     BalanceSheet = 1

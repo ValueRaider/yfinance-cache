@@ -1,11 +1,17 @@
 import multiprocessing
 from functools import partial
+import time
+import traceback, sys
 
 import pandas as pd
 from scipy.stats import mode
 
 from . import yfc_ticker
 from . import yfc_utils as yfcu
+from . import yfc_dat as yfcd
+
+def reinitialize_locks(locks):
+    yfcd.exchange_locks = locks
 
 def download(tickers,
             threads=True, ignore_tz=None, 
@@ -40,7 +46,7 @@ def download(tickers,
             threads = multiprocessing.cpu_count()
         if progress:
             queue = multiprocessing.Manager().Queue()
-            partial_func = partial(download_one_progress, queue=queue, 
+            partial_func = partial(download_one_parallel, queue=queue, 
                                     period=period, interval=interval,
                                     max_age=max_age,
                                     start=start, end=end, prepost=prepost,
@@ -48,17 +54,21 @@ def download(tickers,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     proxy=proxy,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads) as pool:
+            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchange_locks,)) as pool:
                 result_async = pool.map_async(partial_func, tickers)
 
                 if have_tqdm:
-                    for i in tqdm.tqdm(tickers):
-                        queue.get()  # Blocks until a value is available
+                    r = tqdm.tqdm(tickers)
                 else:
-                    for i in range(len(tickers)):
-                        queue.get()  # Blocks until a value is available
+                    r = range(len(tickers))
+                for i in r:
+                    status, value = queue.get()  # Blocks until a value is available
+                    if status == 'error':
+                        e, tb = value
+                        print(tb)
+                        sys.exit(1)
+                    if not have_tqdm:
                         yfcu.display_progress_bar(i + 1, len(tickers))
-                    print("")
                 results = result_async.get()
         else:
             partial_func = partial(download_one, 
@@ -87,7 +97,8 @@ def download(tickers,
                     df = yfc_ticker.Ticker(tkr, session=session).history(**hist_args)
                     dfs[tkr] = df
             else:
-                for tkr in tickers:
+                for i in range(len(tickers)):
+                    tkr = tickers[i]
                     df = yfc_ticker.Ticker(tkr, session=session).history(**hist_args)
                     dfs[tkr] = df
                     yfcu.display_progress_bar(i + 1, len(tickers))
@@ -138,18 +149,23 @@ def reindex_dfs(dfs, ignore_tz):
         dfs[key] = df.reindex(idx)
 
 
-def download_one_progress(ticker, queue, start=None, end=None, max_age=None,
+def download_one_parallel(ticker, queue, start=None, end=None, max_age=None,
                   adjust_divs=True, adjust_splits=True,
                   actions=False, period="max", interval="1d",
                   prepost=False, proxy=None, rounding=False,
                   keepna=False, session=None):
-    df = download_one(ticker, start=start, end=end, max_age=max_age,
-                  adjust_divs=adjust_divs, adjust_splits=adjust_splits,
-                  actions=actions, period=period, interval=interval,
-                  prepost=prepost, proxy=proxy, rounding=rounding,
-                  keepna=keepna, session=session)
-    queue.put(1)
-    return df
+    try:
+        df = download_one(ticker, start=start, end=end, max_age=max_age,
+                      adjust_divs=adjust_divs, adjust_splits=adjust_splits,
+                      actions=actions, period=period, interval=interval,
+                      prepost=prepost, proxy=proxy, rounding=rounding,
+                      keepna=keepna, session=session)
+        queue.put(('success', 0))
+        return df
+    except Exception as e:
+        tb = traceback.format_exception(type(e), e, e.__traceback__)
+        queue.put(('error', (e, ''.join(tb))))
+        return e
 
 
 def download_one(ticker, start=None, end=None, max_age=None,
