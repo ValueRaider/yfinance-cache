@@ -3089,7 +3089,13 @@ class PriceHistory:
         # This function fixes the second.
         # Eventually Yahoo fixes but could take them 2 weeks.
 
-        return self._fixPricesSuddenChange(df, 100.0)
+        if self.exchange == 'KUW':
+            # Kuwaiti Dinar divided into 1000 not 100
+            n = 1000.0
+        else:
+            n = 100.0
+
+        return self._fixPricesSuddenChange(df, n)
 
     def _fixBadStockSplits(self, df):
         # Original logic only considered latest split adjustment could be missing, but 
@@ -3986,9 +3992,10 @@ class PriceHistory:
                                 # Yup, that's what happened
                                 f[f1_oldest_idx:] = False
                                 f1 = self.h.loc[f, "CDF"] >= 1.0
-                        if f1.any():
-                            print(div)
-                            raise Exception(f"{self.ticker}: {self.istr}: For superseded div above, attempting to undo div-adjust from rows where CDF=1. Investigate.")
+                        # if f1.any():
+                        #     print(self.h[f1|np.roll(f1,-1)][['Close', 'CDF', 'CSF', 'FetchDate']])
+                        #     print(div)
+                        #     raise Exception(f"{self.ticker}: {self.istr}: For superseded div above, attempting to undo div-adjust from rows where CDF=1. Investigate.")
 
                         log_msg = f"{self.istr}: Reversing div [dt={dt.date()} {div['Superseded div']} adj={div['Superseded back adj.']:.5f} fetch={div['Superseded div FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
                         indices = np.where(f)[0]
@@ -4028,6 +4035,10 @@ class PriceHistory:
             h_modified = True
 
         if h_modified:
+            f1 = self.h.loc[f, "CDF"] > 1.0
+            if f1.any():
+                self.loc[f,'CDF'] = 1.0
+
             self._updatedCachedPrices(self.h)
 
         log_msg = "PM::_applyNewEvents() returning"
