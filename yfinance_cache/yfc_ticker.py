@@ -613,6 +613,7 @@ class Ticker:
             end = dt_now.date()
         if start is None:
             start = end - pd.Timedelta(days=548)  # 18 months
+            start_dt = end_dt - pd.Timedelta(days=548)
         if start >= end:
             raise Exception("Start date must be before end")
         if debug:
@@ -623,14 +624,19 @@ class Ticker:
                 if debug:
                     print("- init shares from cache")
                 self._shares = yfcm.ReadCacheDatum(self.ticker, "shares")
-            else:
-                if debug:
-                    print("- fetching shares")
+        if self._shares is None or self._shares.empty:
+            # Loaded from cache. Either re-fetch or return None
+            lastFetchDt = yfcm.ReadCacheMetadata(self.ticker, "shares", 'LastFetch')
+            do_fetch = (lastFetchDt is None) or ((dt_now - lastFetchDt) > max_age)
+            if do_fetch:
                 self._shares = self._fetch_shares(start, end)
-                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
-                # return self._shares
-                f_na = self._shares['Shares'].isna()
-                return self._shares[~f_na]
+                if self._shares is None:
+                    self._shares = pd.DataFrame()
+                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares, metadata={'LastFetch':pd.Timestamp.utcnow().tz_convert(tz)})
+                if self._shares.empty:
+                    return None
+            else:
+                return None
 
         if debug:
             print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
@@ -650,11 +656,13 @@ class Ticker:
 
         if start < self._shares.index[0].date():
             df_pre = self._fetch_shares(start, self._shares.index[0])
+            yfcm.WriteCacheMetadata(self.ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
         if (end-td_1d) > self._shares.index[-1].date() and \
             (end - self._shares.index[-1].date()) > max_age:
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
+            yfcm.WriteCacheMetadata(self.ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_post is not None:
                 self._shares = pd.concat([self._shares, df_post])
 
@@ -663,9 +671,21 @@ class Ticker:
 
         f_na = self._shares['Shares'].isna()
         shares = self._shares[~f_na]
-        i0 = np.searchsorted(shares.index, start_dt)
-        i1 = np.searchsorted(shares.index, end_dt)
-        return shares.iloc[i0:i1]
+        if start is not None:
+            i0 = np.searchsorted(shares.index, start_dt)
+        else:
+            i0 = None
+        if end is not None:
+            i1 = np.searchsorted(shares.index, end_dt)
+        else:
+            i1 = None
+        if i0 is not None and i1 is not None:
+            return shares.iloc[i0:i1]
+        elif i0 is not None:
+            return shares[i0:]
+        elif i1 is not None:
+            return shares[:i1]
+        return shares
 
     def _fetch_shares(self, start, end):
         td_1d = datetime.timedelta(days=1)
