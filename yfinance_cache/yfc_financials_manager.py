@@ -7,6 +7,7 @@ from . import yfc_utils as yfcu
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
+from time import sleep
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 import os
@@ -144,6 +145,7 @@ class FinancialsManager:
 
         self._earnings_dates = None
         self._calendar = None
+        self._calendar_clean = None
 
         self._pruned_tbl_cache = {}
         self._fin_tbl_cache = {}
@@ -419,50 +421,55 @@ class FinancialsManager:
         interval = None
         intervals = [(dates[i-1] - dates[i]).days for i in range(1,len(dates))]
         intervals = np.array(intervals)
-        sdm_thresold = 0.1
-        if len(intervals) == 1:
-            interval = intervals[0]
-        else:
-            # First, discard impossibly small intervals:
-            f_too_small = intervals < 60
-            if f_too_small.any():
-                intervals = intervals[~f_too_small]
-            avg = np.mean(intervals)
-            sdm = np.std(intervals) / avg
-            if sdm > sdm_thresold:
-                # Discard large outliers
-                intervals = intervals[intervals<avg]
-                if len(intervals) == 1:
-                    interval = intervals[0]
-                else:
-                    avg = np.mean(intervals)
-                    sdm = np.std(intervals) / avg
-                    if sdm > sdm_thresold:
-                        print(f"- avg {avg}, sdm = {sdm}")
-                        print("- raw tbl periods:") ; print(tbl.columns)
-                        print("- intervals =", intervals)
-                        raise Exception("{0}: earnings interval inference failed - variance too high (sdm={1:.1f}%)".format(self.ticker, sdm*100))
-                    else:
-                        interval = avg
+
+        # Cluster actual intervals
+        def safe_add_to_cluster(clusters, num, std_pct_threshold):
+            for c in clusters:
+                c2 = np.append(c, num)
+                if (np.std(c2) / np.mean(c2)) < std_pct_threshold:
+                    c.append(num)
+                    return True
+            return False
+        def cluster_numbers(numbers, std_pct):
+            clusters = []
+            for n in sorted(numbers):
+                if not clusters or not safe_add_to_cluster(clusters, n, std_pct):
+                    clusters.append([n])
+            return clusters
+        clusters = cluster_numbers(intervals, 0.05)
+
+        # Map clusters to legal intervals
+        tol = 10
+        intervals = []
+        for i in range(len(clusters)-1, -1, -1):
+            m = np.mean(clusters[i])
+            if abs(m-365) < tol:
+                intervals.append(yfcd.ComparableRelativedelta(years=1))
+            elif abs(m-182) < tol:
+                intervals.append(yfcd.ComparableRelativedelta(months=6))
+            elif abs(m-91) < tol:
+                intervals.append(yfcd.ComparableRelativedelta(months=3))
+            elif abs(m-274) < tol:
+                # 9 months, nonsense, but implies quarterly
+                intervals.append(yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=3), yfcd.Confidence.Medium))
             else:
-                interval = int(avg)
-        if interval is None:
-            print(tbl)
-            raise Exception('Why no interval derived from tbl?')
-        if debug:
-            print("- interval:", interval)
-        tol = 20
-        if abs(interval-365) < tol:
-            return yfcd.ComparableRelativedelta(years=1)
-        elif abs(interval-182) < tol:
-            return yfcd.ComparableRelativedelta(months=6)
-        elif abs(interval-91) < tol:
-            return yfcd.ComparableRelativedelta(months=3)
-        elif abs(interval-274) < tol:
-            # 9 months, nonsense, but implies quarterly
-            return yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=3), yfcd.Confidence.Medium)
+                del clusters[i]
+        if len(intervals) == 1:
+            # good!
+            return intervals[0]
         else:
-            raise Exception(f"{self.ticker}: interval = {interval} doesn't fit standard intervals")
+            # Return the smallest. In case of ambiguous comparison, keep most confident.
+            best = intervals[0]
+            for i in range(1, len(intervals)):
+                i2 = intervals[i]
+                try:
+                    best = min(best, i2)
+                except yfcd.AmbiguousComparisonException:
+                    best_confidence = best.confidence if hasattr(best, 'confidence') else yfcd.Confidence.High
+                    i2_confidence = i2.confidence if hasattr(i2, 'confidence') else yfcd.Confidence.High
+                    if i2_confidence > best_confidence:
+                        best = i2
+            return best
 
     def _get_interval(self, finType, refresh=True):
         debug = False
@@ -1802,25 +1809,38 @@ class FinancialsManager:
         for i in range(len(edf)-2, -1, -1):
             if (edf.index[i]-edf.index[i+1]) < timedelta(days=7):
                 # One must go
-                # if edf['Date confirmed?'].iloc[i]:
                 if edf['FetchDate'].iloc[i] > edf['FetchDate'].iloc[i+1]:
                     edf = edf.drop(edf.index[i+1])
-                # elif edf['Date confirmed?'].iloc[i+1]:
                 elif edf['FetchDate'].iloc[i+1] > edf['FetchDate'].iloc[i]:
                     edf = edf.drop(edf.index[i])
                 else:
-                    # Cross-check against calendar
                     cal = self.get_calendar(refresh)
-                    dts = cal['Earnings Date']
-                    if len(dts) == 1 and dts[0] in [edf.index[i].date(), edf.index[i+1].date()]:
-                        if edf.index[i].date() == dts[0]:
+                    if cal is None:
+                        # print(edf.iloc[i:i+2])
+                        # raise Exception('Review how to handle 2x almost-equal earnings dates.')
+                        # pass  # Can't do anything with certainty
+                        # Keep earlier
+                        if edf.index[i] < edf.index[i+1]:
                             edf = edf.drop(edf.index[i+1])
                         else:
                             edf = edf.drop(edf.index[i])
                     else:
-                        # print(edf.iloc[i:i+2])
-                        # raise Exception('Review how to handle 2x almost-equal earnings dates.')
-                        pass  # Can't do anything with certainty
+                        # Cross-check against calendar
+                        dts = cal['Earnings Date']
+                        if len(dts) == 1 and dts[0] in [edf.index[i].date(), edf.index[i+1].date()]:
+                            if edf.index[i].date() == dts[0]:
+                                edf = edf.drop(edf.index[i+1])
+                            else:
+                                edf = edf.drop(edf.index[i])
+                        else:
+                            # print(edf.iloc[i:i+2])
+                            # raise Exception('Review how to handle 2x almost-equal earnings dates.')
+                            # pass  # Can't do anything with certainty
+                            # Keep earlier
+                            if edf.index[i] < edf.index[i+1]:
+                                edf = edf.drop(edf.index[i+1])
+                            else:
+                                edf = edf.drop(edf.index[i])
 
         return edf
 
@@ -1836,7 +1856,21 @@ class FinancialsManager:
         elif print_fetches:
             print(f"{self.ticker}: fetching {limit} earnings dates")
 
-        df = self.dat.get_earnings_dates(limit)
+        repeat_fetch = False
+        try:
+            df = self.dat.get_earnings_dates(limit)
+        except KeyError as e:
+            if "Earnings Date" in str(e):
+                # Rarely, Yahoo returns a completely different table for earnings dates.
+                # Try again.
+                repeat_fetch = True
+            else:
+                raise
+        if repeat_fetch:
+            sleep(1)
+            # Avoid cache this time, but add sleeps to maintain rate-limiting
+            df = yf.Ticker(self.ticker).get_earnings_dates(limit)
+            sleep(1)
         if df is None or df.empty:
             if debug:
                 print("- Yahoo returned None")
@@ -1870,17 +1904,17 @@ class FinancialsManager:
         if self._calendar is None:
             if yfcm.IsDatumCached(self.ticker, "calendar"):
                 self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
-                if "FetchDate" not in self._calendar.keys():
-                    raise Exception(f"{self.ticker}: calendar missing FetchDate")
-                    fp = yfcm.GetFilepath(self.ticker, "calendar")
-                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
-                    self._calendar["FetchDate"] = mod_dt
+
+                self._calendar_clean = dict(self._calendar)
+                del self._calendar_clean['FetchDate']
+                if len(self._calendar_clean.keys()) == 0:
+                    self._calendar_clean = None
 
         if (self._calendar is not None) and (self._calendar["FetchDate"] + max_age) > pd.Timestamp.now():
-            return self._calendar
+            return self._calendar_clean
 
         if not refresh:
-            return self._calendar
+            return self._calendar_clean
 
         if print_fetches:
             print(f"{self.ticker}: Fetching calendar (last fetch = {self._calendar['FetchDate'].date()})")
@@ -1903,7 +1937,11 @@ class FinancialsManager:
         if c is not None:
             yfcm.StoreCacheDatum(self.ticker, "calendar", c)
         self._calendar = c
-        return self._calendar
+        self._calendar_clean = dict(self._calendar)
+        del self._calendar_clean['FetchDate']
+        if len(self._calendar_clean.keys()) == 0:
+            self._calendar_clean = None
+        return self._calendar_clean
 
     def _get_calendar_dates(self, refresh=True):
         yfcu.TypeCheckBool(refresh, 'refresh')
