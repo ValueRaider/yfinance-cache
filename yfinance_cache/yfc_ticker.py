@@ -214,6 +214,9 @@ class Ticker:
             n = sched.shape[0]
             start_d = start_dt.date() if start_dt < sched["open"].iloc[0] else start_dt.date()+td_1d
             end_d = end_dt.date()+td_1d if end_dt >= sched["close"].iloc[n-1] else end_dt.date()
+        else:
+            if exchange not in yfcd.exchangeToXcalExchange:
+                raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self.ticker))
 
         if self._histories_manager is None:
             self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)

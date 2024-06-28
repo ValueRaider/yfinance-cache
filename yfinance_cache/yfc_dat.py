@@ -111,7 +111,8 @@ exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
 exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
 exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
-exchangeToXcalExchange["HAM"] = exchangeToXcalExchange["GER"] # Hamburg, assume same as Frankfurt
+exchangeToXcalExchange["DUS"] = "XDUS"  # Duesseldorf
+exchangeToXcalExchange["HAM"] = "XHAM"  # Hamburg
 exchangeToXcalExchange["HEL"] = "XHEL"  # Helsinki
 exchangeToXcalExchange["ISE"] = "XDUB"  # Ireland
 exchangeToXcalExchange["MCE"] = "XMAD"  # Madrid
@@ -168,7 +169,8 @@ exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
 exchangeToYfLag["FRA"] = timedelta(minutes=15)
 exchangeToYfLag["GER"] = timedelta(minutes=15)
-exchangeToYfLag["HAM"] = exchangeToYfLag["GER"]
+exchangeToYfLag["DUS"] = timedelta(minutes=15)
+exchangeToYfLag["HAM"] = timedelta(minutes=15)
 exchangeToYfLag["HEL"] = timedelta(0)
 exchangeToYfLag["ISE"] = timedelta(minutes=15)
 exchangeToYfLag["MCE"] = timedelta(minutes=15)
