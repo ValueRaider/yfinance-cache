@@ -18,13 +18,15 @@ classifiers =
 package_dir =
     = ./
 packages = find:
-python_requires = >=3
+python_requires = >=3.9
 install_requires = 
     yfinance >= 0.2.36
+    numpy >= 1.26 <2.0  # Pandas require 1.x NumPy version
     pandas >=1.5, <2.1  # Pandas 2.1 has datetime bug, see Github issue #55487
     exchange_calendars >= 4.5.5
     scipy >= 1.6.3
     click
+    appdirs
 
 [options.packages.find]
 where = ./
