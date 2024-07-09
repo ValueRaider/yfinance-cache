@@ -674,3 +674,6 @@ def display_progress_bar(completed, total):
     bar = "*" * completed_length + " " * (bar_length - completed_length)
     # print(f"\rProgress: |{bar}| {percentage:.0f}% Completed", end='', flush=True)
     print(f"\r[{bar}]  {completed} of {total} completed", end='', flush=True)
+    # add return after the last progress
+    if completed == total:
+        print("\n")
