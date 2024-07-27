@@ -691,7 +691,7 @@ class FinancialsManager:
                 # Drop dates that occurred just before another
                 edf = edf.sort_index(ascending=True)
                 d = edf.index.to_series().diff()
-                d[0] = pd.Timedelta(999, unit='d')
+                d.iloc[0] = pd.Timedelta(999, unit='d')
                 x_near = np.abs(d) < pd.Timedelta(5, "days")
                 if x_near.any():
                     edf = edf[~x_near]

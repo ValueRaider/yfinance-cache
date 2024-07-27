@@ -211,6 +211,8 @@ class EventsHistory:
             # Prepare 'splits_df' for append
             splits_df["Superseded split"] = 0.0
             splits_df["Superseded split FetchDate"] = pd.NaT
+            if splits_df['Superseded split FetchDate'].dt.tz is None and self.splits is not None:
+                splits_df['Superseded split FetchDate'] = splits_df['Superseded split FetchDate'].dt.tz_localize(self.splits['FetchDate'].dt.tz)
             for dt in splits_df.index:
                 new_split = splits_df.loc[dt, "Stock Splits"]
                 if self.splits is not None and dt in self.splits.index:
@@ -240,6 +242,10 @@ class EventsHistory:
                 if self.splits is None:
                     self.splits = splits_df[cols].copy()
                 else:
+                    f_na = self.splits['Superseded split FetchDate'].isna()
+                    if f_na.all():
+                        # Drop column. It breaks concat, and anyway 'divs_df' will restore it.
+                        self.splits = self.splits.drop('Superseded split FetchDate', axis=1)
                     self.splits = pd.concat([self.splits, splits_df[cols]], sort=True).sort_index()
                 yfcm.StoreCacheDatum(self.ticker, "splits", self.splits)
             elif self_splits_modified:
@@ -270,6 +276,8 @@ class EventsHistory:
             divs_df["Superseded div"] = 0.0
             divs_df["Superseded back adj."] = 0.0
             divs_df["Superseded div FetchDate"] = pd.NaT
+            if divs_df['Superseded div FetchDate'].dt.tz is None and self.divs is not None:
+                divs_df['Superseded div FetchDate'] = divs_df['Superseded div FetchDate'].dt.tz_localize(self.divs['FetchDate'].dt.tz)
             divs_df_dts = divs_df.index.copy()
             for dt in divs_df_dts:
                 new_div = divs_df.loc[dt, "Dividends"]
@@ -340,6 +348,10 @@ class EventsHistory:
                 if self.divs is None:
                     self.divs = divs_df[cols].copy()
                 else:
+                    f_na = self.divs['Superseded div FetchDate'].isna()
+                    if f_na.all():
+                        # Drop column. It breaks concat, and anyway 'divs_df' will restore it.
+                        self.divs = self.divs.drop('Superseded div FetchDate', axis=1)
                     self.divs = pd.concat([self.divs, divs_df[cols]], sort=True).sort_index()
                 yfcm.StoreCacheDatum(self.ticker, "dividends", self.divs)
             elif self_divs_modified:
@@ -417,7 +429,7 @@ class PriceHistory:
 
             f_na = np.isnan(h["CDF"].to_numpy())
             if f_na.any():
-                h["CDF"] = h["CDF"].fillna(method="bfill").fillna(method="ffill")
+                h["CDF"] = h["CDF"].bfill().ffill()
                 f_na = h["CDF"].isna()
                 if f_na.any():
                     raise Exception("CDF NaN repair failed")
@@ -3786,7 +3798,7 @@ class PriceHistory:
             else:
                 cdf = np.full(df.shape[0], np.nan)
                 cdf[f_nna] = df.loc[f_nna, "Adj Close"] / df.loc[f_nna, "Close"]
-                cdf = pd.Series(cdf).fillna(method="bfill").fillna(method="ffill").to_numpy()
+                cdf = pd.Series(cdf).bfill().ffill().to_numpy()
 
         # In rare cases, Yahoo is not calculating 'Adj Close' correctly
         if self.interday:

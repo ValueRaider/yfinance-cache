@@ -725,9 +725,9 @@ class Ticker:
         df = pd.DataFrame(df, columns=['Shares'])
 
         if start_d < df.index[0].date():
-            df.loc[start_dt] = np.nan
+            df.loc[start_dt, 'Shares'] = np.nan
         if (end_d-td_1d) > df.index[-1].date():
-            df.loc[end_dt] = np.nan
+            df.loc[end_dt, 'Shares'] = np.nan
         df = df.sort_index()
 
         df['FetchDate'] = fetch_dt

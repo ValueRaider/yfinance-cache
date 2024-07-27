@@ -201,6 +201,8 @@ def GetCalendarViaCache(exchange, start, end=None):
             cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
             if xcal.__version__ != md["version"]:
                 cal = None
+            elif 'np version' not in md or md['np version'] != np.__version__:
+                cal = None
 
         # Calculate missing data
         pre_range = None ; post_range = None
@@ -246,7 +248,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         # Write to cache
         calCache[cal_name] = cal
         if pre_range is not None or post_range is not None:
-            yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__})
+            yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__, 'np version': np.__version__})
 
     return cal
 
@@ -645,7 +647,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
             # Implemented by flooring then applying offset calculated from floored market open.
             intervals_grp = intervals_df.groupby(intervals_df["interval_open"].dt.date)
             # 1 - calculate offset
-            res = istr.replace('h', 'H') if istr.endswith('h') else istr.replace('m', 'T')
+            res = 'h' if istr.endswith('h') else istr.replace('m', 'T')
             market_opens = intervals_grp.min()["interval_open"]
             if len(market_opens.dt.time.unique()) == 1:
                 open0 = market_opens.iloc[0]
