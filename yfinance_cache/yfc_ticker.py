@@ -73,6 +73,42 @@ class Ticker:
                 proxy=None, rounding=False,
                 debug=True, quiet=False,
                 trigger_at_market_close=False):
+        """
+        Fetch historical market data for this ticker.
+
+        This method retrieves historical price and volume data, as well as information
+        about stock splits and dividend payments if requested.
+
+        Args:
+            interval (str, optional): Data interval. Defaults to "1d" (daily).
+                Other options: "1m" (minute), "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo".
+            max_age (int, optional): Maximum age of cached data in seconds. Defaults to None (half of the interval).
+            period (str, optional): Data period to download. Defaults to None.
+                Options: "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max".
+            start (str, optional): Download start date string (YYYY-MM-DD) or datetime. Defaults to None.
+            end (str, optional): Download end date string (YYYY-MM-DD) or datetime. Defaults to None.
+            prepost (bool, optional): Include pre and post market data. Defaults to False.
+            actions (bool, optional): Include stock splits and dividend data. Defaults to True.
+            adjust_splits (bool, optional): Adjust data for stock splits. Defaults to True.
+            adjust_divs (bool, optional): Adjust data for dividends. Defaults to True.
+            keepna (bool, optional): Keep NaN values. Defaults to False.
+            proxy (str, optional): Proxy URL. Defaults to None.
+            rounding (bool, optional): Round values to 2 decimal places. Defaults to False.
+            debug (bool, optional): Print debug messages. Defaults to True.
+            quiet (bool, optional): Suppress output messages. Defaults to False.
+            trigger_at_market_close (bool, optional): Trigger requests at market close. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the historical data. Columns typically include:
+                Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.
+
+        Raises:
+            ValueError: If invalid date parameters are provided.
+            YFinanceException: If there's an error fetching the data from Yahoo Finance.
+
+        Note:
+            Either 'period' or 'start' and 'end' should be provided, but not both.
+        """
 
         # t0 = perf_counter()
 

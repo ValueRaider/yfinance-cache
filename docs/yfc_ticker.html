@@ -118,6 +118,42 @@ Because maybe you want to investigate a difference.</p></div>
                 proxy=None, rounding=False,
                 debug=True, quiet=False,
                 trigger_at_market_close=False):
+        &#34;&#34;&#34;
+        Fetch historical market data for this ticker.
+
+        This method retrieves historical price and volume data, as well as information
+        about stock splits and dividend payments if requested.
+
+        Args:
+            interval (str, optional): Data interval. Defaults to &#34;1d&#34; (daily).
+                Other options: &#34;1m&#34; (minute), &#34;5m&#34;, &#34;15m&#34;, &#34;30m&#34;, &#34;60m&#34;, &#34;90m&#34;, &#34;1h&#34;, &#34;1d&#34;, &#34;5d&#34;, &#34;1wk&#34;, &#34;1mo&#34;, &#34;3mo&#34;.
+            max_age (int, optional): Maximum age of cached data in seconds. Defaults to None (half of the interval).
+            period (str, optional): Data period to download. Defaults to None.
+                Options: &#34;1d&#34;, &#34;5d&#34;, &#34;1mo&#34;, &#34;3mo&#34;, &#34;6mo&#34;, &#34;1y&#34;, &#34;2y&#34;, &#34;5y&#34;, &#34;10y&#34;, &#34;ytd&#34;, &#34;max&#34;.
+            start (str, optional): Download start date string (YYYY-MM-DD) or datetime. Defaults to None.
+            end (str, optional): Download end date string (YYYY-MM-DD) or datetime. Defaults to None.
+            prepost (bool, optional): Include pre and post market data. Defaults to False.
+            actions (bool, optional): Include stock splits and dividend data. Defaults to True.
+            adjust_splits (bool, optional): Adjust data for stock splits. Defaults to True.
+            adjust_divs (bool, optional): Adjust data for dividends. Defaults to True.
+            keepna (bool, optional): Keep NaN values. Defaults to False.
+            proxy (str, optional): Proxy URL. Defaults to None.
+            rounding (bool, optional): Round values to 2 decimal places. Defaults to False.
+            debug (bool, optional): Print debug messages. Defaults to True.
+            quiet (bool, optional): Suppress output messages. Defaults to False.
+            trigger_at_market_close (bool, optional): Trigger requests at market close. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the historical data. Columns typically include:
+                Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.
+
+        Raises:
+            ValueError: If invalid date parameters are provided.
+            YFinanceException: If there&#39;s an error fetching the data from Yahoo Finance.
+
+        Note:
+            Either &#39;period&#39; or &#39;start&#39; and &#39;end&#39; should be provided, but not both.
+        &#34;&#34;&#34;
 
         # t0 = perf_counter()
 
@@ -1378,7 +1414,59 @@ def yf_lag(self):
 <span>def <span class="ident">history</span></span>(<span>self, interval='1d', max_age=None, period=None, start=None, end=None, prepost=False, actions=True, adjust_splits=True, adjust_divs=True, keepna=False, proxy=None, rounding=False, debug=True, quiet=False, trigger_at_market_close=False)</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Fetch historical market data for this ticker.</p>
+<p>This method retrieves historical price and volume data, as well as information
+about stock splits and dividend payments if requested.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>interval</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Data interval. Defaults to "1d" (daily).
+Other options: "1m" (minute), "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo".</dd>
+<dt><strong><code>max_age</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>Maximum age of cached data in seconds. Defaults to None (half of the interval).</dd>
+<dt><strong><code>period</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Data period to download. Defaults to None.
+Options: "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max".</dd>
+<dt><strong><code>start</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Download start date string (YYYY-MM-DD) or datetime. Defaults to None.</dd>
+<dt><strong><code>end</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Download end date string (YYYY-MM-DD) or datetime. Defaults to None.</dd>
+<dt><strong><code>prepost</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Include pre and post market data. Defaults to False.</dd>
+<dt><strong><code>actions</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Include stock splits and dividend data. Defaults to True.</dd>
+<dt><strong><code>adjust_splits</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Adjust data for stock splits. Defaults to True.</dd>
+<dt><strong><code>adjust_divs</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Adjust data for dividends. Defaults to True.</dd>
+<dt><strong><code>keepna</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Keep NaN values. Defaults to False.</dd>
+<dt><strong><code>proxy</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>Proxy URL. Defaults to None.</dd>
+<dt><strong><code>rounding</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Round values to 2 decimal places. Defaults to False.</dd>
+<dt><strong><code>debug</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Print debug messages. Defaults to True.</dd>
+<dt><strong><code>quiet</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Suppress output messages. Defaults to False.</dd>
+<dt><strong><code>trigger_at_market_close</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Trigger requests at market close. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pandas.DataFrame</code></dt>
+<dd>A DataFrame containing the historical data. Columns typically include:
+Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>If invalid date parameters are provided.</dd>
+<dt><code>YFinanceException</code></dt>
+<dd>If there's an error fetching the data from Yahoo Finance.</dd>
+</dl>
+<h2 id="note">Note</h2>
+<p>Either 'period' or 'start' and 'end' should be provided, but not both.</p></div>
 </dd>
 <dt id="yfinance_cache.yfc_ticker.Ticker.verify_cached_prices"><code class="name flex">
 <span>def <span class="ident">verify_cached_prices</span></span>(<span>self, rtol=0.0001, vol_rtol=0.005, correct='none', discard_old=False, quiet=True, debug=False, debug_interval=None)</span>
