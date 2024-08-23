@@ -5,27 +5,24 @@ import subprocess
 # Generate documentation
 subprocess.run(["pdoc", "--html", "--output-dir", "docs", "yfinance_cache"])
 
-# Move all HTML files to docs root
+# Move files to docs root, but don't overwrite index.html
 for filename in os.listdir("docs/yfinance_cache"):
-    if filename.endswith(".html"):
+    if filename.endswith(".html") and filename != "index.html":
         shutil.move(f"docs/yfinance_cache/{filename}", f"docs/{filename}")
 
-# Rename yfc_ticker.html to index.html
-os.rename("docs/yfc_ticker.html", "docs/index.html")
+# Update the content of index.html to load yfc_ticker.html
+with open("docs/yfinance_cache/index.html", "r") as f:
+    index_content = f.read()
 
-# Update links in all HTML files
-for filename in os.listdir("docs"):
-    if filename.endswith(".html"):
-        with open(f"docs/{filename}", "r") as f:
-            content = f.read()
-        
-        content = content.replace('href="index.html"', 'href="yfinance_cache.html"')
-        content = content.replace('href="yfc_', 'href="yfc_')
-        
-        with open(f"docs/{filename}", "w") as f:
-            f.write(content)
+index_content = index_content.replace(
+    '<a class="homelink" rel="home" title="yfinance_cache Home" href="./index.html">',
+    '<a class="homelink" rel="home" title="yfinance_cache Home" href="./yfc_ticker.html">'
+)
 
-# Remove the now-empty yfinance_cache folder
+with open("docs/index.html", "w") as f:
+    f.write(index_content)
+
+# Remove the yfinance_cache folder
 shutil.rmtree("docs/yfinance_cache")
 
 print("Documentation generated successfully.")

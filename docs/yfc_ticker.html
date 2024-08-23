@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<meta name="generator" content="pdoc3 0.11.1">
+<title>yfinance_cache.yfc_ticker API documentation</title>
+<meta name="description" content="">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ==" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => {
+hljs.configure({languages: ['bash', 'css', 'diff', 'graphql', 'ini', 'javascript', 'json', 'plaintext', 'python', 'python-repl', 'rust', 'shell', 'sql', 'typescript', 'xml', 'yaml']});
+hljs.highlightAll();
+})</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>yfinance_cache.yfc_ticker</code></h1>
+</header>
+<section id="section-intro">
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="yfinance_cache.yfc_ticker.verify_cached_tickers_prices"><code class="name flex">
+<span>def <span class="ident">verify_cached_tickers_prices</span></span>(<span>session=None, rtol=0.0001, vol_rtol=0.005, correct=False, halt_on_fail=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>:Parameters:
+session:
+Recommend providing a 'requests_cache' session, in case
+you have to abort and resume verification (likely).
+correct:
+False, 'one', 'all'
+resume_from_tkr: str
+Resume verification from this ticker (alphabetical order).
+Because maybe you had to abort verification partway.
+debug_tkr: str
+Only verify this ticker.
+Because maybe you want to investigate a difference.</p></div>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="yfinance_cache.yfc_ticker.Ticker"><code class="flex name class">
+<span>class <span class="ident">Ticker</span></span>
+<span>(</span><span>ticker, session=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Ticker:
+    def __init__(self, ticker, session=None):
+        self.ticker = ticker.upper()
+
+        self.session = session
+        self.dat = yf.Ticker(self.ticker, session=self.session)
+
+        self._yf_lag = None
+
+        self._histories_manager = None
+
+        self._info = None
+        self._fast_info = None
+
+        self._splits = None
+
+        self._shares = None
+
+        self._major_holders = None
+
+        self._institutional_holders = None
+
+        self._sustainability = None
+
+        self._recommendations = None
+
+        self._calendar = None
+
+        self._isin = None
+
+        self._options = None
+
+        self._news = None
+
+        self._debug = False
+        # self._debug = True
+
+        self._tz = None
+        self._exchange = None
+
+        exchange, tz_name = self._getExchangeAndTz()
+        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
+
+    def history(self,
+                interval=&#34;1d&#34;,
+                max_age=None,  # defaults to half of interval
+                period=None,
+                start=None, end=None, prepost=False, actions=True,
+                adjust_splits=True, adjust_divs=True,
+                keepna=False,
+                proxy=None, rounding=False,
+                debug=True, quiet=False,
+                trigger_at_market_close=False):
+
+        # t0 = perf_counter()
+
+        if prepost:
+            raise Exception(&#34;pre and post-market caching currently not implemented. If you really need it raise an issue on Github&#34;)
+
+        debug_yfc = self._debug
+        # debug_yfc = True
+
+        if start is not None or end is not None:
+            log_msg = f&#34;Ticker::history(tkr={self.ticker} interval={interval} start={start} end={end} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})&#34;
+        else:
+            log_msg = f&#34;Ticker::history(tkr={self.ticker} interval={interval} period={period} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})&#34;
+        yfcl.TraceEnter(log_msg)
+
+        td_1d = datetime.timedelta(days=1)
+        exchange, tz_name = self._getExchangeAndTz()
+        tz_exchange = ZoneInfo(tz_name)
+        yfct.SetExchangeTzName(exchange, tz_name)
+        dt_now = pd.Timestamp.utcnow()
+
+        # Type checks
+        if max_age is not None:
+            if isinstance(max_age, str):
+                if max_age.endswith(&#34;wk&#34;):
+                    max_age = re.sub(&#34;wk$&#34;, &#34;w&#34;, max_age)
+                max_age = pd.Timedelta(max_age)
+            if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+                raise Exception(&#34;Argument &#39;max_age&#39; must be Timedelta or equivalent string&#34;)
+        if period is not None:
+            if start is not None or end is not None:
+                raise Exception(&#34;Don&#39;t set both &#39;period&#39; and &#39;start&#39;/&#39;end&#39;&#39; arguments&#34;)
+            if isinstance(period, str):
+                if period in [&#34;max&#34;, &#34;ytd&#34;]:
+                    period = yfcd.periodStrToEnum[period]
+                else:
+                    if period.endswith(&#34;wk&#34;):
+                        period = re.sub(&#34;wk$&#34;, &#34;w&#34;, period)
+                    if period.endswith(&#34;y&#34;):
+                        period = relativedelta(years=int(re.sub(&#34;y$&#34;, &#34;&#34;, period)))
+                    elif period.endswith(&#34;mo&#34;):
+                        period = relativedelta(months=int(re.sub(&#34;mo&#34;, &#34;&#34;, period)))
+                    else:
+                        period = pd.Timedelta(period)
+            if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
+                raise Exception(f&#34;Argument &#39;period&#39; must be one of: &#39;max&#39;, &#39;ytd&#39;, Timedelta or equivalent string. Not {type(period)}&#34;)
+        if isinstance(interval, str):
+            if interval not in yfcd.intervalStrToEnum.keys():
+                raise Exception(&#34;&#39;interval&#39; if str must be one of: {}&#34;.format(yfcd.intervalStrToEnum.keys()))
+            interval = yfcd.intervalStrToEnum[interval]
+        if not isinstance(interval, yfcd.Interval):
+            raise Exception(&#34;&#39;interval&#39; must be yfcd.Interval&#34;)
+
+        start_d = None ; end_d = None
+        start_dt = None ; end_dt = None
+        interday = interval in [yfcd.Interval.Days1, yfcd.Interval.Week]#, yfcd.Interval.Months1, yfcd.Interval.Months3]
+        if start is not None:
+            start_dt, start_d = self._process_user_dt(start)
+            if start_dt &gt; dt_now:
+                return None
+            if interval == yfcd.Interval.Week:
+                # Note: if start is on weekend then Yahoo can return weekly data starting
+                #       on Saturday. This breaks YFC, start must be Monday! So fix here:
+                if start_dt is None:
+                    # Working with simple dates, easy
+                    if start_d.weekday() in [5, 6]:
+                        start_d += datetime.timedelta(days=7-start_d.weekday())
+                else:
+                    wd = start_d.weekday()
+                    if wd in [5, 6]:
+                        start_d += datetime.timedelta(days=7-wd)
+                        start_dt = datetime.datetime.combine(start_d, datetime.time(0), tz_exchange)
+
+        if end is not None:
+            end_dt, end_d = self._process_user_dt(end)
+
+        if start_dt is not None and end_dt is not None and start_dt &gt;= end_dt:
+            raise ValueError(&#34;start must be &lt; end&#34;)
+
+        if debug_yfc:
+            print(&#34;- start_dt={} , end_dt={}&#34;.format(start_dt, end_dt))
+
+        if (start_dt is not None) and start_dt == end_dt:
+            return None
+
+        if max_age is None:
+            if interval == yfcd.Interval.Days1:
+                max_age = datetime.timedelta(hours=4)
+            elif interval == yfcd.Interval.Week:
+                max_age = datetime.timedelta(hours=60)
+            # elif interval == yfcd.Interval.Months1:
+            #     max_age = datetime.timedelta(days=15)
+            # elif interval == yfcd.Interval.Months3:
+            #     max_age = datetime.timedelta(days=45)
+            else:
+                max_age = 0.5*yfcd.intervalToTimedelta[interval]
+            if start is not None:
+                max_age = min(max_age, dt_now-start_dt)
+
+        if period is not None:
+            if isinstance(period, (datetime.timedelta, pd.Timedelta)):
+                if (dt_now - max_age) &lt; (dt_now - period):
+                    raise Exception(f&#34;max_age={max_age} must be less than period={period}&#34;)
+            elif period == yfcd.Period.Ytd:
+                dt_now_ex = dt_now.tz_convert(tz_exchange)
+                dt_year_start = pd.Timestamp(year=dt_now_ex.year, month=1, day=1).tz_localize(tz_exchange)
+                if (dt_now - max_age) &lt; dt_year_start:
+                    raise Exception(f&#34;max_age={max_age} must be less than days since this year start&#34;)
+        elif start is not None:
+            if (dt_now - max_age) &lt; start_dt:
+                raise Exception(f&#34;max_age={max_age} must be closer to now than start={start}&#34;)
+
+
+        if start_dt is not None:
+            try:
+                sched_14d = yfct.GetExchangeSchedule(exchange, start_dt.date(), start_dt.date()+14*td_1d)
+            except Exception as e:
+                if &#34;Need to add mapping&#34; in str(e):
+                    raise Exception(&#34;Need to add mapping of exchange {} to xcal (ticker={})&#34;.format(exchange, self.ticker))
+                else:
+                    raise
+            if sched_14d is None:
+                raise Exception(&#34;sched_14d is None for date range {}-&gt;{} and ticker {}&#34;.format(start_dt.date(), start_dt.date()+14*td_1d, self.ticker))
+            if sched_14d[&#34;open&#34;].iloc[0] &gt; dt_now:
+                # Requested date range is in future
+                return None
+        else:
+            sched_14d = None
+
+        # All date checks passed so can begin fetching
+
+        if ((start_d is None) or (end_d is None)) and (start_dt is not None) and (end_dt is not None):
+            # if start_d/end_d not set then start/end are datetimes, so need to inspect
+            # schedule opens/closes to determine days
+            if sched_14d is not None:
+                sched = sched_14d.iloc[0:1]
+            else:
+                sched = yfct.GetExchangeSchedule(exchange, start_dt.date(), end_dt.date()+td_1d)
+            n = sched.shape[0]
+            start_d = start_dt.date() if start_dt &lt; sched[&#34;open&#34;].iloc[0] else start_dt.date()+td_1d
+            end_d = end_dt.date()+td_1d if end_dt &gt;= sched[&#34;close&#34;].iloc[n-1] else end_dt.date()
+        else:
+            if exchange not in yfcd.exchangeToXcalExchange:
+                raise Exception(&#34;Need to add mapping of exchange {} to xcal (ticker={})&#34;.format(exchange, self.ticker))
+
+        if self._histories_manager is None:
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
+
+        # t1_setup = perf_counter()
+
+        hist = self._histories_manager.GetHistory(interval)
+        if period is not None:
+            h = hist.get(start=None, end=None, period=period, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
+        elif interday:
+            h = hist.get(start_d, end_d, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
+        else:
+            h = hist.get(start_dt, end_dt, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
+        if (h is None) or h.shape[0] == 0:
+            msg = f&#34;YFC: history() exiting without price data (tkr={self.ticker}&#34;
+            if start_dt is not None or end_dt is not None:
+                msg += f&#34; start_dt={start_dt} end_dt={end_dt}&#34;
+            else:
+                msg += f&#34; period={period}&#34;
+            msg += f&#34; max_age={max_age}&#34;
+            msg += f&#34; interval={yfcd.intervalToString[interval]})&#34;
+            raise Exception(msg)
+
+        # t2_sync = perf_counter()
+
+        f_dups = h.index.duplicated()
+        if f_dups.any():
+            raise Exception(&#34;{}: These timepoints have been duplicated: {}&#34;.format(self.ticker, h.index[f_dups]))
+
+        # Present table for user:
+        h_copied = False
+        if (start_dt is not None) and (end_dt is not None):
+            h = h.loc[start_dt:end_dt-datetime.timedelta(milliseconds=1)].copy()
+            h_copied = True
+
+        if not keepna:
+            price_data_cols = [c for c in yfcd.yf_data_cols if c in h.columns]
+            mask_nan_or_zero = (np.isnan(h[price_data_cols].to_numpy()) | (h[price_data_cols].to_numpy() == 0)).all(axis=1)
+            if mask_nan_or_zero.any():
+                h = h.drop(h.index[mask_nan_or_zero])
+                h_copied = True
+        # t3_filter = perf_counter()
+
+        if h.shape[0] == 0:
+            h = None
+        else:
+            if adjust_splits:
+                if not h_copied:
+                    h = h.copy()
+                for c in [&#34;Open&#34;, &#34;Close&#34;, &#34;Low&#34;, &#34;High&#34;, &#34;Dividends&#34;]:
+                    h[c] = np.multiply(h[c].to_numpy(), h[&#34;CSF&#34;].to_numpy())
+                h[&#34;Volume&#34;] = np.round(np.divide(h[&#34;Volume&#34;].to_numpy(), h[&#34;CSF&#34;].to_numpy()), 0).astype(&#39;int&#39;)
+            if adjust_divs:
+                if not h_copied:
+                    h = h.copy()
+                for c in [&#34;Open&#34;, &#34;Close&#34;, &#34;Low&#34;, &#34;High&#34;]:
+                    h[c] = np.multiply(h[c].to_numpy(), h[&#34;CDF&#34;].to_numpy())
+            else:
+                if not h_copied:
+                    h = h.copy()
+                h[&#34;Adj Close&#34;] = np.multiply(h[&#34;Close&#34;].to_numpy(), h[&#34;CDF&#34;].to_numpy())
+            h = h.drop([&#34;CSF&#34;, &#34;CDF&#34;], axis=1)
+
+            if rounding:
+                # Round to 4 sig-figs
+                if not h_copied:
+                    h = h.copy()
+                f_na = h[&#34;Close&#34;].isna()
+                na = f_na.any()
+                if na:
+                    f_nna = ~f_na
+                    if not f_nna.any():
+                        raise Exception(f&#34;{self.ticker}: price table is entirely NaNs. Delisted?&#34; +&#34; \n&#34; + log_msg)
+                    last_close = h[&#34;Close&#34;][f_nna].iloc[-1]
+                else:
+                    last_close = h[&#34;Close&#34;].iloc[-1]
+                rnd = yfcu.CalculateRounding(last_close, 4)
+                for c in [&#34;Open&#34;, &#34;Close&#34;, &#34;Low&#34;, &#34;High&#34;]:
+                    if na:
+                        h.loc[f_nna, c] = np.round(h.loc[f_nna, c].to_numpy(), rnd)
+                    else:
+                        h[c] = np.round(h[c].to_numpy(), rnd)
+
+            if debug_yfc:
+                print(&#34;- h:&#34;)
+                cols = [c for c in [&#34;Close&#34;, &#34;Dividends&#34;, &#34;Volume&#34;, &#34;CDF&#34;, &#34;CSF&#34;] if c in h.columns]
+                print(h[cols])
+                if &#34;Dividends&#34; in h.columns:
+                    f = h[&#34;Dividends&#34;] != 0.0
+                    if f.any():
+                        print(&#34;- dividends:&#34;)
+                        print(h.loc[f, cols])
+                print(&#34;&#34;)
+            yfcl.TraceExit(&#34;Ticker::history() returning&#34;)
+
+        # t4_adjust = perf_counter()
+        # t_setup = t1_setup - t0
+        # t_sync = t2_sync - t1_setup
+        # t_filter = t3_filter - t2_sync
+        # t_adjust = t4_adjust - t3_filter
+        # t_sum = t_setup + t_sync + t_filter + t_adjust
+        # print(&#34;TIME: {:.4f}s: setup={:.4f} sync={:.4f} filter={:.4f} adjust={:.4f}&#34;.format(t_sum, t_setup, t_sync, t_filter, t_adjust))
+        # t_setup *= 100/t_sum
+        # t_sync *= 100/t_sum
+        # t_cache *= 100/t_sum
+        # t_filter *= 100/t_sum
+        # t_adjust *= 100/t_sum
+        # print(&#34;TIME %:        setup={:.1f}%  sync={:.1f}%  filter={:.1f}%  adjust={:.1f}%&#34;.format(t_setup, t_sync, t_filter, t_adju
+
+        return h
+
+    def _getCachedPrices(self, interval, proxy=None):
+        if self._histories_manager is None:
+            exchange, tz_name = self._getExchangeAndTz()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
+
+        if isinstance(interval, str):
+            if interval not in yfcd.intervalStrToEnum.keys():
+                raise Exception(&#34;&#39;interval&#39; if str must be one of: {}&#34;.format(yfcd.intervalStrToEnum.keys()))
+            interval = yfcd.intervalStrToEnum[interval]
+
+        return self._histories_manager.GetHistory(interval).h
+
+    def _getExchangeAndTz(self):
+        if self._tz is not None and self._exchange is not None:
+            return self._exchange, self._tz
+
+        exchange, tz_name = None, None
+        try:
+            exchange = self.get_info(&#39;9999d&#39;)[&#39;exchange&#39;]
+            if &#34;exchangeTimezoneName&#34; in self.get_info(&#39;9999d&#39;):
+                tz_name = self.get_info(&#39;9999d&#39;)[&#34;exchangeTimezoneName&#34;]
+            else:
+                tz_name = self.get_info(&#39;9999d&#39;)[&#34;timeZoneFullName&#34;]
+        except Exception:
+            md = yf.Ticker(self.ticker, session=self.session).history_metadata
+            if &#39;exchangeName&#39; in md.keys():
+                exchange = md[&#39;exchangeName&#39;]
+            if &#39;exchangeTimezoneName&#39; in md.keys():
+                tz_name = md[&#39;exchangeTimezoneName&#39;]
+
+        if exchange is None or tz_name is None:
+            raise Exception(f&#34;{self.ticker}: exchange and timezone not available&#34;)
+        self._tz = tz_name
+        self._exchange = exchange
+        return self._exchange, self._tz
+
+    def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct=&#39;none&#39;, discard_old=False, quiet=True, debug=False, debug_interval=None):
+        if debug:
+            quiet = False
+        if debug_interval is not None and isinstance(debug_interval, str):
+            debug_interval = yfcd.intervalStrToEnum[debug_interval]
+
+        fn_locals = locals()
+        del fn_locals[&#34;self&#34;]
+
+        interval = yfcd.Interval.Days1
+        cache_key = &#34;history-&#34;+yfcd.intervalToString[interval]
+        if not yfcm.IsDatumCached(self.ticker, cache_key):
+            return True
+
+        yfcl.TraceEnter(f&#34;Ticker::verify_cached_prices(tkr={self.ticker} {fn_locals})&#34;)
+
+        if self._histories_manager is None:
+            exchange, tz_name = self._getExchangeAndTz()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
+
+        v = True
+
+        # First verify 1d
+        dt0 = self._histories_manager.GetHistory(interval)._getCachedPrices().index[0]
+        self.history(start=dt0.date(), quiet=quiet, trigger_at_market_close=True)  # ensure have all dividends
+        v = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
+        if debug_interval == yfcd.Interval.Days1:
+            yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v} (1st pass)&#34;)
+            return v
+        if not v:
+            if debug or not correct:
+                yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v} (1st pass)&#34;)
+                return v
+        if correct in [&#39;one&#39;, &#39;all&#39;]:
+            # Rows were removed so re-fetch. Only do for 1d data
+            self.history(start=dt0.date(), quiet=quiet)
+
+            # repeat verification, because &#39;fetch backporting&#39; may be buggy
+            v2 = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
+            if not v2 and debug:
+                yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v2} (post-correction)&#34;)
+                return v2
+            if not v2:
+                yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v2} (post-correction)&#34;)
+                return v2
+
+            if not v:
+                # Stop after correcting first problem, because user won&#39;t have been shown the next problem yet
+                yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v} (corrected but user should review next problem)&#34;)
+                return v
+
+        if debug_interval is not None:
+            if debug_interval == yfcd.Interval.Days1:
+                intervals = []
+            else:
+                intervals = [debug_interval]
+            debug = True
+        else:
+            intervals = yfcd.Interval
+        for interval in intervals:
+            if interval == yfcd.Interval.Days1:
+                continue
+            istr = yfcd.intervalToString[interval]
+            cache_key = &#34;history-&#34;+istr
+            if not yfcm.IsDatumCached(self.ticker, cache_key):
+                continue
+            vi = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
+            yfcl.TracePrint(f&#34;{istr}: vi={vi}&#34;)
+
+            if not vi and correct != &#39;all&#39;:
+                # Stop after correcting first problem, because user won&#39;t have been shown the next problem yet
+                yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {vi}&#34;)
+                return vi
+
+            v = v and vi
+
+        yfcl.TraceExit(f&#34;Ticker::verify_cached_prices() returning {v}&#34;)
+
+        return v
+
+    def _verify_cached_prices_interval(self, interval, rtol=0.0001, vol_rtol=0.005, correct=False, discard_old=False, quiet=True, debug=False):
+        if debug:
+            quiet = False
+
+        fn_locals = locals()
+        del fn_locals[&#34;self&#34;]
+
+        if isinstance(interval, str):
+            if interval not in yfcd.intervalStrToEnum.keys():
+                raise Exception(&#34;&#39;interval&#39; if str must be one of: {}&#34;.format(yfcd.intervalStrToEnum.keys()))
+            interval = yfcd.intervalStrToEnum[interval]
+
+        istr = yfcd.intervalToString[interval]
+        cache_key = &#34;history-&#34;+istr
+        if not yfcm.IsDatumCached(self.ticker, cache_key):
+            return True
+
+        yfcl.TraceEnter(f&#34;Ticker::_verify_cached_prices_interval(tkr={self.ticker}, {fn_locals})&#34;)
+
+        if self._histories_manager is None:
+            exchange, tz_name = self._getExchangeAndTz()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
+
+        v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
+
+        yfcl.TraceExit(f&#34;Ticker::_verify_cached_prices_interval() returning {v}&#34;)
+        return v
+
+    def _process_user_dt(self, dt):
+        exchange, tz_name = self._getExchangeAndTz()
+        return yfcu.ProcessUserDt(dt, tz_name)
+
+    @property
+    def info(self):
+        return self.get_info()
+
+    def get_info(self, max_age=None):
+        if self._info is not None:
+            return self._info
+
+        if max_age is None:
+            max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+        elif not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age &lt; pd.Timedelta(0):
+            raise Exception(f&#34;&#39;max_age&#39; must be positive timedelta not {max_age}&#34;)
+
+        md = None
+        if yfcm.IsDatumCached(self.ticker, &#34;info&#34;):
+            self._info, md = yfcm.ReadCacheDatum(self.ticker, &#34;info&#34;, True)
+            if &#39;FetchDate&#39; not in self._info.keys():
+                # Old bug meant this could happen
+                fp = yfcm.GetFilepath(self.ticker, &#39;info&#39;)
+                mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                self._info[&#39;FetchDate&#39;] = mod_dt
+                md[&#39;LastCheck&#39;] = mod_dt
+                yfcm.StoreCacheDatum(self.ticker, &#34;info&#34;, self._info, metadata=md)
+
+            if self._info is not None:
+                if md is None:
+                    md = {}
+                if &#39;LastCheck&#39; not in md.keys():
+                    # Old bug meant this could happen
+                    md[&#39;LastCheck&#39;] = self._info[&#39;FetchDate&#39;]
+                    yfcm.WriteCacheMetadata(self.ticker, &#34;info&#34;, &#39;LastCheck&#39;, md[&#39;LastCheck&#39;])
+                if max(self._info[&#39;FetchDate&#39;], md[&#39;LastCheck&#39;]) + max_age &gt; pd.Timestamp.now():
+                    return self._info
+
+        i = self.dat.info
+        i[&#39;FetchDate&#39;] = pd.Timestamp.now()
+
+        if self._info is not None:
+            # Check new info is not downgrade
+            diff = len(i) - len(self._info)
+            diff_pct = float(diff) / float(len(self._info))
+            if diff_pct &lt; -0.1 and diff &lt; -10:
+                msg = &#39;When fetching new info, significant amount of data has disappeared\n&#39;
+                missing_keys = [k for k in self._info.keys() if k not in i.keys()]
+                new_keys = [k for k in i.keys() if k not in self._info.keys()]
+                msg += &#34;- missing: &#34;
+                msg += str({k:self._info[k] for k in missing_keys}) + &#39;\n&#39;
+                msg += &#34;- new: &#34;
+                msg += str({k:i[k] for k in new_keys}) + &#39;\n&#39;
+
+                # msg += &#34;\nKeep new data?&#34;
+                # keep = click.confirm(msg, default=False)
+                # if not keep:
+                #     return self._info
+                #
+                msg += &#34;\nDiscarding fetched info.&#34;
+                print(f&#39;{self.ticker}: {msg}&#39;)
+                yfcm.WriteCacheMetadata(self.ticker, &#34;info&#34;, &#39;LastCheck&#39;, i[&#39;FetchDate&#39;])
+                return self._info
+
+        self._info = i
+        if md is None:
+            md = {}
+        md[&#39;LastCheck&#39;] = i[&#39;FetchDate&#39;]
+        yfcm.StoreCacheDatum(self.ticker, &#34;info&#34;, self._info, metadata=md)
+
+        exchange, tz_name = self._getExchangeAndTz()
+        yfct.SetExchangeTzName(exchange, tz_name)
+
+        return self._info
+
+    @property
+    def fast_info(self):
+        if self._fast_info is not None:
+            return self._fast_info
+
+        if yfcm.IsDatumCached(self.ticker, &#34;fast_info&#34;):
+            try:
+                self._fast_info = yfcm.ReadCacheDatum(self.ticker, &#34;fast_info&#34;)
+            except Exception:
+                pass
+            else:
+                return self._fast_info
+
+        # self._fast_info = self.dat.fast_info
+        self._fast_info = {}
+        for k in self.dat.fast_info.keys():
+            try:
+                self._fast_info[k] = self.dat.fast_info[k]
+            except Exception as e:
+                if &#34;decrypt&#34; in str(e):
+                    pass
+                else:
+                    print(f&#34;TICKER = {self.ticker}&#34;)
+                    raise
+        yfcm.StoreCacheDatum(self.ticker, &#34;fast_info&#34;, self._fast_info)
+
+        yfct.SetExchangeTzName(self._fast_info[&#34;exchange&#34;], self._fast_info[&#34;timezone&#34;])
+
+        return self._fast_info
+
+    @property
+    def splits(self):
+        if self._splits is not None:
+            return self._splits
+
+        if yfcm.IsDatumCached(self.ticker, &#34;splits&#34;):
+            self._splits = yfcm.ReadCacheDatum(self.ticker, &#34;splits&#34;)
+            return self._splits
+
+        self._splits = self.dat.splits
+        yfcm.StoreCacheDatum(self.ticker, &#34;splits&#34;, self._splits)
+        return self._splits
+
+
+    def get_shares(self, start=None, end=None, max_age=&#39;30d&#39;):
+        debug = False
+        # debug = True
+
+        max_age = pd.Timedelta(max_age)
+
+        # Process dates
+        exchange, tz = self._getExchangeAndTz()
+        dt_now = pd.Timestamp.utcnow().tz_convert(tz)
+        if start is not None:
+            start_dt, start_d = self._process_user_dt(start)
+            start = start_d
+        if end is not None:
+            end_dt, end_d = self._process_user_dt(end)
+            end = end_d
+        if end is None:
+            end_dt = dt_now
+            end = dt_now.date()
+        if start is None:
+            start = end - pd.Timedelta(days=548)  # 18 months
+            start_dt = end_dt - pd.Timedelta(days=548)
+        if start &gt;= end:
+            raise Exception(&#34;Start date must be before end&#34;)
+        if debug:
+            print(&#34;- start =&#34;, start, &#34; end =&#34;, end)
+
+        if self._shares is None:
+            if yfcm.IsDatumCached(self.ticker, &#34;shares&#34;):
+                if debug:
+                    print(&#34;- init shares from cache&#34;)
+                self._shares = yfcm.ReadCacheDatum(self.ticker, &#34;shares&#34;)
+        if self._shares is None or self._shares.empty:
+            # Loaded from cache. Either re-fetch or return None
+            lastFetchDt = yfcm.ReadCacheMetadata(self.ticker, &#34;shares&#34;, &#39;LastFetch&#39;)
+            do_fetch = (lastFetchDt is None) or ((dt_now - lastFetchDt) &gt; max_age)
+            if do_fetch:
+                self._shares = self._fetch_shares(start, end)
+                if self._shares is None:
+                    self._shares = pd.DataFrame()
+                yfcm.StoreCacheDatum(self.ticker, &#34;shares&#34;, self._shares, metadata={&#39;LastFetch&#39;:pd.Timestamp.utcnow().tz_convert(tz)})
+                if self._shares.empty:
+                    return None
+            else:
+                return None
+
+        if debug:
+            print(&#34;- self._shares:&#34;, self._shares.index[0], &#39;-&gt;&#39;, self._shares.index[-1])
+
+        td_1d = datetime.timedelta(days=1)
+        last_row = self._shares.iloc[-1]
+        if pd.isna(last_row[&#39;Shares&#39;]):# and last_row[&#39;FetchDate&#39;].date() == last_row.name:
+            if debug:
+                print(&#34;- dropping last row from cached&#34;)
+            self._shares = self._shares.drop(self._shares.index[-1])
+
+        if not isinstance(self._shares.index, pd.DatetimeIndex):
+            self._shares.index = pd.to_datetime(self._shares.index).tz_localize(tz)
+        if self._shares[&#39;Shares&#39;].dtype == &#39;float&#39;:
+            # Convert to Int, and add a little to avoid rounding errors
+            self._shares[&#39;Shares&#39;] = (self._shares[&#39;Shares&#39;]+0.01).round().astype(&#39;Int64&#39;)
+
+        if start &lt; self._shares.index[0].date():
+            df_pre = self._fetch_shares(start, self._shares.index[0])
+            yfcm.WriteCacheMetadata(self.ticker, &#34;shares&#34;, &#39;LastFetch&#39;, pd.Timestamp.utcnow().tz_convert(tz))
+            if df_pre is not None:
+                self._shares = pd.concat([df_pre, self._shares])
+        if (end-td_1d) &gt; self._shares.index[-1].date() and \
+            (end - self._shares.index[-1].date()) &gt; max_age:
+            df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
+            yfcm.WriteCacheMetadata(self.ticker, &#34;shares&#34;, &#39;LastFetch&#39;, pd.Timestamp.utcnow().tz_convert(tz))
+            if df_post is not None:
+                self._shares = pd.concat([self._shares, df_post])
+
+        self._shares = self._shares
+        yfcm.StoreCacheDatum(self.ticker, &#34;shares&#34;, self._shares)
+
+        f_na = self._shares[&#39;Shares&#39;].isna()
+        shares = self._shares[~f_na]
+        if start is not None:
+            i0 = np.searchsorted(shares.index, start_dt)
+        else:
+            i0 = None
+        if end is not None:
+            i1 = np.searchsorted(shares.index, end_dt)
+        else:
+            i1 = None
+        if i0 is not None and i1 is not None:
+            return shares.iloc[i0:i1]
+        elif i0 is not None:
+            return shares[i0:]
+        elif i1 is not None:
+            return shares[:i1]
+        return shares
+
+    def _fetch_shares(self, start, end):
+        td_1d = datetime.timedelta(days=1)
+
+        exchange, tz = self._getExchangeAndTz()
+        if isinstance(end, datetime.datetime):
+            end_dt = end
+            end_d = end.date()
+        else:
+            end_dt = pd.Timestamp(end).tz_localize(tz)
+            end_d = end
+        if isinstance(start, datetime.datetime):
+            start_dt = start
+            start_d = start.date()
+        else:
+            start_dt = pd.Timestamp(start).tz_localize(tz)
+            start_d = start
+
+        end_d = min(end_d, datetime.date.today() + td_1d)
+
+        df = self.dat.get_shares_full(start_d, end_d)
+        if df is None:
+            return df
+        if df.empty:
+            return None
+
+        # Convert to Pandas Int for NaN support
+        df = df.astype(&#39;Int64&#39;)
+
+        # Currently, yfinance uses ceil(end), so fix:
+        if df.index[-1].date() == end_d:
+            df.drop(df.index[-1])
+            if df.empty:
+                return None
+
+        fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
+        df = pd.DataFrame(df, columns=[&#39;Shares&#39;])
+
+        if start_d &lt; df.index[0].date():
+            df.loc[start_dt, &#39;Shares&#39;] = np.nan
+        if (end_d-td_1d) &gt; df.index[-1].date():
+            df.loc[end_dt, &#39;Shares&#39;] = np.nan
+        df = df.sort_index()
+
+        df[&#39;FetchDate&#39;] = fetch_dt
+
+        return df
+
+    @property
+    def major_holders(self):
+        if self._major_holders is not None:
+            return self._major_holders
+
+        if yfcm.IsDatumCached(self.ticker, &#34;major_holders&#34;):
+            self._major_holders = yfcm.ReadCacheDatum(self.ticker, &#34;major_holders&#34;)
+            return self._major_holders
+
+        self._major_holders = self.dat.major_holders
+        yfcm.StoreCacheDatum(self.ticker, &#34;major_holders&#34;, self._major_holders)
+        return self._major_holders
+
+    @property
+    def institutional_holders(self):
+        if self._institutional_holders is not None:
+            return self._institutional_holders
+
+        if yfcm.IsDatumCached(self.ticker, &#34;institutional_holders&#34;):
+            self._institutional_holders = yfcm.ReadCacheDatum(self.ticker, &#34;institutional_holders&#34;)
+            return self._institutional_holders
+
+        self._institutional_holders = self.dat.institutional_holders
+        yfcm.StoreCacheDatum(self.ticker, &#34;institutional_holders&#34;, self._institutional_holders)
+        return self._institutional_holders
+
+    @property
+    def earnings(self):
+        return self._financials_manager.get_earnings()
+
+    @property
+    def quarterly_earnings(self):
+        return self._financials_manager.get_quarterly_earnings()
+
+    @property
+    def income_stmt(self):
+        return self._financials_manager.get_income_stmt()
+
+    @property
+    def quarterly_income_stmt(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def financials(self):
+        return self._financials_manager.get_income_stmt()
+
+    @property
+    def quarterly_financials(self):
+        return self._financials_manager.get_quarterly_income_stmt()
+
+    @property
+    def balance_sheet(self):
+        return self._financials_manager.get_balance_sheet()
+
+    @property
+    def quarterly_balance_sheet(self):
+        return self._financials_manager.get_quarterly_balance_sheet()
+
+    @property
+    def cashflow(self):
+        return self._financials_manager.get_cashflow()
+
+    @property
+    def quarterly_cashflow(self):
+        return self._financials_manager.get_quarterly_cashflow()
+
+    def get_earnings_dates(self, limit=12):
+        return self._financials_manager.get_earnings_dates(limit)
+
+    def get_release_dates(self, period=&#39;quarterly&#39;, as_df=False, check=True):
+        if period not in [&#39;annual&#39;, &#39;quarterly&#39;]:
+            raise ValueError(f&#39;period argument must be &#34;annual&#34; or &#34;quarterly&#34;, not &#34;{period}&#34;&#39;)
+        if period == &#39;annual&#39;:
+            period = yfcd.ReportingPeriod.Full
+        else:
+            period = yfcd.ReportingPeriod.Interim
+
+        releases = self._financials_manager.get_release_dates(period, as_df, refresh=True, check=check)
+        if releases is None:
+            return releases
+
+        if as_df:
+            # Format:
+            releases[&#39;Period end uncertainty&#39;] = &#39;0d&#39;
+            f = releases[&#39;PE confidence&#39;] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, &#39;Period end uncertainty&#39;] = &#39;+-7d&#39;
+            f = releases[&#39;PE confidence&#39;] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, &#39;Period end uncertainty&#39;] = &#39;+-45d&#39;
+            releases = releases.drop(&#39;PE confidence&#39;, axis=1)
+
+            releases[&#39;Release date uncertainty&#39;] = &#39;0d&#39;
+            f = releases[&#39;RD confidence&#39;] == yfcd.Confidence.Medium
+            if f.any():
+                releases.loc[f, &#39;Release date uncertainty&#39;] = &#39;+/-7d&#39;
+            f = releases[&#39;RD confidence&#39;] == yfcd.Confidence.Low
+            if f.any():
+                releases.loc[f, &#39;Release date uncertainty&#39;] = &#39;+/-45d&#39;
+            releases = releases.drop(&#39;RD confidence&#39;, axis=1)
+
+            releases = releases.drop(&#39;Delay&#39;, axis=1)
+
+        return releases
+
+    @property
+    def sustainability(self):
+        if self._sustainability is not None:
+            return self._sustainability
+
+        if yfcm.IsDatumCached(self.ticker, &#34;sustainability&#34;):
+            self._sustainability = yfcm.ReadCacheDatum(self.ticker, &#34;sustainability&#34;)
+            return self._sustainability
+
+        self._sustainability = self.dat.sustainability
+        yfcm.StoreCacheDatum(self.ticker, &#34;sustainability&#34;, self._sustainability)
+        return self._sustainability
+
+    @property
+    def recommendations(self):
+        if self._recommendations is not None:
+            return self._recommendations
+
+        if yfcm.IsDatumCached(self.ticker, &#34;recommendations&#34;):
+            self._recommendations = yfcm.ReadCacheDatum(self.ticker, &#34;recommendations&#34;)
+            return self._recommendations
+
+        self._recommendations = self.dat.recommendations
+        yfcm.StoreCacheDatum(self.ticker, &#34;recommendations&#34;, self._recommendations)
+        return self._recommendations
+
+    @property
+    def calendar(self):
+        return self._financials_manager.get_calendar()
+
+    @property
+    def inin(self):
+        if self._inin is not None:
+            return self._inin
+
+        if yfcm.IsDatumCached(self.ticker, &#34;inin&#34;):
+            self._inin = yfcm.ReadCacheDatum(self.ticker, &#34;inin&#34;)
+            return self._inin
+
+        self._inin = self.dat.inin
+        yfcm.StoreCacheDatum(self.ticker, &#34;inin&#34;, self._inin)
+        return self._inin
+
+    @property
+    def options(self):
+        if self._options is not None:
+            return self._options
+
+        if yfcm.IsDatumCached(self.ticker, &#34;options&#34;):
+            self._options = yfcm.ReadCacheDatum(self.ticker, &#34;options&#34;)
+            return self._options
+
+        self._options = self.dat.options
+        yfcm.StoreCacheDatum(self.ticker, &#34;options&#34;, self._options)
+        return self._options
+
+    @property
+    def news(self):
+        if self._news is not None:
+            return self._news
+
+        if yfcm.IsDatumCached(self.ticker, &#34;news&#34;):
+            self._news = yfcm.ReadCacheDatum(self.ticker, &#34;news&#34;)
+            return self._news
+
+        self._news = self.dat.news
+        yfcm.StoreCacheDatum(self.ticker, &#34;news&#34;, self._news)
+        return self._news
+
+    @property
+    def yf_lag(self):
+        if self._yf_lag is not None:
+            return self._yf_lag
+
+        exchange, tz_name = self._getExchangeAndTz()
+        exchange_str = &#34;exchange-{0}&#34;.format(exchange)
+        if yfcm.IsDatumCached(exchange_str, &#34;yf_lag&#34;):
+            self._yf_lag = yfcm.ReadCacheDatum(exchange_str, &#34;yf_lag&#34;)
+            if self._yf_lag:
+                return self._yf_lag
+
+        # Just use specified lag
+        specified_lag = yfcd.exchangeToYfLag[exchange]
+        self._yf_lag = specified_lag
+        return self._yf_lag</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="yfinance_cache.yfc_ticker.Ticker.balance_sheet"><code class="name">prop <span class="ident">balance_sheet</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def balance_sheet(self):
+    return self._financials_manager.get_balance_sheet()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.calendar"><code class="name">prop <span class="ident">calendar</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def calendar(self):
+    return self._financials_manager.get_calendar()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.cashflow"><code class="name">prop <span class="ident">cashflow</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def cashflow(self):
+    return self._financials_manager.get_cashflow()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.earnings"><code class="name">prop <span class="ident">earnings</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def earnings(self):
+    return self._financials_manager.get_earnings()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.fast_info"><code class="name">prop <span class="ident">fast_info</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def fast_info(self):
+    if self._fast_info is not None:
+        return self._fast_info
+
+    if yfcm.IsDatumCached(self.ticker, &#34;fast_info&#34;):
+        try:
+            self._fast_info = yfcm.ReadCacheDatum(self.ticker, &#34;fast_info&#34;)
+        except Exception:
+            pass
+        else:
+            return self._fast_info
+
+    # self._fast_info = self.dat.fast_info
+    self._fast_info = {}
+    for k in self.dat.fast_info.keys():
+        try:
+            self._fast_info[k] = self.dat.fast_info[k]
+        except Exception as e:
+            if &#34;decrypt&#34; in str(e):
+                pass
+            else:
+                print(f&#34;TICKER = {self.ticker}&#34;)
+                raise
+    yfcm.StoreCacheDatum(self.ticker, &#34;fast_info&#34;, self._fast_info)
+
+    yfct.SetExchangeTzName(self._fast_info[&#34;exchange&#34;], self._fast_info[&#34;timezone&#34;])
+
+    return self._fast_info</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.financials"><code class="name">prop <span class="ident">financials</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def financials(self):
+    return self._financials_manager.get_income_stmt()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.income_stmt"><code class="name">prop <span class="ident">income_stmt</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def income_stmt(self):
+    return self._financials_manager.get_income_stmt()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.info"><code class="name">prop <span class="ident">info</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def info(self):
+    return self.get_info()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.inin"><code class="name">prop <span class="ident">inin</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def inin(self):
+    if self._inin is not None:
+        return self._inin
+
+    if yfcm.IsDatumCached(self.ticker, &#34;inin&#34;):
+        self._inin = yfcm.ReadCacheDatum(self.ticker, &#34;inin&#34;)
+        return self._inin
+
+    self._inin = self.dat.inin
+    yfcm.StoreCacheDatum(self.ticker, &#34;inin&#34;, self._inin)
+    return self._inin</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.institutional_holders"><code class="name">prop <span class="ident">institutional_holders</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def institutional_holders(self):
+    if self._institutional_holders is not None:
+        return self._institutional_holders
+
+    if yfcm.IsDatumCached(self.ticker, &#34;institutional_holders&#34;):
+        self._institutional_holders = yfcm.ReadCacheDatum(self.ticker, &#34;institutional_holders&#34;)
+        return self._institutional_holders
+
+    self._institutional_holders = self.dat.institutional_holders
+    yfcm.StoreCacheDatum(self.ticker, &#34;institutional_holders&#34;, self._institutional_holders)
+    return self._institutional_holders</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.major_holders"><code class="name">prop <span class="ident">major_holders</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def major_holders(self):
+    if self._major_holders is not None:
+        return self._major_holders
+
+    if yfcm.IsDatumCached(self.ticker, &#34;major_holders&#34;):
+        self._major_holders = yfcm.ReadCacheDatum(self.ticker, &#34;major_holders&#34;)
+        return self._major_holders
+
+    self._major_holders = self.dat.major_holders
+    yfcm.StoreCacheDatum(self.ticker, &#34;major_holders&#34;, self._major_holders)
+    return self._major_holders</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.news"><code class="name">prop <span class="ident">news</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def news(self):
+    if self._news is not None:
+        return self._news
+
+    if yfcm.IsDatumCached(self.ticker, &#34;news&#34;):
+        self._news = yfcm.ReadCacheDatum(self.ticker, &#34;news&#34;)
+        return self._news
+
+    self._news = self.dat.news
+    yfcm.StoreCacheDatum(self.ticker, &#34;news&#34;, self._news)
+    return self._news</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.options"><code class="name">prop <span class="ident">options</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def options(self):
+    if self._options is not None:
+        return self._options
+
+    if yfcm.IsDatumCached(self.ticker, &#34;options&#34;):
+        self._options = yfcm.ReadCacheDatum(self.ticker, &#34;options&#34;)
+        return self._options
+
+    self._options = self.dat.options
+    yfcm.StoreCacheDatum(self.ticker, &#34;options&#34;, self._options)
+    return self._options</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet"><code class="name">prop <span class="ident">quarterly_balance_sheet</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def quarterly_balance_sheet(self):
+    return self._financials_manager.get_quarterly_balance_sheet()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow"><code class="name">prop <span class="ident">quarterly_cashflow</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def quarterly_cashflow(self):
+    return self._financials_manager.get_quarterly_cashflow()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_earnings"><code class="name">prop <span class="ident">quarterly_earnings</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def quarterly_earnings(self):
+    return self._financials_manager.get_quarterly_earnings()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_financials"><code class="name">prop <span class="ident">quarterly_financials</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def quarterly_financials(self):
+    return self._financials_manager.get_quarterly_income_stmt()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt"><code class="name">prop <span class="ident">quarterly_income_stmt</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def quarterly_income_stmt(self):
+    return self._financials_manager.get_quarterly_income_stmt()</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.recommendations"><code class="name">prop <span class="ident">recommendations</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def recommendations(self):
+    if self._recommendations is not None:
+        return self._recommendations
+
+    if yfcm.IsDatumCached(self.ticker, &#34;recommendations&#34;):
+        self._recommendations = yfcm.ReadCacheDatum(self.ticker, &#34;recommendations&#34;)
+        return self._recommendations
+
+    self._recommendations = self.dat.recommendations
+    yfcm.StoreCacheDatum(self.ticker, &#34;recommendations&#34;, self._recommendations)
+    return self._recommendations</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.splits"><code class="name">prop <span class="ident">splits</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def splits(self):
+    if self._splits is not None:
+        return self._splits
+
+    if yfcm.IsDatumCached(self.ticker, &#34;splits&#34;):
+        self._splits = yfcm.ReadCacheDatum(self.ticker, &#34;splits&#34;)
+        return self._splits
+
+    self._splits = self.dat.splits
+    yfcm.StoreCacheDatum(self.ticker, &#34;splits&#34;, self._splits)
+    return self._splits</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.sustainability"><code class="name">prop <span class="ident">sustainability</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def sustainability(self):
+    if self._sustainability is not None:
+        return self._sustainability
+
+    if yfcm.IsDatumCached(self.ticker, &#34;sustainability&#34;):
+        self._sustainability = yfcm.ReadCacheDatum(self.ticker, &#34;sustainability&#34;)
+        return self._sustainability
+
+    self._sustainability = self.dat.sustainability
+    yfcm.StoreCacheDatum(self.ticker, &#34;sustainability&#34;, self._sustainability)
+    return self._sustainability</code></pre>
+</details>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.yf_lag"><code class="name">prop <span class="ident">yf_lag</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def yf_lag(self):
+    if self._yf_lag is not None:
+        return self._yf_lag
+
+    exchange, tz_name = self._getExchangeAndTz()
+    exchange_str = &#34;exchange-{0}&#34;.format(exchange)
+    if yfcm.IsDatumCached(exchange_str, &#34;yf_lag&#34;):
+        self._yf_lag = yfcm.ReadCacheDatum(exchange_str, &#34;yf_lag&#34;)
+        if self._yf_lag:
+            return self._yf_lag
+
+    # Just use specified lag
+    specified_lag = yfcd.exchangeToYfLag[exchange]
+    self._yf_lag = specified_lag
+    return self._yf_lag</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="yfinance_cache.yfc_ticker.Ticker.get_earnings_dates"><code class="name flex">
+<span>def <span class="ident">get_earnings_dates</span></span>(<span>self, limit=12)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.get_info"><code class="name flex">
+<span>def <span class="ident">get_info</span></span>(<span>self, max_age=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.get_release_dates"><code class="name flex">
+<span>def <span class="ident">get_release_dates</span></span>(<span>self, period='quarterly', as_df=False, check=True)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.get_shares"><code class="name flex">
+<span>def <span class="ident">get_shares</span></span>(<span>self, start=None, end=None, max_age='30d')</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.history"><code class="name flex">
+<span>def <span class="ident">history</span></span>(<span>self, interval='1d', max_age=None, period=None, start=None, end=None, prepost=False, actions=True, adjust_splits=True, adjust_divs=True, keepna=False, proxy=None, rounding=False, debug=True, quiet=False, trigger_at_market_close=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_ticker.Ticker.verify_cached_prices"><code class="name flex">
+<span>def <span class="ident">verify_cached_prices</span></span>(<span>self, rtol=0.0001, vol_rtol=0.005, correct='none', discard_old=False, quiet=True, debug=False, debug_interval=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="yfinance_cache" href="index.html">yfinance_cache</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="yfinance_cache.yfc_ticker.verify_cached_tickers_prices" href="#yfinance_cache.yfc_ticker.verify_cached_tickers_prices">verify_cached_tickers_prices</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="yfinance_cache.yfc_ticker.Ticker" href="#yfinance_cache.yfc_ticker.Ticker">Ticker</a></code></h4>
+<ul class="">
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.balance_sheet" href="#yfinance_cache.yfc_ticker.Ticker.balance_sheet">balance_sheet</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.calendar" href="#yfinance_cache.yfc_ticker.Ticker.calendar">calendar</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.cashflow" href="#yfinance_cache.yfc_ticker.Ticker.cashflow">cashflow</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.earnings" href="#yfinance_cache.yfc_ticker.Ticker.earnings">earnings</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.fast_info" href="#yfinance_cache.yfc_ticker.Ticker.fast_info">fast_info</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.financials" href="#yfinance_cache.yfc_ticker.Ticker.financials">financials</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_earnings_dates" href="#yfinance_cache.yfc_ticker.Ticker.get_earnings_dates">get_earnings_dates</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_info" href="#yfinance_cache.yfc_ticker.Ticker.get_info">get_info</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_release_dates" href="#yfinance_cache.yfc_ticker.Ticker.get_release_dates">get_release_dates</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_shares" href="#yfinance_cache.yfc_ticker.Ticker.get_shares">get_shares</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.history" href="#yfinance_cache.yfc_ticker.Ticker.history">history</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.income_stmt" href="#yfinance_cache.yfc_ticker.Ticker.income_stmt">income_stmt</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.info" href="#yfinance_cache.yfc_ticker.Ticker.info">info</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.inin" href="#yfinance_cache.yfc_ticker.Ticker.inin">inin</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.institutional_holders" href="#yfinance_cache.yfc_ticker.Ticker.institutional_holders">institutional_holders</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.major_holders" href="#yfinance_cache.yfc_ticker.Ticker.major_holders">major_holders</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.news" href="#yfinance_cache.yfc_ticker.Ticker.news">news</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.options" href="#yfinance_cache.yfc_ticker.Ticker.options">options</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet" href="#yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet">quarterly_balance_sheet</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow" href="#yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow">quarterly_cashflow</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_earnings" href="#yfinance_cache.yfc_ticker.Ticker.quarterly_earnings">quarterly_earnings</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_financials" href="#yfinance_cache.yfc_ticker.Ticker.quarterly_financials">quarterly_financials</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt" href="#yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt">quarterly_income_stmt</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.recommendations" href="#yfinance_cache.yfc_ticker.Ticker.recommendations">recommendations</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.splits" href="#yfinance_cache.yfc_ticker.Ticker.splits">splits</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.sustainability" href="#yfinance_cache.yfc_ticker.Ticker.sustainability">sustainability</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.verify_cached_prices" href="#yfinance_cache.yfc_ticker.Ticker.verify_cached_prices">verify_cached_prices</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker.Ticker.yf_lag" href="#yfinance_cache.yfc_ticker.Ticker.yf_lag">yf_lag</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+</footer>
+</body>
+</html>
