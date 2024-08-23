@@ -1,5 +1,5 @@
 .. yfinance-cache documentation master file, created by
-   sphinx-quickstart on Fri Aug 23 22:52:42 2024.
+   sphinx-quickstart on Fri Aug 23 23:00:21 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -15,5 +15,6 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
-.. automodule:: yfinance_cache
+   api
 
+.. automodule:: yfinance_cache
