@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API Reference &mdash; yfinance-cache 1 documentation</title>
+  <title>API Reference &mdash; yfinance-cache  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
@@ -15,13 +15,12 @@
   
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="_static/documentation_options.js?v=29a6c3e3"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Welcome to yfinance-cache’s documentation" href="index.html" /> 
+    <link rel="search" title="Search" href="search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,30 +42,11 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.GetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">GetCacheDirpath()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.GetFilepath"><code class="docutils literal notranslate"><span class="pre">GetFilepath()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.GetFilepathPacked"><code class="docutils literal notranslate"><span class="pre">GetFilepathPacked()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.GetPackedDataCat"><code class="docutils literal notranslate"><span class="pre">GetPackedDataCat()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.IsDatumCached"><code class="docutils literal notranslate"><span class="pre">IsDatumCached()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.IsObjectInPackedData"><code class="docutils literal notranslate"><span class="pre">IsObjectInPackedData()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.NestedOptions"><code class="docutils literal notranslate"><span class="pre">NestedOptions</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.OptionsManager"><code class="docutils literal notranslate"><span class="pre">OptionsManager</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.ReadCacheDatum"><code class="docutils literal notranslate"><span class="pre">ReadCacheDatum()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.ReadCacheMetadata"><code class="docutils literal notranslate"><span class="pre">ReadCacheMetadata()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.ReadCachePackedDatum"><code class="docutils literal notranslate"><span class="pre">ReadCachePackedDatum()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.ResetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">ResetCacheDirpath()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.SetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">SetCacheDirpath()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.StoreCacheDatum"><code class="docutils literal notranslate"><span class="pre">StoreCacheDatum()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.StoreCachePackedDatum"><code class="docutils literal notranslate"><span class="pre">StoreCachePackedDatum()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.WriteCacheMetadata"><code class="docutils literal notranslate"><span class="pre">WriteCacheMetadata()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata"><code class="docutils literal notranslate"><span class="pre">WriteCachePackedMetadata()</span></code></a></li>
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">API Reference</a></li>
 </ul>
-</li>
-</ul>
-
+</div>
         </div>
       </div>
     </nav>
@@ -93,106 +73,17 @@
              
   <section id="module-yfinance_cache.yfc_cache_manager">
 <span id="api-reference"></span><h1>API Reference<a class="headerlink" href="#module-yfinance_cache.yfc_cache_manager" title="Link to this heading"></a></h1>
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.GetCacheDirpath">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">GetCacheDirpath</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.GetCacheDirpath" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.GetFilepath">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">GetFilepath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obj</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.GetFilepath" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.GetFilepathPacked">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">GetFilepathPacked</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.GetFilepathPacked" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.GetPackedDataCat">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">GetPackedDataCat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.GetPackedDataCat" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.IsDatumCached">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">IsDatumCached</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.IsDatumCached" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.IsObjectInPackedData">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">IsObjectInPackedData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.IsObjectInPackedData" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.NestedOptions">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">NestedOptions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.NestedOptions" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.OptionsManager">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">OptionsManager</span></span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.OptionsManager" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.ReadCacheDatum">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">ReadCacheDatum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata_too</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.ReadCacheDatum" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.ReadCacheMetadata">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">ReadCacheMetadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.ReadCacheMetadata" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.ReadCachePackedDatum">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">ReadCachePackedDatum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata_too</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.ReadCachePackedDatum" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.ResetCacheDirpath">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">ResetCacheDirpath</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.ResetCacheDirpath" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.SetCacheDirpath">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">SetCacheDirpath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dp</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.SetCacheDirpath" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.StoreCacheDatum">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">StoreCacheDatum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.StoreCacheDatum" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.StoreCachePackedDatum">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">StoreCachePackedDatum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.StoreCachePackedDatum" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.WriteCacheMetadata">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">WriteCacheMetadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.WriteCacheMetadata" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata">
-<span class="sig-prename descclassname"><span class="pre">yfinance_cache.yfc_cache_manager.</span></span><span class="sig-name descname"><span class="pre">WriteCachePackedMetadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">objectName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
 </section>
 
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to yfinance-cache’s documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-    </div>
+          <footer>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, VR.</p>
+    <p>&#169; Copyright 2024, Your Name.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

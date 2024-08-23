@@ -1,33 +1,22 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 project = 'yfinance-cache'
-copyright = '2024, VR'
-author = 'VR'
-release = '1'
+copyright = '2024, Your Name'
+author = 'Your Name'
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.napoleon']
-# autodoc_mock_imports = ['yfinance_cache']
-
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
-
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+]
 
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+
+# Add this to focus on yfc_ticker.py
+autodoc_mock_imports = ['yfinance_cache']
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': True,
+    'show-inheritance': True,
+}
