@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<meta name="generator" content="pdoc3 0.11.1">
+<title>yfinance_cache.yfc_utils API documentation</title>
+<meta name="description" content="">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ==" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => {
+hljs.configure({languages: ['bash', 'css', 'diff', 'graphql', 'ini', 'javascript', 'json', 'plaintext', 'python', 'python-repl', 'rust', 'shell', 'sql', 'typescript', 'xml', 'yaml']});
+hljs.highlightAll();
+})</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>yfinance_cache.yfc_utils</code></h1>
+</header>
+<section id="section-intro">
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="yfinance_cache.yfc_utils.CalculateRounding"><code class="name flex">
+<span>def <span class="ident">CalculateRounding</span></span>(<span>n, sigfigs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.ChunkDatesIntoYfFetches"><code class="name flex">
+<span>def <span class="ident">ChunkDatesIntoYfFetches</span></span>(<span>schedule, maxDays, overlapDays)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.GetCDF0"><code class="name flex">
+<span>def <span class="ident">GetCDF0</span></span>(<span>df, close_day_before=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.GetCSF0"><code class="name flex">
+<span>def <span class="ident">GetCSF0</span></span>(<span>df)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.GetMagnitude"><code class="name flex">
+<span>def <span class="ident">GetMagnitude</span></span>(<span>n)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.GetSigFigs"><code class="name flex">
+<span>def <span class="ident">GetSigFigs</span></span>(<span>n)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.JsonDecodeDict"><code class="name flex">
+<span>def <span class="ident">JsonDecodeDict</span></span>(<span>value)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.JsonEncodeValue"><code class="name flex">
+<span>def <span class="ident">JsonEncodeValue</span></span>(<span>value)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.ProcessUserDt"><code class="name flex">
+<span>def <span class="ident">ProcessUserDt</span></span>(<span>dt, tz_name)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.RDtoDO"><code class="name flex">
+<span>def <span class="ident">RDtoDO</span></span>(<span>rd)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckBool"><code class="name flex">
+<span>def <span class="ident">TypeCheckBool</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckDataFrame"><code class="name flex">
+<span>def <span class="ident">TypeCheckDataFrame</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckDateEasy"><code class="name flex">
+<span>def <span class="ident">TypeCheckDateEasy</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckDateStrict"><code class="name flex">
+<span>def <span class="ident">TypeCheckDateStrict</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckDatetime"><code class="name flex">
+<span>def <span class="ident">TypeCheckDatetime</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckDatetimeIndex"><code class="name flex">
+<span>def <span class="ident">TypeCheckDatetimeIndex</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckFloat"><code class="name flex">
+<span>def <span class="ident">TypeCheckFloat</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckInt"><code class="name flex">
+<span>def <span class="ident">TypeCheckInt</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckInterval"><code class="name flex">
+<span>def <span class="ident">TypeCheckInterval</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckIntervalDt"><code class="name flex">
+<span>def <span class="ident">TypeCheckIntervalDt</span></span>(<span>var, interval, varName, strict=True)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckIterable"><code class="name flex">
+<span>def <span class="ident">TypeCheckIterable</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckNpArray"><code class="name flex">
+<span>def <span class="ident">TypeCheckNpArray</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckPeriod"><code class="name flex">
+<span>def <span class="ident">TypeCheckPeriod</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckStr"><code class="name flex">
+<span>def <span class="ident">TypeCheckStr</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckTimedelta"><code class="name flex">
+<span>def <span class="ident">TypeCheckTimedelta</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.TypeCheckYear"><code class="name flex">
+<span>def <span class="ident">TypeCheckYear</span></span>(<span>var, varName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.VerifyPricesDf"><code class="name flex">
+<span>def <span class="ident">VerifyPricesDf</span></span>(<span>h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_error=False, quiet=False, debug=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.display_progress_bar"><code class="name flex">
+<span>def <span class="ident">display_progress_bar</span></span>(<span>completed, total)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function to display progress bar with percentage completion.</p></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.np_isin_optimised"><code class="name flex">
+<span>def <span class="ident">np_isin_optimised</span></span>(<span>a, b, invert=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.np_weighted_mean_and_std"><code class="name flex">
+<span>def <span class="ident">np_weighted_mean_and_std</span></span>(<span>values, weights)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame"><code class="flex name class">
+<span>class <span class="ident">CustomNanCheckingDataFrame</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Two-dimensional, size-mutable, potentially heterogeneous tabular data.</p>
+<p>Data structure also contains labeled axes (rows and columns).
+Arithmetic operations align on both row and column labels. Can be
+thought of as a dict-like container for Series objects. The primary
+pandas data structure.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>data</code></strong> :&ensp;<code>ndarray (structured</code> or <code>homogeneous), Iterable, dict,</code> or <code>DataFrame</code></dt>
+<dd>
+<p>Dict can contain Series, arrays, constants, dataclass or list-like objects. If
+data is a dict, column order follows insertion-order. If a dict contains Series
+which have an index defined, it is aligned by its index. This alignment also
+occurs if data is a Series or a DataFrame itself. Alignment is done on
+Series/DataFrame inputs.</p>
+<p>If data is a list of dicts, column order follows insertion-order.</p>
+</dd>
+<dt><strong><code>index</code></strong> :&ensp;<code>Index</code> or <code>array-like</code></dt>
+<dd>Index to use for resulting frame. Will default to RangeIndex if
+no indexing information part of input data and no index provided.</dd>
+<dt><strong><code>columns</code></strong> :&ensp;<code>Index</code> or <code>array-like</code></dt>
+<dd>Column labels to use for resulting frame when data does not have them,
+defaulting to RangeIndex(0, 1, 2, &hellip;, n). If data contains column labels,
+will perform column selection instead.</dd>
+<dt><strong><code>dtype</code></strong> :&ensp;<code>dtype</code>, default <code>None</code></dt>
+<dd>Data type to force. Only a single dtype is allowed. If None, infer.</dd>
+<dt><strong><code>copy</code></strong> :&ensp;<code>bool</code> or <code>None</code>, default <code>None</code></dt>
+<dd>
+<p>Copy data from inputs.
+For dict data, the default of None behaves like <code>copy=True</code>.
+For DataFrame
+or 2d ndarray input, the default of None behaves like <code>copy=False</code>.
+If data is a dict containing one or more Series (possibly of different dtypes),
+<code>copy=False</code> will ensure that these inputs are not copied.</p>
+<div class="admonition versionchanged">
+<p class="admonition-title">Changed in version:&ensp;1.3.0</p>
+</div>
+</dd>
+</dl>
+<h2 id="see-also">See Also</h2>
+<dl>
+<dt><code>DataFrame.from_records</code></dt>
+<dd>Constructor from tuples, also record arrays.</dd>
+<dt><code>DataFrame.from_dict</code></dt>
+<dd>From dicts of Series, arrays, or dicts.</dd>
+<dt><code>read_csv</code></dt>
+<dd>Read a comma-separated values (csv) file into DataFrame.</dd>
+<dt><code>read_table</code></dt>
+<dd>Read general delimited file into DataFrame.</dd>
+<dt><code>read_clipboard</code></dt>
+<dd>Read text from clipboard into DataFrame.</dd>
+</dl>
+<h2 id="notes">Notes</h2>
+<p>Please reference the :ref:<code>User Guide &lt;basics.dataframe&gt;</code> for more information.</p>
+<h2 id="examples">Examples</h2>
+<p>Constructing DataFrame from a dictionary.</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; d = {'col1': [1, 2], 'col2': [3, 4]}
+&gt;&gt;&gt; df = pd.DataFrame(data=d)
+&gt;&gt;&gt; df
+   col1  col2
+0     1     3
+1     2     4
+</code></pre>
+<p>Notice that the inferred dtype is int64.</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df.dtypes
+col1    int64
+col2    int64
+dtype: object
+</code></pre>
+<p>To enforce a single dtype:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df = pd.DataFrame(data=d, dtype=np.int8)
+&gt;&gt;&gt; df.dtypes
+col1    int8
+col2    int8
+dtype: object
+</code></pre>
+<p>Constructing DataFrame from a dictionary including Series:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; d = {'col1': [0, 1, 2, 3], 'col2': pd.Series([2, 3], index=[2, 3])}
+&gt;&gt;&gt; pd.DataFrame(data=d, index=[0, 1, 2, 3])
+   col1  col2
+0     0   NaN
+1     1   NaN
+2     2   2.0
+3     3   3.0
+</code></pre>
+<p>Constructing DataFrame from numpy ndarray:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df2 = pd.DataFrame(np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+...                    columns=['a', 'b', 'c'])
+&gt;&gt;&gt; df2
+   a  b  c
+0  1  2  3
+1  4  5  6
+2  7  8  9
+</code></pre>
+<p>Constructing DataFrame from a numpy ndarray that has labeled columns:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; data = np.array([(1, 2, 3), (4, 5, 6), (7, 8, 9)],
+...                 dtype=[(&quot;a&quot;, &quot;i4&quot;), (&quot;b&quot;, &quot;i4&quot;), (&quot;c&quot;, &quot;i4&quot;)])
+&gt;&gt;&gt; df3 = pd.DataFrame(data, columns=['c', 'a'])
+...
+&gt;&gt;&gt; df3
+   c  a
+0  3  1
+1  6  4
+2  9  7
+</code></pre>
+<p>Constructing DataFrame from dataclass:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; from dataclasses import make_dataclass
+&gt;&gt;&gt; Point = make_dataclass(&quot;Point&quot;, [(&quot;x&quot;, int), (&quot;y&quot;, int)])
+&gt;&gt;&gt; pd.DataFrame([Point(0, 0), Point(0, 3), Point(2, 3)])
+   x  y
+0  0  0
+1  0  3
+2  2  3
+</code></pre>
+<p>Constructing DataFrame from Series/DataFrame:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; ser = pd.Series([1, 2, 3], index=[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;])
+&gt;&gt;&gt; df = pd.DataFrame(data=ser, index=[&quot;a&quot;, &quot;c&quot;])
+&gt;&gt;&gt; df
+   0
+a  1
+c  3
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1 = pd.DataFrame([1, 2, 3], index=[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], columns=[&quot;x&quot;])
+&gt;&gt;&gt; df2 = pd.DataFrame(data=df1, index=[&quot;a&quot;, &quot;c&quot;])
+&gt;&gt;&gt; df2
+   x
+a  1
+c  3
+</code></pre></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class CustomNanCheckingDataFrame(pd.DataFrame):
+    def __init__(self, *args, **kwargs):
+        super(CustomNanCheckingDataFrame, self).__init__(*args, **kwargs)
+        self.check_nans()
+
+    def __setitem__(self, key, value):
+        super(CustomNanCheckingDataFrame, self).__setitem__(key, value)
+        self.check_nans()
+
+    @classmethod
+    def concat(cls, objs, *args, **kwargs):
+        result = super(CustomNanCheckingDataFrame, cls).concat(objs, *args, **kwargs)
+        result.check_nans()
+        return result
+    
+    @classmethod
+    def merge(cls, *args, **kwargs):
+        result = super(CustomNanCheckingDataFrame, cls).merge(*args, **kwargs)
+        result.check_nans()
+        return result
+    
+    def check_nans(self):
+        if &#39;Repaired?&#39; not in self.columns:
+            return
+        if self[&#39;Repaired?&#39;].isna().any():
+            raise Exception(&#34;NaNs detected in column &#39;Repaired?&#39;!&#34;)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>pandas.core.frame.DataFrame</li>
+<li>pandas.core.generic.NDFrame</li>
+<li>pandas.core.base.PandasObject</li>
+<li>pandas.core.accessor.DirNamesMixin</li>
+<li>pandas.core.indexing.IndexingMixin</li>
+<li>pandas.core.arraylike.OpsMixin</li>
+</ul>
+<h3>Static methods</h3>
+<dl>
+<dt id="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.concat"><code class="name flex">
+<span>def <span class="ident">concat</span></span>(<span>objs, *args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.merge"><code class="name flex">
+<span>def <span class="ident">merge</span></span>(<span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge DataFrame or named Series objects with a database-style join.</p>
+<p>A named Series object is treated as a DataFrame with a single named column.</p>
+<p>The join is done on columns or indexes. If joining columns on
+columns, the DataFrame indexes <em>will be ignored</em>. Otherwise if joining indexes
+on indexes or indexes on a column or columns, the index will be passed on.
+When performing a cross merge, no column specifications to merge on are
+allowed.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If both key columns contain rows where the key is a null value, those
+rows will be matched against each other. This is different from usual SQL
+join behaviour and can lead to unexpected results.</p>
+</div>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>right</code></strong> :&ensp;<code>DataFrame</code> or <code>named Series</code></dt>
+<dd>Object to merge with.</dd>
+<dt><strong><code>how</code></strong> :&ensp;<code>{'left', 'right', 'outer', 'inner', 'cross'}</code>, default <code>'inner'</code></dt>
+<dd>
+<p>Type of merge to be performed.</p>
+<ul>
+<li>left: use only keys from left frame, similar to a SQL left outer join;
+preserve key order.</li>
+<li>right: use only keys from right frame, similar to a SQL right outer join;
+preserve key order.</li>
+<li>outer: use union of keys from both frames, similar to a SQL full outer
+join; sort keys lexicographically.</li>
+<li>inner: use intersection of keys from both frames, similar to a SQL inner
+join; preserve the order of the left keys.</li>
+<li>cross: creates the cartesian product from both frames, preserves the order
+of the left keys.</li>
+</ul>
+</dd>
+<dt><strong><code>on</code></strong> :&ensp;<code>label</code> or <code>list</code></dt>
+<dd>Column or index level names to join on. These must be found in both
+DataFrames. If <code>on</code> is None and not merging on indexes then this defaults
+to the intersection of the columns in both DataFrames.</dd>
+<dt><strong><code>left_on</code></strong> :&ensp;<code>label</code> or <code>list,</code> or <code>array-like</code></dt>
+<dd>Column or index level names to join on in the left DataFrame. Can also
+be an array or list of arrays of the length of the left DataFrame.
+These arrays are treated as if they are columns.</dd>
+<dt><strong><code>right_on</code></strong> :&ensp;<code>label</code> or <code>list,</code> or <code>array-like</code></dt>
+<dd>Column or index level names to join on in the right DataFrame. Can also
+be an array or list of arrays of the length of the right DataFrame.
+These arrays are treated as if they are columns.</dd>
+<dt><strong><code>left_index</code></strong> :&ensp;<code>bool</code>, default <code>False</code></dt>
+<dd>Use the index from the left DataFrame as the join key(s). If it is a
+MultiIndex, the number of keys in the other DataFrame (either the index
+or a number of columns) must match the number of levels.</dd>
+<dt><strong><code>right_index</code></strong> :&ensp;<code>bool</code>, default <code>False</code></dt>
+<dd>Use the index from the right DataFrame as the join key. Same caveats as
+left_index.</dd>
+<dt><strong><code>sort</code></strong> :&ensp;<code>bool</code>, default <code>False</code></dt>
+<dd>Sort the join keys lexicographically in the result DataFrame. If False,
+the order of the join keys depends on the join type (how keyword).</dd>
+<dt><strong><code>suffixes</code></strong> :&ensp;<code>list-like</code>, default <code>is ("_x", "_y")</code></dt>
+<dd>A length-2 sequence where each element is optionally a string
+indicating the suffix to add to overlapping column names in
+<code>left</code> and <code>right</code> respectively. Pass a value of <code>None</code> instead
+of a string to indicate that the column name from <code>left</code> or
+<code>right</code> should be left as-is, with no suffix. At least one of the
+values must not be None.</dd>
+<dt><strong><code>copy</code></strong> :&ensp;<code>bool</code>, default <code>True</code></dt>
+<dd>
+<p>If False, avoid copy if possible.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code>copy</code> keyword will change behavior in pandas 3.0.
+<code>Copy-on-Write
+&lt;https://pandas.pydata.org/docs/dev/user_guide/copy_on_write.html&gt;</code>__
+will be enabled by default, which means that all methods with a
+<code>copy</code> keyword will use a lazy copy mechanism to defer the copy and
+ignore the <code>copy</code> keyword. The <code>copy</code> keyword will be removed in a
+future version of pandas.</p>
+<p>You can already get the future behavior and improvements through
+enabling copy on write <code>pd.options.mode.copy_on_write = True</code></p>
+</div>
+</dd>
+<dt><strong><code>indicator</code></strong> :&ensp;<code>bool</code> or <code>str</code>, default <code>False</code></dt>
+<dd>If True, adds a column to the output DataFrame called "_merge" with
+information on the source of each row. The column can be given a different
+name by providing a string argument. The column will have a Categorical
+type with the value of "left_only" for observations whose merge key only
+appears in the left DataFrame, "right_only" for observations
+whose merge key only appears in the right DataFrame, and "both"
+if the observation's merge key is found in both DataFrames.</dd>
+<dt><strong><code>validate</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>
+<p>If specified, checks if merge is of specified type.</p>
+<ul>
+<li>"one_to_one" or "1:1": check if merge keys are unique in both
+left and right datasets.</li>
+<li>"one_to_many" or "1:m": check if merge keys are unique in left
+dataset.</li>
+<li>"many_to_one" or "m:1": check if merge keys are unique in right
+dataset.</li>
+<li>"many_to_many" or "m:m": allowed, but does not result in checks.</li>
+</ul>
+</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>DataFrame</code></dt>
+<dd>A DataFrame of the two merged objects.</dd>
+</dl>
+<h2 id="see-also">See Also</h2>
+<dl>
+<dt><code>merge_ordered</code></dt>
+<dd>Merge with optional filling/interpolation.</dd>
+<dt><code>merge_asof</code></dt>
+<dd>Merge on nearest keys.</dd>
+<dt><code>DataFrame.join</code></dt>
+<dd>Similar method using indices.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1 = pd.DataFrame({'lkey': ['foo', 'bar', 'baz', 'foo'],
+...                     'value': [1, 2, 3, 5]})
+&gt;&gt;&gt; df2 = pd.DataFrame({'rkey': ['foo', 'bar', 'baz', 'foo'],
+...                     'value': [5, 6, 7, 8]})
+&gt;&gt;&gt; df1
+    lkey value
+0   foo      1
+1   bar      2
+2   baz      3
+3   foo      5
+&gt;&gt;&gt; df2
+    rkey value
+0   foo      5
+1   bar      6
+2   baz      7
+3   foo      8
+</code></pre>
+<p>Merge df1 and df2 on the lkey and rkey columns. The value columns have
+the default suffixes, _x and _y, appended.</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, left_on='lkey', right_on='rkey')
+  lkey  value_x rkey  value_y
+0  foo        1  foo        5
+1  foo        1  foo        8
+2  bar        2  bar        6
+3  baz        3  baz        7
+4  foo        5  foo        5
+5  foo        5  foo        8
+</code></pre>
+<p>Merge DataFrames df1 and df2 with specified left and right suffixes
+appended to any overlapping columns.</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, left_on='lkey', right_on='rkey',
+...           suffixes=('_left', '_right'))
+  lkey  value_left rkey  value_right
+0  foo           1  foo            5
+1  foo           1  foo            8
+2  bar           2  bar            6
+3  baz           3  baz            7
+4  foo           5  foo            5
+5  foo           5  foo            8
+</code></pre>
+<p>Merge DataFrames df1 and df2, but raise an exception if the DataFrames have
+any overlapping columns.</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, left_on='lkey', right_on='rkey', suffixes=(False, False))
+Traceback (most recent call last):
+...
+ValueError: columns overlap but no suffix specified:
+    Index(['value'], dtype='object')
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1 = pd.DataFrame({'a': ['foo', 'bar'], 'b': [1, 2]})
+&gt;&gt;&gt; df2 = pd.DataFrame({'a': ['foo', 'baz'], 'c': [3, 4]})
+&gt;&gt;&gt; df1
+      a  b
+0   foo  1
+1   bar  2
+&gt;&gt;&gt; df2
+      a  c
+0   foo  3
+1   baz  4
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, how='inner', on='a')
+      a  b  c
+0   foo  1  3
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, how='left', on='a')
+      a  b  c
+0   foo  1  3.0
+1   bar  2  NaN
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1 = pd.DataFrame({'left': ['foo', 'bar']})
+&gt;&gt;&gt; df2 = pd.DataFrame({'right': [7, 8]})
+&gt;&gt;&gt; df1
+    left
+0   foo
+1   bar
+&gt;&gt;&gt; df2
+    right
+0   7
+1   8
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; df1.merge(df2, how='cross')
+   left  right
+0   foo      7
+1   foo      8
+2   bar      7
+3   bar      8
+</code></pre></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.check_nans"><code class="name flex">
+<span>def <span class="ident">check_nans</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="yfinance_cache" href="index.html">yfinance_cache</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="yfinance_cache.yfc_utils.CalculateRounding" href="#yfinance_cache.yfc_utils.CalculateRounding">CalculateRounding</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.ChunkDatesIntoYfFetches" href="#yfinance_cache.yfc_utils.ChunkDatesIntoYfFetches">ChunkDatesIntoYfFetches</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.GetCDF0" href="#yfinance_cache.yfc_utils.GetCDF0">GetCDF0</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.GetCSF0" href="#yfinance_cache.yfc_utils.GetCSF0">GetCSF0</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.GetMagnitude" href="#yfinance_cache.yfc_utils.GetMagnitude">GetMagnitude</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.GetSigFigs" href="#yfinance_cache.yfc_utils.GetSigFigs">GetSigFigs</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.JsonDecodeDict" href="#yfinance_cache.yfc_utils.JsonDecodeDict">JsonDecodeDict</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.JsonEncodeValue" href="#yfinance_cache.yfc_utils.JsonEncodeValue">JsonEncodeValue</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.ProcessUserDt" href="#yfinance_cache.yfc_utils.ProcessUserDt">ProcessUserDt</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.RDtoDO" href="#yfinance_cache.yfc_utils.RDtoDO">RDtoDO</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckBool" href="#yfinance_cache.yfc_utils.TypeCheckBool">TypeCheckBool</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckDataFrame" href="#yfinance_cache.yfc_utils.TypeCheckDataFrame">TypeCheckDataFrame</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckDateEasy" href="#yfinance_cache.yfc_utils.TypeCheckDateEasy">TypeCheckDateEasy</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckDateStrict" href="#yfinance_cache.yfc_utils.TypeCheckDateStrict">TypeCheckDateStrict</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckDatetime" href="#yfinance_cache.yfc_utils.TypeCheckDatetime">TypeCheckDatetime</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckDatetimeIndex" href="#yfinance_cache.yfc_utils.TypeCheckDatetimeIndex">TypeCheckDatetimeIndex</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckFloat" href="#yfinance_cache.yfc_utils.TypeCheckFloat">TypeCheckFloat</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckInt" href="#yfinance_cache.yfc_utils.TypeCheckInt">TypeCheckInt</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckInterval" href="#yfinance_cache.yfc_utils.TypeCheckInterval">TypeCheckInterval</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckIntervalDt" href="#yfinance_cache.yfc_utils.TypeCheckIntervalDt">TypeCheckIntervalDt</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckIterable" href="#yfinance_cache.yfc_utils.TypeCheckIterable">TypeCheckIterable</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckNpArray" href="#yfinance_cache.yfc_utils.TypeCheckNpArray">TypeCheckNpArray</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckPeriod" href="#yfinance_cache.yfc_utils.TypeCheckPeriod">TypeCheckPeriod</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckStr" href="#yfinance_cache.yfc_utils.TypeCheckStr">TypeCheckStr</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckTimedelta" href="#yfinance_cache.yfc_utils.TypeCheckTimedelta">TypeCheckTimedelta</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.TypeCheckYear" href="#yfinance_cache.yfc_utils.TypeCheckYear">TypeCheckYear</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.VerifyPricesDf" href="#yfinance_cache.yfc_utils.VerifyPricesDf">VerifyPricesDf</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.display_progress_bar" href="#yfinance_cache.yfc_utils.display_progress_bar">display_progress_bar</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.np_isin_optimised" href="#yfinance_cache.yfc_utils.np_isin_optimised">np_isin_optimised</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.np_weighted_mean_and_std" href="#yfinance_cache.yfc_utils.np_weighted_mean_and_std">np_weighted_mean_and_std</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame" href="#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame">CustomNanCheckingDataFrame</a></code></h4>
+<ul class="">
+<li><code><a title="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.check_nans" href="#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.check_nans">check_nans</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.concat" href="#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.concat">concat</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.merge" href="#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.merge">merge</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+</footer>
+</body>
+</html>

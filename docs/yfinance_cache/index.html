@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>yfinance_cache.yfc_ticker API documentation</title>
+<title>yfinance_cache API documentation</title>
 <meta name="description" content="">
-<link rel="stylesheet" href="yfinance_cache/https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
-<link rel="stylesheet" href="yfinance_cache/https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
-<link rel="stylesheet" href="yfinance_cache/https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" crossorigin>
 <style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
 <style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
 <style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
@@ -22,18 +22,83 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>yfinance_cache.yfc_ticker</code></h1>
+<h1 class="title">Package <code>yfinance_cache</code></h1>
 </header>
 <section id="section-intro">
 </section>
 <section>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
+<dl>
+<dt><code class="name"><a title="yfinance_cache.yfc_cache_manager" href="yfc_cache_manager.html">yfinance_cache.yfc_cache_manager</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_dat" href="yfc_dat.html">yfinance_cache.yfc_dat</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_financials_manager" href="yfc_financials_manager.html">yfinance_cache.yfc_financials_manager</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_logging" href="yfc_logging.html">yfinance_cache.yfc_logging</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_multi" href="yfc_multi.html">yfinance_cache.yfc_multi</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_options" href="yfc_options.html">yfinance_cache.yfc_options</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_prices_manager" href="yfc_prices_manager.html">yfinance_cache.yfc_prices_manager</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_ticker" href="yfc_ticker.html">yfinance_cache.yfc_ticker</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_time" href="yfc_time.html">yfinance_cache.yfc_time</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_upgrade" href="yfc_upgrade.html">yfinance_cache.yfc_upgrade</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="yfinance_cache.yfc_utils" href="yfc_utils.html">yfinance_cache.yfc_utils</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 </section>
 <section>
 </section>
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="yfinance_cache.yfc_ticker.verify_cached_tickers_prices"><code class="name flex">
+<dt id="yfinance_cache.DisableLogging"><code class="name flex">
+<span>def <span class="ident">DisableLogging</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.EnableLogging"><code class="name flex">
+<span>def <span class="ident">EnableLogging</span></span>(<span>mode=20)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.download"><code class="name flex">
+<span>def <span class="ident">download</span></span>(<span>tickers, threads=True, ignore_tz=None, progress=True, interval='1d', group_by='column', max_age=None, period=None, start=None, end=None, prepost=False, actions=True, adjust_splits=True, adjust_divs=True, keepna=False, proxy=None, rounding=False, debug=True, quiet=False, trigger_at_market_close=False, session=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.verify_cached_tickers_prices"><code class="name flex">
 <span>def <span class="ident">verify_cached_tickers_prices</span></span>(<span>session=None, rtol=0.0001, vol_rtol=0.005, correct=False, halt_on_fail=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None)</span>
 </code></dt>
 <dd>
@@ -55,7 +120,279 @@ Because maybe you want to investigate a difference.</p></div>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="yfinance_cache.yfc_ticker.Ticker"><code class="flex name class">
+<dt id="yfinance_cache.AmbiguousComparisonException"><code class="flex name class">
+<span>class <span class="ident">AmbiguousComparisonException</span></span>
+<span>(</span><span>value1, value2, operation, true_prob=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AmbiguousComparisonException(Exception):
+    def __init__(self, value1, value2, operation, true_prob=None):
+        if not isinstance(operation, str):
+            raise TypeError(f&#34;operation must be a string not {type(operation)}&#34;)
+        if true_prob is not None and not isinstance(true_prob, (int, float)):
+            raise TypeError(f&#34;true_prob must be numeric not {type(true_prob)}&#34;)
+
+        self.value1 = value1
+        self.value2 = value2
+        self.operation = operation
+        self.true_prob = true_prob
+
+    def __str__(self):
+        msg = f&#34;Ambiguous whether {self.value1} {self.operation} {self.value2}&#34;
+        if self.true_prob is not None:
+            msg += f&#34; (true with probability {self.true_prob*100:.1f}%)&#34;
+        return msg</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+<dt id="yfinance_cache.Interval"><code class="flex name class">
+<span>class <span class="ident">Interval</span></span>
+<span>(</span><span>*args, **kwds)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a collection of name/value pairs.</p>
+<p>Example enumeration:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; class Color(Enum):
+...     RED = 1
+...     BLUE = 2
+...     GREEN = 3
+</code></pre>
+<p>Access them by:</p>
+<ul>
+<li>attribute access:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color.RED
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<ul>
+<li>value lookup:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color(1)
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<ul>
+<li>name lookup:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color['RED']
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Enumerations can be iterated over, and know how many members they have:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; len(Color)
+3
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; list(Color)
+[&lt;Color.RED: 1&gt;, &lt;Color.BLUE: 2&gt;, &lt;Color.GREEN: 3&gt;]
+</code></pre>
+<p>Methods can be added to enumerations, and members can have their own
+attributes &ndash; see the documentation for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Interval(Enum):
+    Week = 5
+    Days1 = 10
+    Hours1 = 20
+    Mins90 = 21
+    Mins60 = 22
+    Mins30 = 23
+    Mins15 = 24
+    Mins5 = 25
+    Mins2 = 26
+    Mins1 = 27</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>enum.Enum</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="yfinance_cache.Interval.Days1"><code class="name">var <span class="ident">Days1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Hours1"><code class="name">var <span class="ident">Hours1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins1"><code class="name">var <span class="ident">Mins1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins15"><code class="name">var <span class="ident">Mins15</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins2"><code class="name">var <span class="ident">Mins2</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins30"><code class="name">var <span class="ident">Mins30</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins5"><code class="name">var <span class="ident">Mins5</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins60"><code class="name">var <span class="ident">Mins60</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Mins90"><code class="name">var <span class="ident">Mins90</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Interval.Week"><code class="name">var <span class="ident">Week</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="yfinance_cache.Period"><code class="flex name class">
+<span>class <span class="ident">Period</span></span>
+<span>(</span><span>*args, **kwds)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a collection of name/value pairs.</p>
+<p>Example enumeration:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; class Color(Enum):
+...     RED = 1
+...     BLUE = 2
+...     GREEN = 3
+</code></pre>
+<p>Access them by:</p>
+<ul>
+<li>attribute access:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color.RED
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<ul>
+<li>value lookup:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color(1)
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<ul>
+<li>name lookup:</li>
+</ul>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>Color['RED']
+<Color.RED: 1></p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Enumerations can be iterated over, and know how many members they have:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; len(Color)
+3
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; list(Color)
+[&lt;Color.RED: 1&gt;, &lt;Color.BLUE: 2&gt;, &lt;Color.GREEN: 3&gt;]
+</code></pre>
+<p>Methods can be added to enumerations, and members can have their own
+attributes &ndash; see the documentation for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Period(Enum):
+    Days1 = 0
+    Days5 = 1
+    Months1 = 10
+    Months3 = 11
+    Months6 = 12
+    Years1 = 20
+    Years2 = 21
+    Years5 = 22
+    Ytd = 24
+    Max = 30</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>enum.Enum</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="yfinance_cache.Period.Days1"><code class="name">var <span class="ident">Days1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Days5"><code class="name">var <span class="ident">Days5</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Max"><code class="name">var <span class="ident">Max</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Months1"><code class="name">var <span class="ident">Months1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Months3"><code class="name">var <span class="ident">Months3</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Months6"><code class="name">var <span class="ident">Months6</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Years1"><code class="name">var <span class="ident">Years1</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Years2"><code class="name">var <span class="ident">Years2</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Years5"><code class="name">var <span class="ident">Years5</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.Period.Ytd"><code class="name">var <span class="ident">Ytd</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="yfinance_cache.Ticker"><code class="flex name class">
 <span>class <span class="ident">Ticker</span></span>
 <span>(</span><span>ticker, session=None)</span>
 </code></dt>
@@ -1008,7 +1345,7 @@ Because maybe you want to investigate a difference.</p></div>
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="yfinance_cache.yfc_ticker.Ticker.balance_sheet"><code class="name">prop <span class="ident">balance_sheet</span></code></dt>
+<dt id="yfinance_cache.Ticker.balance_sheet"><code class="name">prop <span class="ident">balance_sheet</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1020,7 +1357,7 @@ def balance_sheet(self):
     return self._financials_manager.get_balance_sheet()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.calendar"><code class="name">prop <span class="ident">calendar</span></code></dt>
+<dt id="yfinance_cache.Ticker.calendar"><code class="name">prop <span class="ident">calendar</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1032,7 +1369,7 @@ def calendar(self):
     return self._financials_manager.get_calendar()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.cashflow"><code class="name">prop <span class="ident">cashflow</span></code></dt>
+<dt id="yfinance_cache.Ticker.cashflow"><code class="name">prop <span class="ident">cashflow</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1044,7 +1381,7 @@ def cashflow(self):
     return self._financials_manager.get_cashflow()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.earnings"><code class="name">prop <span class="ident">earnings</span></code></dt>
+<dt id="yfinance_cache.Ticker.earnings"><code class="name">prop <span class="ident">earnings</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1056,7 +1393,7 @@ def earnings(self):
     return self._financials_manager.get_earnings()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.fast_info"><code class="name">prop <span class="ident">fast_info</span></code></dt>
+<dt id="yfinance_cache.Ticker.fast_info"><code class="name">prop <span class="ident">fast_info</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1094,7 +1431,7 @@ def fast_info(self):
     return self._fast_info</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.financials"><code class="name">prop <span class="ident">financials</span></code></dt>
+<dt id="yfinance_cache.Ticker.financials"><code class="name">prop <span class="ident">financials</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1106,7 +1443,7 @@ def financials(self):
     return self._financials_manager.get_income_stmt()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.income_stmt"><code class="name">prop <span class="ident">income_stmt</span></code></dt>
+<dt id="yfinance_cache.Ticker.income_stmt"><code class="name">prop <span class="ident">income_stmt</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1118,7 +1455,7 @@ def income_stmt(self):
     return self._financials_manager.get_income_stmt()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.info"><code class="name">prop <span class="ident">info</span></code></dt>
+<dt id="yfinance_cache.Ticker.info"><code class="name">prop <span class="ident">info</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1130,7 +1467,7 @@ def info(self):
     return self.get_info()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.inin"><code class="name">prop <span class="ident">inin</span></code></dt>
+<dt id="yfinance_cache.Ticker.inin"><code class="name">prop <span class="ident">inin</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1151,7 +1488,7 @@ def inin(self):
     return self._inin</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.institutional_holders"><code class="name">prop <span class="ident">institutional_holders</span></code></dt>
+<dt id="yfinance_cache.Ticker.institutional_holders"><code class="name">prop <span class="ident">institutional_holders</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1172,7 +1509,7 @@ def institutional_holders(self):
     return self._institutional_holders</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.major_holders"><code class="name">prop <span class="ident">major_holders</span></code></dt>
+<dt id="yfinance_cache.Ticker.major_holders"><code class="name">prop <span class="ident">major_holders</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1193,7 +1530,7 @@ def major_holders(self):
     return self._major_holders</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.news"><code class="name">prop <span class="ident">news</span></code></dt>
+<dt id="yfinance_cache.Ticker.news"><code class="name">prop <span class="ident">news</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1214,7 +1551,7 @@ def news(self):
     return self._news</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.options"><code class="name">prop <span class="ident">options</span></code></dt>
+<dt id="yfinance_cache.Ticker.options"><code class="name">prop <span class="ident">options</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1235,7 +1572,7 @@ def options(self):
     return self._options</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet"><code class="name">prop <span class="ident">quarterly_balance_sheet</span></code></dt>
+<dt id="yfinance_cache.Ticker.quarterly_balance_sheet"><code class="name">prop <span class="ident">quarterly_balance_sheet</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1247,7 +1584,7 @@ def quarterly_balance_sheet(self):
     return self._financials_manager.get_quarterly_balance_sheet()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow"><code class="name">prop <span class="ident">quarterly_cashflow</span></code></dt>
+<dt id="yfinance_cache.Ticker.quarterly_cashflow"><code class="name">prop <span class="ident">quarterly_cashflow</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1259,7 +1596,7 @@ def quarterly_cashflow(self):
     return self._financials_manager.get_quarterly_cashflow()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_earnings"><code class="name">prop <span class="ident">quarterly_earnings</span></code></dt>
+<dt id="yfinance_cache.Ticker.quarterly_earnings"><code class="name">prop <span class="ident">quarterly_earnings</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1271,7 +1608,7 @@ def quarterly_earnings(self):
     return self._financials_manager.get_quarterly_earnings()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_financials"><code class="name">prop <span class="ident">quarterly_financials</span></code></dt>
+<dt id="yfinance_cache.Ticker.quarterly_financials"><code class="name">prop <span class="ident">quarterly_financials</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1283,7 +1620,7 @@ def quarterly_financials(self):
     return self._financials_manager.get_quarterly_income_stmt()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt"><code class="name">prop <span class="ident">quarterly_income_stmt</span></code></dt>
+<dt id="yfinance_cache.Ticker.quarterly_income_stmt"><code class="name">prop <span class="ident">quarterly_income_stmt</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1295,7 +1632,7 @@ def quarterly_income_stmt(self):
     return self._financials_manager.get_quarterly_income_stmt()</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.recommendations"><code class="name">prop <span class="ident">recommendations</span></code></dt>
+<dt id="yfinance_cache.Ticker.recommendations"><code class="name">prop <span class="ident">recommendations</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1316,7 +1653,7 @@ def recommendations(self):
     return self._recommendations</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.splits"><code class="name">prop <span class="ident">splits</span></code></dt>
+<dt id="yfinance_cache.Ticker.splits"><code class="name">prop <span class="ident">splits</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1337,7 +1674,7 @@ def splits(self):
     return self._splits</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.sustainability"><code class="name">prop <span class="ident">sustainability</span></code></dt>
+<dt id="yfinance_cache.Ticker.sustainability"><code class="name">prop <span class="ident">sustainability</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1358,7 +1695,7 @@ def sustainability(self):
     return self._sustainability</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.yf_lag"><code class="name">prop <span class="ident">yf_lag</span></code></dt>
+<dt id="yfinance_cache.Ticker.yf_lag"><code class="name">prop <span class="ident">yf_lag</span></code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1386,31 +1723,31 @@ def yf_lag(self):
 </dl>
 <h3>Methods</h3>
 <dl>
-<dt id="yfinance_cache.yfc_ticker.Ticker.get_earnings_dates"><code class="name flex">
+<dt id="yfinance_cache.Ticker.get_earnings_dates"><code class="name flex">
 <span>def <span class="ident">get_earnings_dates</span></span>(<span>self, limit=12)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.get_info"><code class="name flex">
+<dt id="yfinance_cache.Ticker.get_info"><code class="name flex">
 <span>def <span class="ident">get_info</span></span>(<span>self, max_age=None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.get_release_dates"><code class="name flex">
+<dt id="yfinance_cache.Ticker.get_release_dates"><code class="name flex">
 <span>def <span class="ident">get_release_dates</span></span>(<span>self, period='quarterly', as_df=False, check=True)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.get_shares"><code class="name flex">
+<dt id="yfinance_cache.Ticker.get_shares"><code class="name flex">
 <span>def <span class="ident">get_shares</span></span>(<span>self, start=None, end=None, max_age='30d')</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.history"><code class="name flex">
+<dt id="yfinance_cache.Ticker.history"><code class="name flex">
 <span>def <span class="ident">history</span></span>(<span>self, interval='1d', max_age=None, period=None, start=None, end=None, prepost=False, actions=True, adjust_splits=True, adjust_divs=True, keepna=False, proxy=None, rounding=False, debug=True, quiet=False, trigger_at_market_close=False)</span>
 </code></dt>
 <dd>
@@ -1468,7 +1805,7 @@ Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.</dd>
 <h2 id="note">Note</h2>
 <p>Either 'period' or 'start' and 'end' should be provided, but not both.</p></div>
 </dd>
-<dt id="yfinance_cache.yfc_ticker.Ticker.verify_cached_prices"><code class="name flex">
+<dt id="yfinance_cache.Ticker.verify_cached_prices"><code class="name flex">
 <span>def <span class="ident">verify_cached_prices</span></span>(<span>self, rtol=0.0001, vol_rtol=0.005, correct='none', discard_old=False, quiet=True, debug=False, debug_interval=None)</span>
 </code></dt>
 <dd>
@@ -1484,49 +1821,95 @@ Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.</dd>
 <ul></ul>
 </div>
 <ul id="index">
-<li><h3>Super-module</h3>
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
-<li><code><a title="yfinance_cache" href="yfinance_cache/yfinance_cache/index.html">yfinance_cache</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager" href="yfc_cache_manager.html">yfinance_cache.yfc_cache_manager</a></code></li>
+<li><code><a title="yfinance_cache.yfc_dat" href="yfc_dat.html">yfinance_cache.yfc_dat</a></code></li>
+<li><code><a title="yfinance_cache.yfc_financials_manager" href="yfc_financials_manager.html">yfinance_cache.yfc_financials_manager</a></code></li>
+<li><code><a title="yfinance_cache.yfc_logging" href="yfc_logging.html">yfinance_cache.yfc_logging</a></code></li>
+<li><code><a title="yfinance_cache.yfc_multi" href="yfc_multi.html">yfinance_cache.yfc_multi</a></code></li>
+<li><code><a title="yfinance_cache.yfc_options" href="yfc_options.html">yfinance_cache.yfc_options</a></code></li>
+<li><code><a title="yfinance_cache.yfc_prices_manager" href="yfc_prices_manager.html">yfinance_cache.yfc_prices_manager</a></code></li>
+<li><code><a title="yfinance_cache.yfc_ticker" href="yfc_ticker.html">yfinance_cache.yfc_ticker</a></code></li>
+<li><code><a title="yfinance_cache.yfc_time" href="yfc_time.html">yfinance_cache.yfc_time</a></code></li>
+<li><code><a title="yfinance_cache.yfc_upgrade" href="yfc_upgrade.html">yfinance_cache.yfc_upgrade</a></code></li>
+<li><code><a title="yfinance_cache.yfc_utils" href="yfc_utils.html">yfinance_cache.yfc_utils</a></code></li>
 </ul>
 </li>
-<li><h3><a href="yfinance_cache/#header-functions">Functions</a></h3>
+<li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="yfinance_cache.yfc_ticker.verify_cached_tickers_prices" href="yfinance_cache/#yfinance_cache.yfc_ticker.verify_cached_tickers_prices">verify_cached_tickers_prices</a></code></li>
+<li><code><a title="yfinance_cache.DisableLogging" href="#yfinance_cache.DisableLogging">DisableLogging</a></code></li>
+<li><code><a title="yfinance_cache.EnableLogging" href="#yfinance_cache.EnableLogging">EnableLogging</a></code></li>
+<li><code><a title="yfinance_cache.download" href="#yfinance_cache.download">download</a></code></li>
+<li><code><a title="yfinance_cache.verify_cached_tickers_prices" href="#yfinance_cache.verify_cached_tickers_prices">verify_cached_tickers_prices</a></code></li>
 </ul>
 </li>
-<li><h3><a href="yfinance_cache/#header-classes">Classes</a></h3>
+<li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="yfinance_cache.yfc_ticker.Ticker" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker">Ticker</a></code></h4>
+<h4><code><a title="yfinance_cache.AmbiguousComparisonException" href="#yfinance_cache.AmbiguousComparisonException">AmbiguousComparisonException</a></code></h4>
+</li>
+<li>
+<h4><code><a title="yfinance_cache.Interval" href="#yfinance_cache.Interval">Interval</a></code></h4>
+<ul class="two-column">
+<li><code><a title="yfinance_cache.Interval.Days1" href="#yfinance_cache.Interval.Days1">Days1</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Hours1" href="#yfinance_cache.Interval.Hours1">Hours1</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins1" href="#yfinance_cache.Interval.Mins1">Mins1</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins15" href="#yfinance_cache.Interval.Mins15">Mins15</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins2" href="#yfinance_cache.Interval.Mins2">Mins2</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins30" href="#yfinance_cache.Interval.Mins30">Mins30</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins5" href="#yfinance_cache.Interval.Mins5">Mins5</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins60" href="#yfinance_cache.Interval.Mins60">Mins60</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Mins90" href="#yfinance_cache.Interval.Mins90">Mins90</a></code></li>
+<li><code><a title="yfinance_cache.Interval.Week" href="#yfinance_cache.Interval.Week">Week</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="yfinance_cache.Period" href="#yfinance_cache.Period">Period</a></code></h4>
+<ul class="two-column">
+<li><code><a title="yfinance_cache.Period.Days1" href="#yfinance_cache.Period.Days1">Days1</a></code></li>
+<li><code><a title="yfinance_cache.Period.Days5" href="#yfinance_cache.Period.Days5">Days5</a></code></li>
+<li><code><a title="yfinance_cache.Period.Max" href="#yfinance_cache.Period.Max">Max</a></code></li>
+<li><code><a title="yfinance_cache.Period.Months1" href="#yfinance_cache.Period.Months1">Months1</a></code></li>
+<li><code><a title="yfinance_cache.Period.Months3" href="#yfinance_cache.Period.Months3">Months3</a></code></li>
+<li><code><a title="yfinance_cache.Period.Months6" href="#yfinance_cache.Period.Months6">Months6</a></code></li>
+<li><code><a title="yfinance_cache.Period.Years1" href="#yfinance_cache.Period.Years1">Years1</a></code></li>
+<li><code><a title="yfinance_cache.Period.Years2" href="#yfinance_cache.Period.Years2">Years2</a></code></li>
+<li><code><a title="yfinance_cache.Period.Years5" href="#yfinance_cache.Period.Years5">Years5</a></code></li>
+<li><code><a title="yfinance_cache.Period.Ytd" href="#yfinance_cache.Period.Ytd">Ytd</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="yfinance_cache.Ticker" href="#yfinance_cache.Ticker">Ticker</a></code></h4>
 <ul class="">
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.balance_sheet" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.balance_sheet">balance_sheet</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.calendar" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.calendar">calendar</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.cashflow" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.cashflow">cashflow</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.earnings" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.earnings">earnings</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.fast_info" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.fast_info">fast_info</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.financials" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.financials">financials</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_earnings_dates" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.get_earnings_dates">get_earnings_dates</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_info" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.get_info">get_info</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_release_dates" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.get_release_dates">get_release_dates</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.get_shares" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.get_shares">get_shares</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.history" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.history">history</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.income_stmt" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.income_stmt">income_stmt</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.info" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.info">info</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.inin" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.inin">inin</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.institutional_holders" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.institutional_holders">institutional_holders</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.major_holders" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.major_holders">major_holders</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.news" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.news">news</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.options" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.options">options</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet">quarterly_balance_sheet</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow">quarterly_cashflow</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_earnings" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.quarterly_earnings">quarterly_earnings</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_financials" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.quarterly_financials">quarterly_financials</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt">quarterly_income_stmt</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.recommendations" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.recommendations">recommendations</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.splits" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.splits">splits</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.sustainability" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.sustainability">sustainability</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.verify_cached_prices" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.verify_cached_prices">verify_cached_prices</a></code></li>
-<li><code><a title="yfinance_cache.yfc_ticker.Ticker.yf_lag" href="yfinance_cache/#yfinance_cache.yfc_ticker.Ticker.yf_lag">yf_lag</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.balance_sheet" href="#yfinance_cache.Ticker.balance_sheet">balance_sheet</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.calendar" href="#yfinance_cache.Ticker.calendar">calendar</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.cashflow" href="#yfinance_cache.Ticker.cashflow">cashflow</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.earnings" href="#yfinance_cache.Ticker.earnings">earnings</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.fast_info" href="#yfinance_cache.Ticker.fast_info">fast_info</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.financials" href="#yfinance_cache.Ticker.financials">financials</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.get_earnings_dates" href="#yfinance_cache.Ticker.get_earnings_dates">get_earnings_dates</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.get_info" href="#yfinance_cache.Ticker.get_info">get_info</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.get_release_dates" href="#yfinance_cache.Ticker.get_release_dates">get_release_dates</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.get_shares" href="#yfinance_cache.Ticker.get_shares">get_shares</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.history" href="#yfinance_cache.Ticker.history">history</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.income_stmt" href="#yfinance_cache.Ticker.income_stmt">income_stmt</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.info" href="#yfinance_cache.Ticker.info">info</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.inin" href="#yfinance_cache.Ticker.inin">inin</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.institutional_holders" href="#yfinance_cache.Ticker.institutional_holders">institutional_holders</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.major_holders" href="#yfinance_cache.Ticker.major_holders">major_holders</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.news" href="#yfinance_cache.Ticker.news">news</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.options" href="#yfinance_cache.Ticker.options">options</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.quarterly_balance_sheet" href="#yfinance_cache.Ticker.quarterly_balance_sheet">quarterly_balance_sheet</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.quarterly_cashflow" href="#yfinance_cache.Ticker.quarterly_cashflow">quarterly_cashflow</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.quarterly_earnings" href="#yfinance_cache.Ticker.quarterly_earnings">quarterly_earnings</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.quarterly_financials" href="#yfinance_cache.Ticker.quarterly_financials">quarterly_financials</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.quarterly_income_stmt" href="#yfinance_cache.Ticker.quarterly_income_stmt">quarterly_income_stmt</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.recommendations" href="#yfinance_cache.Ticker.recommendations">recommendations</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.splits" href="#yfinance_cache.Ticker.splits">splits</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.sustainability" href="#yfinance_cache.Ticker.sustainability">sustainability</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.verify_cached_prices" href="#yfinance_cache.Ticker.verify_cached_prices">verify_cached_prices</a></code></li>
+<li><code><a title="yfinance_cache.Ticker.yf_lag" href="#yfinance_cache.Ticker.yf_lag">yf_lag</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1535,7 +1918,7 @@ Date, Open, High, Low, Close, Volume, Dividends, Stock Splits.</dd>
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="yfinance_cache/https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
 </footer>
 </body>
 </html>
