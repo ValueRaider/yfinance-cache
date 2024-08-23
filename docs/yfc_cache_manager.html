@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>yfinance_cache.yfc_options API documentation</title>
+<title>yfinance_cache.yfc_cache_manager API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -22,7 +22,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>yfinance_cache.yfc_options</code></h1>
+<h1 class="title">Module <code>yfinance_cache.yfc_cache_manager</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -31,11 +31,104 @@ hljs.highlightAll();
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="yfinance_cache.yfc_cache_manager.GetCacheDirpath"><code class="name flex">
+<span>def <span class="ident">GetCacheDirpath</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.GetFilepath"><code class="name flex">
+<span>def <span class="ident">GetFilepath</span></span>(<span>ticker, objectName, obj=None, prune=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.GetFilepathPacked"><code class="name flex">
+<span>def <span class="ident">GetFilepathPacked</span></span>(<span>ticker, objectName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.GetPackedDataCat"><code class="name flex">
+<span>def <span class="ident">GetPackedDataCat</span></span>(<span>objectName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.IsDatumCached"><code class="name flex">
+<span>def <span class="ident">IsDatumCached</span></span>(<span>ticker, objectName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.IsObjectInPackedData"><code class="name flex">
+<span>def <span class="ident">IsObjectInPackedData</span></span>(<span>objectName)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.ReadCacheDatum"><code class="name flex">
+<span>def <span class="ident">ReadCacheDatum</span></span>(<span>ticker, objectName, return_metadata_too=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.ReadCacheMetadata"><code class="name flex">
+<span>def <span class="ident">ReadCacheMetadata</span></span>(<span>ticker, objectName, key)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.ReadCachePackedDatum"><code class="name flex">
+<span>def <span class="ident">ReadCachePackedDatum</span></span>(<span>ticker, objectName, return_metadata_too=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.ResetCacheDirpath"><code class="name flex">
+<span>def <span class="ident">ResetCacheDirpath</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.SetCacheDirpath"><code class="name flex">
+<span>def <span class="ident">SetCacheDirpath</span></span>(<span>dp)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.StoreCacheDatum"><code class="name flex">
+<span>def <span class="ident">StoreCacheDatum</span></span>(<span>ticker, objectName, datum, expiry=None, metadata=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.StoreCachePackedDatum"><code class="name flex">
+<span>def <span class="ident">StoreCachePackedDatum</span></span>(<span>ticker, objectName, datum, expiry=None, metadata=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.WriteCacheMetadata"><code class="name flex">
+<span>def <span class="ident">WriteCacheMetadata</span></span>(<span>ticker, objectName, key, value)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata"><code class="name flex">
+<span>def <span class="ident">WriteCachePackedMetadata</span></span>(<span>ticker, objectName, key, value)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="yfinance_cache.yfc_options.NestedOptions"><code class="flex name class">
+<dt id="yfinance_cache.yfc_cache_manager.NestedOptions"><code class="flex name class">
 <span>class <span class="ident">NestedOptions</span></span>
 <span>(</span><span>name, data)</span>
 </code></dt>
@@ -56,9 +149,10 @@ hljs.highlightAll();
     def __setattr__(self, key, value):
         if self.name == &#39;max_ages&#39;:
             # Type-check value
-            Timedelta(value)
+            pd.Timedelta(value)
 
         self.data[key] = value
+        global _option_manager
         _option_manager._save_option()
 
     def __len__(self):
@@ -68,7 +162,7 @@ hljs.highlightAll();
         return json.dumps(self.data, indent=4)</code></pre>
 </details>
 </dd>
-<dt id="yfinance_cache.yfc_options.OptionsManager"><code class="flex name class">
+<dt id="yfinance_cache.yfc_cache_manager.OptionsManager"><code class="flex name class">
 <span>class <span class="ident">OptionsManager</span></span>
 </code></dt>
 <dd>
@@ -79,27 +173,37 @@ hljs.highlightAll();
 </summary>
 <pre><code class="python">class OptionsManager:
     def __init__(self):
-        d = yfcm.GetCacheDirpath()
-        self.option_file = os.path.join(d, &#39;options.json&#39;)
-        self._load_option()
+        self._initialised = False
 
     def _load_option(self):
+        self._initialised = True  # prevent infinite loop
+        d = GetCacheDirpath()
+        self.option_file = os.path.join(d, &#39;options.json&#39;)
         try:
             with open(self.option_file, &#39;r&#39;) as file:
                 self.options = json.load(file)
         except (FileNotFoundError, json.JSONDecodeError):
             self.options = {}
+            # Initialise
+            self.__getattr__(&#39;max_ages&#39;).calendar = &#39;7d&#39;
+            self.__getattr__(&#39;max_ages&#39;).info = &#39;45d&#39;
 
     def _save_option(self):
         with open(self.option_file, &#39;w&#39;) as file:
             json.dump(self.options, file, indent=4)
 
     def __getattr__(self, key):
+        if not self._initialised:
+            self._load_option()
+
         if key not in self.options:
             self.options[key] = {}
         return NestedOptions(key, self.options[key])
 
     def __repr__(self):
+        if not self._initialised:
+            self._load_option()
+
         return json.dumps(self.options, indent=4)</code></pre>
 </details>
 </dd>
@@ -113,16 +217,35 @@ hljs.highlightAll();
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="yfinance_cache" href="index.html">yfinance_cache</a></code></li>
+<li><code><a title="yfinance_cache" href="yfinance_cache.html">yfinance_cache</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="yfinance_cache.yfc_cache_manager.GetCacheDirpath" href="#yfinance_cache.yfc_cache_manager.GetCacheDirpath">GetCacheDirpath</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.GetFilepath" href="#yfinance_cache.yfc_cache_manager.GetFilepath">GetFilepath</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.GetFilepathPacked" href="#yfinance_cache.yfc_cache_manager.GetFilepathPacked">GetFilepathPacked</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.GetPackedDataCat" href="#yfinance_cache.yfc_cache_manager.GetPackedDataCat">GetPackedDataCat</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.IsDatumCached" href="#yfinance_cache.yfc_cache_manager.IsDatumCached">IsDatumCached</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.IsObjectInPackedData" href="#yfinance_cache.yfc_cache_manager.IsObjectInPackedData">IsObjectInPackedData</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.ReadCacheDatum" href="#yfinance_cache.yfc_cache_manager.ReadCacheDatum">ReadCacheDatum</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.ReadCacheMetadata" href="#yfinance_cache.yfc_cache_manager.ReadCacheMetadata">ReadCacheMetadata</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.ReadCachePackedDatum" href="#yfinance_cache.yfc_cache_manager.ReadCachePackedDatum">ReadCachePackedDatum</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.ResetCacheDirpath" href="#yfinance_cache.yfc_cache_manager.ResetCacheDirpath">ResetCacheDirpath</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.SetCacheDirpath" href="#yfinance_cache.yfc_cache_manager.SetCacheDirpath">SetCacheDirpath</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.StoreCacheDatum" href="#yfinance_cache.yfc_cache_manager.StoreCacheDatum">StoreCacheDatum</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.StoreCachePackedDatum" href="#yfinance_cache.yfc_cache_manager.StoreCachePackedDatum">StoreCachePackedDatum</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.WriteCacheMetadata" href="#yfinance_cache.yfc_cache_manager.WriteCacheMetadata">WriteCacheMetadata</a></code></li>
+<li><code><a title="yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata" href="#yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata">WriteCachePackedMetadata</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="yfinance_cache.yfc_options.NestedOptions" href="#yfinance_cache.yfc_options.NestedOptions">NestedOptions</a></code></h4>
+<h4><code><a title="yfinance_cache.yfc_cache_manager.NestedOptions" href="#yfinance_cache.yfc_cache_manager.NestedOptions">NestedOptions</a></code></h4>
 </li>
 <li>
-<h4><code><a title="yfinance_cache.yfc_options.OptionsManager" href="#yfinance_cache.yfc_options.OptionsManager">OptionsManager</a></code></h4>
+<h4><code><a title="yfinance_cache.yfc_cache_manager.OptionsManager" href="#yfinance_cache.yfc_cache_manager.OptionsManager">OptionsManager</a></code></h4>
 </li>
 </ul>
 </li>

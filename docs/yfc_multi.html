@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>yfinance_cache.yfc_logging API documentation</title>
+<title>yfinance_cache.yfc_multi API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -22,7 +22,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>yfinance_cache.yfc_logging</code></h1>
+<h1 class="title">Module <code>yfinance_cache.yfc_multi</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -33,62 +33,32 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="yfinance_cache.yfc_logging.DisableLogging"><code class="name flex">
-<span>def <span class="ident">DisableLogging</span></span>(<span>)</span>
+<dt id="yfinance_cache.yfc_multi.download"><code class="name flex">
+<span>def <span class="ident">download</span></span>(<span>tickers, threads=True, ignore_tz=None, progress=True, interval='1d', group_by='column', max_age=None, period=None, start=None, end=None, prepost=False, actions=True, adjust_splits=True, adjust_divs=True, keepna=False, proxy=None, rounding=False, debug=True, quiet=False, trigger_at_market_close=False, session=None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_logging.DisableTracing"><code class="name flex">
-<span>def <span class="ident">DisableTracing</span></span>(<span>)</span>
+<dt id="yfinance_cache.yfc_multi.download_one"><code class="name flex">
+<span>def <span class="ident">download_one</span></span>(<span>ticker, start=None, end=None, max_age=None, adjust_divs=True, adjust_splits=True, actions=False, period='max', interval='1d', prepost=False, proxy=None, rounding=False, keepna=False, session=None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_logging.EnableLogging"><code class="name flex">
-<span>def <span class="ident">EnableLogging</span></span>(<span>mode=20)</span>
+<dt id="yfinance_cache.yfc_multi.download_one_parallel"><code class="name flex">
+<span>def <span class="ident">download_one_parallel</span></span>(<span>ticker, queue, start=None, end=None, max_age=None, adjust_divs=True, adjust_splits=True, actions=False, period='max', interval='1d', prepost=False, proxy=None, rounding=False, keepna=False, session=None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_logging.EnableTracing"><code class="name flex">
-<span>def <span class="ident">EnableTracing</span></span>(<span>)</span>
+<dt id="yfinance_cache.yfc_multi.reindex_dfs"><code class="name flex">
+<span>def <span class="ident">reindex_dfs</span></span>(<span>dfs, ignore_tz)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="yfinance_cache.yfc_logging.GetLogger"><code class="name flex">
-<span>def <span class="ident">GetLogger</span></span>(<span>tkr)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.IsLoggingEnabled"><code class="name flex">
-<span>def <span class="ident">IsLoggingEnabled</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.IsTracingEnabled"><code class="name flex">
-<span>def <span class="ident">IsTracingEnabled</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.TraceEnter"><code class="name flex">
-<span>def <span class="ident">TraceEnter</span></span>(<span>log_msg)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.TraceExit"><code class="name flex">
-<span>def <span class="ident">TraceExit</span></span>(<span>log_msg)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.TracePrint"><code class="name flex">
-<span>def <span class="ident">TracePrint</span></span>(<span>log_msg)</span>
+<dt id="yfinance_cache.yfc_multi.reinitialize_locks"><code class="name flex">
+<span>def <span class="ident">reinitialize_locks</span></span>(<span>locks)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -96,64 +66,6 @@ hljs.highlightAll();
 </dl>
 </section>
 <section>
-<h2 class="section-title" id="header-classes">Classes</h2>
-<dl>
-<dt id="yfinance_cache.yfc_logging.Tracer"><code class="flex name class">
-<span>class <span class="ident">Tracer</span></span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">class Tracer:
-    def __init__(self):
-        self._trace_depth = 0
-
-    def Print(self, log_msg):
-        if not IsTracingEnabled():
-            return
-        print(&#34; &#34;*self._trace_depth*2 + log_msg)
-
-    def Enter(self, log_msg):
-        if not IsTracingEnabled():
-            return
-        self.Print(log_msg)
-        self._trace_depth += 1
-
-        if self._trace_depth &gt; 20:
-            raise Exception(&#34;infinite recursion detected&#34;)
-
-    def Exit(self, log_msg):
-        if not IsTracingEnabled():
-            return
-        self._trace_depth -= 1
-        self.Print(log_msg)</code></pre>
-</details>
-<h3>Methods</h3>
-<dl>
-<dt id="yfinance_cache.yfc_logging.Tracer.Enter"><code class="name flex">
-<span>def <span class="ident">Enter</span></span>(<span>self, log_msg)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.Tracer.Exit"><code class="name flex">
-<span>def <span class="ident">Exit</span></span>(<span>self, log_msg)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="yfinance_cache.yfc_logging.Tracer.Print"><code class="name flex">
-<span>def <span class="ident">Print</span></span>(<span>self, log_msg)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
-</dd>
-</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -163,33 +75,16 @@ hljs.highlightAll();
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="yfinance_cache" href="index.html">yfinance_cache</a></code></li>
+<li><code><a title="yfinance_cache" href="yfinance_cache.html">yfinance_cache</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="two-column">
-<li><code><a title="yfinance_cache.yfc_logging.DisableLogging" href="#yfinance_cache.yfc_logging.DisableLogging">DisableLogging</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.DisableTracing" href="#yfinance_cache.yfc_logging.DisableTracing">DisableTracing</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.EnableLogging" href="#yfinance_cache.yfc_logging.EnableLogging">EnableLogging</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.EnableTracing" href="#yfinance_cache.yfc_logging.EnableTracing">EnableTracing</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.GetLogger" href="#yfinance_cache.yfc_logging.GetLogger">GetLogger</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.IsLoggingEnabled" href="#yfinance_cache.yfc_logging.IsLoggingEnabled">IsLoggingEnabled</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.IsTracingEnabled" href="#yfinance_cache.yfc_logging.IsTracingEnabled">IsTracingEnabled</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.TraceEnter" href="#yfinance_cache.yfc_logging.TraceEnter">TraceEnter</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.TraceExit" href="#yfinance_cache.yfc_logging.TraceExit">TraceExit</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.TracePrint" href="#yfinance_cache.yfc_logging.TracePrint">TracePrint</a></code></li>
-</ul>
-</li>
-<li><h3><a href="#header-classes">Classes</a></h3>
-<ul>
-<li>
-<h4><code><a title="yfinance_cache.yfc_logging.Tracer" href="#yfinance_cache.yfc_logging.Tracer">Tracer</a></code></h4>
 <ul class="">
-<li><code><a title="yfinance_cache.yfc_logging.Tracer.Enter" href="#yfinance_cache.yfc_logging.Tracer.Enter">Enter</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.Tracer.Exit" href="#yfinance_cache.yfc_logging.Tracer.Exit">Exit</a></code></li>
-<li><code><a title="yfinance_cache.yfc_logging.Tracer.Print" href="#yfinance_cache.yfc_logging.Tracer.Print">Print</a></code></li>
-</ul>
-</li>
+<li><code><a title="yfinance_cache.yfc_multi.download" href="#yfinance_cache.yfc_multi.download">download</a></code></li>
+<li><code><a title="yfinance_cache.yfc_multi.download_one" href="#yfinance_cache.yfc_multi.download_one">download_one</a></code></li>
+<li><code><a title="yfinance_cache.yfc_multi.download_one_parallel" href="#yfinance_cache.yfc_multi.download_one_parallel">download_one_parallel</a></code></li>
+<li><code><a title="yfinance_cache.yfc_multi.reindex_dfs" href="#yfinance_cache.yfc_multi.reindex_dfs">reindex_dfs</a></code></li>
+<li><code><a title="yfinance_cache.yfc_multi.reinitialize_locks" href="#yfinance_cache.yfc_multi.reinitialize_locks">reinitialize_locks</a></code></li>
 </ul>
 </li>
 </ul>
