@@ -1,10 +1,10 @@
-.. yfc documentation master file, created by
-   sphinx-quickstart on Sat Aug 24 13:12:54 2024.
+.. yfinance-cache documentation master file, created by
+   sphinx-quickstart on Sat Aug 24 13:27:07 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-yfc documentation
-=================
+yfinance-cache documentation
+============================
 
 Add your content using ``reStructuredText`` syntax. See the
 `reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_

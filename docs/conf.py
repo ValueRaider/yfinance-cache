@@ -10,10 +10,10 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'yfc'
-copyright = '2024, cs'
-author = 'cs'
-release = '0.1'
+project = 'yfinance-cache'
+copyright = '2024, ValueRaider@protonmail.com'
+author = 'ValueRaider@protonmail.com'
+release = '0.6.6'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
