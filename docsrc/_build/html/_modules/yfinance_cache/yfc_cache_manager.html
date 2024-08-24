@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>yfinance_cache.yfc_cache_manager &mdash; yfinance-cache 0.6.6 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=e059a73d"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            yfinance-cache
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">yfinance_cache</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">yfinance-cache</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">yfinance_cache.yfc_cache_manager</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for yfinance_cache.yfc_cache_manager</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">appdirs</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">zoneinfo</span> <span class="kn">import</span> <span class="n">ZoneInfo</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_dat</span> <span class="k">as</span> <span class="n">yfcd</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_utils</span> <span class="k">as</span> <span class="n">yfcu</span>
+
+<span class="c1"># To reduce #files in cache, store some YF objects together into same file (including metadata)</span>
+<span class="n">packed_data_cats</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">packed_data_cats</span><span class="p">[</span><span class="s2">&quot;quarterlys&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;quarterly_balance_sheet&quot;</span><span class="p">,</span> <span class="s2">&quot;quarterly_cashflow&quot;</span><span class="p">,</span> <span class="s2">&quot;quarterly_earnings&quot;</span><span class="p">,</span> <span class="s2">&quot;quarterly_financials&quot;</span><span class="p">,</span> <span class="s2">&quot;quarterly_income_stmt&quot;</span><span class="p">]</span>
+<span class="n">packed_data_cats</span><span class="p">[</span><span class="s2">&quot;annuals&quot;</span><span class="p">]</span>    <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;balance_sheet&quot;</span><span class="p">,</span> <span class="s2">&quot;cashflow&quot;</span><span class="p">,</span> <span class="s2">&quot;earnings&quot;</span><span class="p">,</span> <span class="s2">&quot;financials&quot;</span><span class="p">,</span> <span class="s2">&quot;income_stmt&quot;</span><span class="p">]</span>
+
+<span class="n">quarterly_objects</span> <span class="o">=</span> <span class="n">packed_data_cats</span><span class="p">[</span><span class="s2">&quot;quarterlys&quot;</span><span class="p">]</span>
+<span class="n">annual_objects</span>    <span class="o">=</span> <span class="n">packed_data_cats</span><span class="p">[</span><span class="s2">&quot;annuals&quot;</span><span class="p">]</span>
+
+<span class="n">verbose</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="c1"># verbose = True</span>
+
+<span class="c1"># TODO: store DataFrames as CSV, don&#39;t need the metadata</span>
+
+<span class="k">global</span> <span class="n">cacheDirpath</span>
+
+
+<div class="viewcode-block" id="GetCacheDirpath">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetCacheDirpath">[docs]</a>
+<span class="k">def</span> <span class="nf">GetCacheDirpath</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">cacheDirpath</span>
+    <span class="k">return</span> <span class="n">cacheDirpath</span></div>
+
+
+
+<div class="viewcode-block" id="ResetCacheDirpath">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.ResetCacheDirpath">[docs]</a>
+<span class="k">def</span> <span class="nf">ResetCacheDirpath</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">cacheDirpath</span>
+    <span class="n">cacheDirpath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">appdirs</span><span class="o">.</span><span class="n">user_cache_dir</span><span class="p">(),</span> <span class="s2">&quot;py-yfinance-cache&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="SetCacheDirpath">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.SetCacheDirpath">[docs]</a>
+<span class="k">def</span> <span class="nf">SetCacheDirpath</span><span class="p">(</span><span class="n">dp</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">cacheDirpath</span>
+    <span class="n">cacheDirpath</span> <span class="o">=</span> <span class="n">dp</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Set cache dir to </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cacheDirpath</span><span class="p">))</span>
+
+    <span class="k">global</span> <span class="n">_option_manager</span>
+    <span class="n">_option_manager</span> <span class="o">=</span> <span class="n">OptionsManager</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="IsObjectInPackedData">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.IsObjectInPackedData">[docs]</a>
+<span class="k">def</span> <span class="nf">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">packed_data_cats</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">objectName</span> <span class="ow">in</span> <span class="n">packed_data_cats</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="GetPackedDataCat">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetPackedDataCat">[docs]</a>
+<span class="k">def</span> <span class="nf">GetPackedDataCat</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">packed_data_cats</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">objectName</span> <span class="ow">in</span> <span class="n">packed_data_cats</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">k</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="GetFilepath">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetFilepath">[docs]</a>
+<span class="k">def</span> <span class="nf">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prune</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">GetFilepathPacked</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+
+    <span class="n">fp</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span><span class="p">))):</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="s2">&quot;json&quot;</span>
+            <span class="n">ext_bad</span> <span class="o">=</span> <span class="s2">&quot;pkl&quot;</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span><span class="p">)):</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="s2">&quot;json&quot;</span>
+            <span class="n">ext_bad</span> <span class="o">=</span> <span class="s2">&quot;pkl&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="s2">&quot;pkl&quot;</span>
+            <span class="n">ext_bad</span> <span class="o">=</span> <span class="s2">&quot;json&quot;</span>
+        <span class="n">fp</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span><span class="o">+</span><span class="n">ext</span>
+        <span class="n">fp_bad</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span><span class="o">+</span><span class="n">ext_bad</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp_bad</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">prune</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fp_bad</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;For </span><span class="si">{}</span><span class="s2"> object </span><span class="si">{}</span><span class="s2">/</span><span class="si">{}</span><span class="s2">, a </span><span class="si">{}</span><span class="s2"> file already exists&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">ext_bad</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fp_base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+        <span class="n">json_exists</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp_base</span><span class="o">+</span><span class="s2">&quot;.json&quot;</span><span class="p">)</span>
+        <span class="n">pkl_exists</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp_base</span><span class="o">+</span><span class="s2">&quot;.pkl&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">json_exists</span> <span class="ow">and</span> <span class="n">pkl_exists</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;For cached datum &#39;</span><span class="si">{0}</span><span class="s2">&#39;, both a .json and .pkl file exist. Should only be one.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectName</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">json_exists</span><span class="p">:</span>
+            <span class="n">fp</span> <span class="o">=</span> <span class="n">fp_base</span> <span class="o">+</span> <span class="s2">&quot;.json&quot;</span>
+        <span class="k">elif</span> <span class="n">pkl_exists</span><span class="p">:</span>
+            <span class="n">fp</span> <span class="o">=</span> <span class="n">fp_base</span> <span class="o">+</span> <span class="s2">&quot;.pkl&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;release-dates&quot;</span> <span class="ow">in</span> <span class="n">objectName</span> <span class="ow">or</span> <span class="s2">&quot;earnings_dates&quot;</span> <span class="ow">in</span> <span class="n">objectName</span><span class="p">:</span>
+            <span class="n">fp</span> <span class="o">=</span> <span class="n">fp_base</span> <span class="o">+</span> <span class="s2">&quot;.pkl&quot;</span>
+    <span class="k">return</span> <span class="n">fp</span></div>
+
+<div class="viewcode-block" id="GetFilepathPacked">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetFilepathPacked">[docs]</a>
+<span class="k">def</span> <span class="nf">GetFilepathPacked</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="n">pkg</span> <span class="o">=</span> <span class="n">GetPackedDataCat</span><span class="p">(</span><span class="n">objectName</span><span class="p">)</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">,</span> <span class="n">pkg</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.pkl&quot;</span>
+    <span class="k">return</span> <span class="n">fp</span></div>
+
+
+
+<div class="viewcode-block" id="IsDatumCached">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.IsDatumCached">[docs]</a>
+<span class="k">def</span> <span class="nf">IsDatumCached</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;IsDatumCached(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fp</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">inData</span><span class="p">:</span>
+                <span class="n">packedData</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">inData</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">objectName</span> <span class="ow">in</span> <span class="n">packedData</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># Corrupt</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">_ReadData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fp</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">fp</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.json&quot;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">inData</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">inData</span><span class="p">,</span> <span class="n">object_hook</span><span class="o">=</span><span class="n">yfcu</span><span class="o">.</span><span class="n">JsonDecodeDict</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">inData</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">inData</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Pickled &#39;</span><span class="si">{}</span><span class="s2">/</span><span class="si">{}</span><span class="s2">&#39; data should be dict, but is </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="s2">&quot;data&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Pickled dict missing &#39;data&#39; key: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">d</span>
+
+
+<span class="k">def</span> <span class="nf">_ReadPackedData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">fp</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">inData</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">inData</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Pickled &#39;</span><span class="si">{}</span><span class="s2">/</span><span class="si">{}</span><span class="s2">&#39; packed-data should be dict, but is </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">d</span>
+
+
+<div class="viewcode-block" id="ReadCacheDatum">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCacheDatum">[docs]</a>
+<span class="k">def</span> <span class="nf">ReadCacheDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">return_metadata_too</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ReadCacheDatum(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ReadCachePackedDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">return_metadata_too</span><span class="p">)</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span> <span class="p">;</span> <span class="n">md</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">_ReadData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">data</span>   <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+        <span class="n">md</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">d</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">expiry</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span>   <span class="k">if</span> <span class="s2">&quot;expiry&quot;</span>   <span class="ow">in</span> <span class="n">d</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtnow</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">ZoneInfo</span><span class="p">(</span><span class="s2">&quot;UTC&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">dtnow</span> <span class="o">&gt;=</span> <span class="n">expiry</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Deleting expired datum &#39;</span><span class="si">{0}</span><span class="s2">/</span><span class="si">{1}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+                <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">return_metadata_too</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="n">md</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">md</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;__expiry__&quot;</span><span class="p">:</span> <span class="n">expiry</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">md</span><span class="p">[</span><span class="s2">&quot;__expiry__&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">expiry</span>
+
+    <span class="k">if</span> <span class="n">return_metadata_too</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">md</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<div class="viewcode-block" id="ReadCachePackedDatum">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCachePackedDatum">[docs]</a>
+<span class="k">def</span> <span class="nf">ReadCachePackedDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">return_metadata_too</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ReadCachePackedDatum(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Don&#39;t call packed-data function on non-packed data &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectName</span><span class="p">))</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span> <span class="p">;</span> <span class="n">md</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">pkData</span> <span class="o">=</span> <span class="n">_ReadPackedData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">pkData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">objectName</span> <span class="ow">in</span> <span class="n">pkData</span><span class="p">):</span>
+        <span class="n">objData</span> <span class="o">=</span> <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span>
+        <span class="n">data</span>   <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+        <span class="n">md</span>     <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">objData</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">expiry</span> <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span>   <span class="k">if</span> <span class="s2">&quot;expiry&quot;</span>   <span class="ow">in</span> <span class="n">objData</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtnow</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">ZoneInfo</span><span class="p">(</span><span class="s2">&quot;UTC&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">dtnow</span> <span class="o">&gt;=</span> <span class="n">expiry</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Deleting expired packed datum &#39;</span><span class="si">{0}</span><span class="s2">/</span><span class="si">{1}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+                <span class="k">del</span> <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span>
+                <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+                    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pkData</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">return_metadata_too</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="n">md</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">md</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;__expiry__&quot;</span><span class="p">:</span> <span class="n">expiry</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">md</span><span class="p">[</span><span class="s2">&quot;__expiry__&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">expiry</span>
+
+    <span class="k">if</span> <span class="n">return_metadata_too</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">md</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<div class="viewcode-block" id="StoreCacheDatum">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.StoreCacheDatum">[docs]</a>
+<span class="k">def</span> <span class="nf">StoreCacheDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">datum</span><span class="p">,</span> <span class="n">expiry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;StoreCacheDatum(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="n">StoreCachePackedDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">datum</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">metadata</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;metadata&#39; must be dict of scalars&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expiry</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="p">):</span>
+            <span class="c1"># Convert interval to actual datetime</span>
+            <span class="n">expiry</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">ZoneInfo</span><span class="p">(</span><span class="s2">&quot;UTC&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">intervalToTimedelta</span><span class="p">[</span><span class="n">expiry</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expiry</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;expiry&#39; must be datetime or yfcd.Interval&quot;</span><span class="p">)</span>
+
+    <span class="n">td</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">td</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">td</span><span class="p">)</span>
+
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">datum</span><span class="p">,</span> <span class="n">prune</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">datum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GetFilepath() returned None for: ticker=</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">, objectName=</span><span class="si">{</span><span class="n">objectName</span><span class="si">}</span><span class="s2">, datum=None&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GetFilepath() returned None for: ticker=</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">, objectName=</span><span class="si">{</span><span class="n">objectName</span><span class="si">}</span><span class="s2">, datum=</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">datum</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">datum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- deleting </span><span class="si">{}</span><span class="s2"> at </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectName</span><span class="p">,</span> <span class="n">fp</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- storing </span><span class="si">{}</span><span class="s2"> at </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectName</span><span class="p">,</span> <span class="n">fp</span><span class="p">))</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">_ReadData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">md</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">md</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">d</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">expiry</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;expiry&quot;</span> <span class="ow">in</span> <span class="n">d</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Persist the old metadata</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="n">md</span>
+
+    <span class="c1"># Write</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">datum</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metadata</span>
+    <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">d</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">expiry</span>
+    <span class="c1"># TODO: use module &#39;safer&#39; to avoid writes being corrupted</span>
+    <span class="k">if</span> <span class="n">fp</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.json&quot;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">yfcu</span><span class="o">.</span><span class="n">JsonEncodeValue</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="StoreCachePackedDatum">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.StoreCachePackedDatum">[docs]</a>
+<span class="k">def</span> <span class="nf">StoreCachePackedDatum</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">datum</span><span class="p">,</span> <span class="n">expiry</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;StoreCachePackedDatum(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Don&#39;t call packed-data function on non-packed data &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectName</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">metadata</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;metadata&#39; must be dict of scalars&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expiry</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="p">):</span>
+            <span class="c1"># Convert interval to actual datetime</span>
+            <span class="n">expiry</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">ZoneInfo</span><span class="p">(</span><span class="s2">&quot;UTC&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">intervalToTimedelta</span><span class="p">[</span><span class="n">expiry</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expiry</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;expiry&#39; must be datetime or yfcd.Interval&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;Expiry&quot;</span> <span class="ow">in</span> <span class="n">metadata</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;metadata&#39; already contains &#39;Expiry&#39;&quot;</span><span class="p">)</span>
+
+    <span class="n">td</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GetCacheDirpath</span><span class="p">(),</span> <span class="n">ticker</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">td</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">td</span><span class="p">)</span>
+
+    <span class="c1"># Read cached metadata</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="n">pkData</span> <span class="o">=</span> <span class="n">_ReadPackedData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pkData</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">pkData</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">objData</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="n">objectName</span> <span class="ow">in</span> <span class="n">pkData</span><span class="p">:</span>
+        <span class="n">objData</span> <span class="o">=</span> <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">metadata</span> <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">objData</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">expiry</span> <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;expiry&quot;</span> <span class="ow">in</span> <span class="n">objData</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">objData</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># data = None</span>
+        <span class="c1"># md = None</span>
+
+    <span class="k">if</span> <span class="n">objData</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">objData</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">datum</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metadata</span>
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">expiry</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datum</span>
+        <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metadata</span>
+        <span class="k">if</span> <span class="n">expiry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;expiry&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">expiry</span>
+
+    <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span> <span class="o">=</span> <span class="n">objData</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+        <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pkData</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ReadCacheMetadata">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCacheMetadata">[docs]</a>
+<span class="k">def</span> <span class="nf">ReadCacheMetadata</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="n">md</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="n">pkData</span> <span class="o">=</span> <span class="n">_ReadPackedData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pkData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">objectName</span> <span class="ow">in</span> <span class="n">pkData</span><span class="p">):</span>
+            <span class="n">objData</span> <span class="o">=</span> <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span>
+            <span class="n">md</span>      <span class="o">=</span> <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">objData</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">_ReadData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">md</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ReadCacheMetadata() read md as:&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">md</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">md</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">md</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">md</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="WriteCacheMetadata">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.WriteCacheMetadata">[docs]</a>
+<span class="k">def</span> <span class="nf">WriteCacheMetadata</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">WriteCachePackedMetadata</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;WriteCacheMetadata(</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">objectName</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">) deleting&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;WriteCacheMetadata(</span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">objectName</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">) storing&quot;</span><span class="p">)</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">_ReadData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span><span class="kc">None</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]:</span>
+                <span class="k">del</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">elif</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WriteCacheMetadata() updated md to:&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">])</span>
+
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fp</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.json&quot;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">yfcu</span><span class="o">.</span><span class="n">JsonEncodeValue</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="WriteCachePackedMetadata">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata">[docs]</a>
+<span class="k">def</span> <span class="nf">WriteCachePackedMetadata</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">IsObjectInPackedData</span><span class="p">(</span><span class="n">objectName</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">WriteCacheMetadata</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+
+    <span class="n">pkData</span> <span class="o">=</span> <span class="n">_ReadPackedData</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pkData</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">/</span><span class="si">{}</span><span class="s2">&#39; not in cache, cannot add metadata&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">objectName</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pkData</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">/</span><span class="si">{}</span><span class="s2">&#39; not in cache, cannot add metadata&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">))</span>
+
+    <span class="n">objData</span> <span class="o">=</span> <span class="n">pkData</span><span class="p">[</span><span class="n">objectName</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">objData</span><span class="p">:</span>
+        <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">objData</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">GetFilepath</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">objectName</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outData</span><span class="p">:</span>
+        <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pkData</span><span class="p">,</span> <span class="n">outData</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span></div>
+
+
+
+<span class="n">ResetCacheDirpath</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="NestedOptions">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.NestedOptions">[docs]</a>
+<span class="k">class</span> <span class="nc">NestedOptions</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;max_ages&#39;</span><span class="p">:</span>
+            <span class="c1"># Type-check value</span>
+            <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">global</span> <span class="n">_option_manager</span>
+        <span class="n">_option_manager</span><span class="o">.</span><span class="n">_save_option</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="OptionsManager">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_cache_manager.OptionsManager">[docs]</a>
+<span class="k">class</span> <span class="nc">OptionsManager</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialised</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">_load_option</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialised</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># prevent infinite loop</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">GetCacheDirpath</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">option_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="s1">&#39;options.json&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">option_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">FileNotFoundError</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="c1"># Initialise</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__getattr__</span><span class="p">(</span><span class="s1">&#39;max_ages&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">calendar</span> <span class="o">=</span> <span class="s1">&#39;7d&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__getattr__</span><span class="p">(</span><span class="s1">&#39;max_ages&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="s1">&#39;45d&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_save_option</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">option_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialised</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_option</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="n">NestedOptions</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialised</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_option</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span></div>
+
+
+<span class="c1"># Global instance</span>
+<span class="n">_option_manager</span> <span class="o">=</span> <span class="n">OptionsManager</span><span class="p">()</span>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, ValueRaider@protonmail.com.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

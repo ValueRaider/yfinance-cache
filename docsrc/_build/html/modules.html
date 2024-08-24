@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>yfinance_cache &mdash; yfinance-cache 0.6.6 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=e059a73d"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="yfinance_cache package" href="yfinance_cache.html" />
+    <link rel="prev" title="yfinance-cache documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            yfinance-cache
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">yfinance_cache</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html">yfinance_cache package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">yfinance-cache</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">yfinance_cache</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/modules.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="yfinance-cache">
+<h1>yfinance_cache<a class="headerlink" href="#yfinance-cache" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="yfinance_cache.html">yfinance_cache package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_cache_manager">yfinance_cache.yfc_cache_manager module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">GetCacheDirpath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetFilepath"><code class="docutils literal notranslate"><span class="pre">GetFilepath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetFilepathPacked"><code class="docutils literal notranslate"><span class="pre">GetFilepathPacked()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.GetPackedDataCat"><code class="docutils literal notranslate"><span class="pre">GetPackedDataCat()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.IsDatumCached"><code class="docutils literal notranslate"><span class="pre">IsDatumCached()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.IsObjectInPackedData"><code class="docutils literal notranslate"><span class="pre">IsObjectInPackedData()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.NestedOptions"><code class="docutils literal notranslate"><span class="pre">NestedOptions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.OptionsManager"><code class="docutils literal notranslate"><span class="pre">OptionsManager</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCacheDatum"><code class="docutils literal notranslate"><span class="pre">ReadCacheDatum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCacheMetadata"><code class="docutils literal notranslate"><span class="pre">ReadCacheMetadata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.ReadCachePackedDatum"><code class="docutils literal notranslate"><span class="pre">ReadCachePackedDatum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.ResetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">ResetCacheDirpath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.SetCacheDirpath"><code class="docutils literal notranslate"><span class="pre">SetCacheDirpath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.StoreCacheDatum"><code class="docutils literal notranslate"><span class="pre">StoreCacheDatum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.StoreCachePackedDatum"><code class="docutils literal notranslate"><span class="pre">StoreCachePackedDatum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.WriteCacheMetadata"><code class="docutils literal notranslate"><span class="pre">WriteCacheMetadata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_cache_manager.WriteCachePackedMetadata"><code class="docutils literal notranslate"><span class="pre">WriteCachePackedMetadata()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_dat">yfinance_cache.yfc_dat module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.AmbiguousComparisonException"><code class="docutils literal notranslate"><span class="pre">AmbiguousComparisonException</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.ComparableRelativedelta"><code class="docutils literal notranslate"><span class="pre">ComparableRelativedelta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Confidence"><code class="docutils literal notranslate"><span class="pre">Confidence</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Confidence.High"><code class="docutils literal notranslate"><span class="pre">Confidence.High</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Confidence.Low"><code class="docutils literal notranslate"><span class="pre">Confidence.Low</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Confidence.Medium"><code class="docutils literal notranslate"><span class="pre">Confidence.Medium</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate"><code class="docutils literal notranslate"><span class="pre">DateEstimate</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.copy"><code class="docutils literal notranslate"><span class="pre">DateEstimate.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.isclose"><code class="docutils literal notranslate"><span class="pre">DateEstimate.isclose()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.prob_ge"><code class="docutils literal notranslate"><span class="pre">DateEstimate.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.prob_gt"><code class="docutils literal notranslate"><span class="pre">DateEstimate.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.prob_le"><code class="docutils literal notranslate"><span class="pre">DateEstimate.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateEstimate.prob_lt"><code class="docutils literal notranslate"><span class="pre">DateEstimate.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateInterval"><code class="docutils literal notranslate"><span class="pre">DateInterval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.empty"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.empty</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.equals"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.equals()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.from_arrays"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.from_arrays()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.get_indexer"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.get_indexer()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.left"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.left</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.right"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.right</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.shape"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateIntervalIndex.sort_values"><code class="docutils literal notranslate"><span class="pre">DateIntervalIndex.sort_values()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange"><code class="docutils literal notranslate"><span class="pre">DateRange</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.copy"><code class="docutils literal notranslate"><span class="pre">DateRange.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.isclose"><code class="docutils literal notranslate"><span class="pre">DateRange.isclose()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.prob_ge"><code class="docutils literal notranslate"><span class="pre">DateRange.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.prob_gt"><code class="docutils literal notranslate"><span class="pre">DateRange.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.prob_le"><code class="docutils literal notranslate"><span class="pre">DateRange.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRange.prob_lt"><code class="docutils literal notranslate"><span class="pre">DateRange.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.copy"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.isclose"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.isclose()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.prob_ge"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.prob_gt"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.prob_le"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.DateRangeEstimate.prob_lt"><code class="docutils literal notranslate"><span class="pre">DateRangeEstimate.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Financials"><code class="docutils literal notranslate"><span class="pre">Financials</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Financials.BalanceSheet"><code class="docutils literal notranslate"><span class="pre">Financials.BalanceSheet</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Financials.CashFlow"><code class="docutils literal notranslate"><span class="pre">Financials.CashFlow</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Financials.IncomeStmt"><code class="docutils literal notranslate"><span class="pre">Financials.IncomeStmt</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval"><code class="docutils literal notranslate"><span class="pre">Interval</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Days1"><code class="docutils literal notranslate"><span class="pre">Interval.Days1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Hours1"><code class="docutils literal notranslate"><span class="pre">Interval.Hours1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins1"><code class="docutils literal notranslate"><span class="pre">Interval.Mins1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins15"><code class="docutils literal notranslate"><span class="pre">Interval.Mins15</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins2"><code class="docutils literal notranslate"><span class="pre">Interval.Mins2</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins30"><code class="docutils literal notranslate"><span class="pre">Interval.Mins30</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins5"><code class="docutils literal notranslate"><span class="pre">Interval.Mins5</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins60"><code class="docutils literal notranslate"><span class="pre">Interval.Mins60</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Mins90"><code class="docutils literal notranslate"><span class="pre">Interval.Mins90</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Interval.Week"><code class="docutils literal notranslate"><span class="pre">Interval.Week</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.NoIntervalsInRangeException"><code class="docutils literal notranslate"><span class="pre">NoIntervalsInRangeException</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.NoPriceDataInRangeException"><code class="docutils literal notranslate"><span class="pre">NoPriceDataInRangeException</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period"><code class="docutils literal notranslate"><span class="pre">Period</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Days1"><code class="docutils literal notranslate"><span class="pre">Period.Days1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Days5"><code class="docutils literal notranslate"><span class="pre">Period.Days5</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Max"><code class="docutils literal notranslate"><span class="pre">Period.Max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Months1"><code class="docutils literal notranslate"><span class="pre">Period.Months1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Months3"><code class="docutils literal notranslate"><span class="pre">Period.Months3</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Months6"><code class="docutils literal notranslate"><span class="pre">Period.Months6</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Years1"><code class="docutils literal notranslate"><span class="pre">Period.Years1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Years2"><code class="docutils literal notranslate"><span class="pre">Period.Years2</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Years5"><code class="docutils literal notranslate"><span class="pre">Period.Years5</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.Period.Ytd"><code class="docutils literal notranslate"><span class="pre">Period.Ytd</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.ReportingPeriod"><code class="docutils literal notranslate"><span class="pre">ReportingPeriod</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.ReportingPeriod.Full"><code class="docutils literal notranslate"><span class="pre">ReportingPeriod.Full</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.ReportingPeriod.Interim"><code class="docutils literal notranslate"><span class="pre">ReportingPeriod.Interim</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.copy"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.isclose"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.isclose()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.prob_ge"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.prob_gt"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.prob_le"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaEstimate.prob_lt"><code class="docutils literal notranslate"><span class="pre">TimedeltaEstimate.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRange"><code class="docutils literal notranslate"><span class="pre">TimedeltaRange</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRange.prob_ge"><code class="docutils literal notranslate"><span class="pre">TimedeltaRange.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRange.prob_gt"><code class="docutils literal notranslate"><span class="pre">TimedeltaRange.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRange.prob_le"><code class="docutils literal notranslate"><span class="pre">TimedeltaRange.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRange.prob_lt"><code class="docutils literal notranslate"><span class="pre">TimedeltaRange.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate.isclose"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate.isclose()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate.prob_ge"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate.prob_ge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate.prob_gt"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate.prob_gt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate.prob_le"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate.prob_le()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimedeltaRangeEstimate.prob_lt"><code class="docutils literal notranslate"><span class="pre">TimedeltaRangeEstimate.prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.TimestampOutsideIntervalException"><code class="docutils literal notranslate"><span class="pre">TimestampOutsideIntervalException</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_dat.uniform_prob_lt"><code class="docutils literal notranslate"><span class="pre">uniform_prob_lt()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_financials_manager">yfinance_cache.yfc_financials_manager module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.EarningsRelease"><code class="docutils literal notranslate"><span class="pre">EarningsRelease</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.EarningsRelease.is_end_of_year"><code class="docutils literal notranslate"><span class="pre">EarningsRelease.is_end_of_year()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager"><code class="docutils literal notranslate"><span class="pre">FinancialsManager</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_balance_sheet"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_balance_sheet()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_calendar"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_calendar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_cashflow"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_cashflow()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_earnings_dates"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_earnings_dates()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_income_stmt"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_income_stmt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_quarterly_balance_sheet"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_quarterly_balance_sheet()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_quarterly_cashflow"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_quarterly_cashflow()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_quarterly_income_stmt"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_quarterly_income_stmt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.FinancialsManager.get_release_dates"><code class="docutils literal notranslate"><span class="pre">FinancialsManager.get_release_dates()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_financials_manager.sort_estimates"><code class="docutils literal notranslate"><span class="pre">sort_estimates()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_logging">yfinance_cache.yfc_logging module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.DisableLogging"><code class="docutils literal notranslate"><span class="pre">DisableLogging()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.DisableTracing"><code class="docutils literal notranslate"><span class="pre">DisableTracing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.EnableLogging"><code class="docutils literal notranslate"><span class="pre">EnableLogging()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.EnableTracing"><code class="docutils literal notranslate"><span class="pre">EnableTracing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.GetLogger"><code class="docutils literal notranslate"><span class="pre">GetLogger()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.IsLoggingEnabled"><code class="docutils literal notranslate"><span class="pre">IsLoggingEnabled()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.IsTracingEnabled"><code class="docutils literal notranslate"><span class="pre">IsTracingEnabled()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.TraceEnter"><code class="docutils literal notranslate"><span class="pre">TraceEnter()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.TraceExit"><code class="docutils literal notranslate"><span class="pre">TraceExit()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.TracePrint"><code class="docutils literal notranslate"><span class="pre">TracePrint()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.Tracer"><code class="docutils literal notranslate"><span class="pre">Tracer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.Tracer.Enter"><code class="docutils literal notranslate"><span class="pre">Tracer.Enter()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.Tracer.Exit"><code class="docutils literal notranslate"><span class="pre">Tracer.Exit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_logging.Tracer.Print"><code class="docutils literal notranslate"><span class="pre">Tracer.Print()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_multi">yfinance_cache.yfc_multi module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_multi.download"><code class="docutils literal notranslate"><span class="pre">download()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_multi.download_one"><code class="docutils literal notranslate"><span class="pre">download_one()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_multi.download_one_parallel"><code class="docutils literal notranslate"><span class="pre">download_one_parallel()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_multi.reindex_dfs"><code class="docutils literal notranslate"><span class="pre">reindex_dfs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_multi.reinitialize_locks"><code class="docutils literal notranslate"><span class="pre">reinitialize_locks()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_options">yfinance_cache.yfc_options module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_options.NestedOptions"><code class="docutils literal notranslate"><span class="pre">NestedOptions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_options.OptionsManager"><code class="docutils literal notranslate"><span class="pre">OptionsManager</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_prices_manager">yfinance_cache.yfc_prices_manager module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory"><code class="docutils literal notranslate"><span class="pre">EventsHistory</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.GetDivs"><code class="docutils literal notranslate"><span class="pre">EventsHistory.GetDivs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.GetDivsFetchedSince"><code class="docutils literal notranslate"><span class="pre">EventsHistory.GetDivsFetchedSince()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.GetSplits"><code class="docutils literal notranslate"><span class="pre">EventsHistory.GetSplits()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.GetSplitsFetchedSince"><code class="docutils literal notranslate"><span class="pre">EventsHistory.GetSplitsFetchedSince()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.UpdateDividends"><code class="docutils literal notranslate"><span class="pre">EventsHistory.UpdateDividends()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.EventsHistory.UpdateSplits"><code class="docutils literal notranslate"><span class="pre">EventsHistory.UpdateSplits()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.HistoriesManager"><code class="docutils literal notranslate"><span class="pre">HistoriesManager</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.HistoriesManager.GetHistory"><code class="docutils literal notranslate"><span class="pre">HistoriesManager.GetHistory()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.HistoriesManager.LogEvent"><code class="docutils literal notranslate"><span class="pre">HistoriesManager.LogEvent()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.PriceHistory"><code class="docutils literal notranslate"><span class="pre">PriceHistory</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_prices_manager.PriceHistory.get"><code class="docutils literal notranslate"><span class="pre">PriceHistory.get()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_ticker">yfinance_cache.yfc_ticker module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker"><code class="docutils literal notranslate"><span class="pre">Ticker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.balance_sheet"><code class="docutils literal notranslate"><span class="pre">Ticker.balance_sheet</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.calendar"><code class="docutils literal notranslate"><span class="pre">Ticker.calendar</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.cashflow"><code class="docutils literal notranslate"><span class="pre">Ticker.cashflow</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.earnings"><code class="docutils literal notranslate"><span class="pre">Ticker.earnings</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.fast_info"><code class="docutils literal notranslate"><span class="pre">Ticker.fast_info</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.financials"><code class="docutils literal notranslate"><span class="pre">Ticker.financials</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.get_earnings_dates"><code class="docutils literal notranslate"><span class="pre">Ticker.get_earnings_dates()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.get_info"><code class="docutils literal notranslate"><span class="pre">Ticker.get_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.get_release_dates"><code class="docutils literal notranslate"><span class="pre">Ticker.get_release_dates()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.get_shares"><code class="docutils literal notranslate"><span class="pre">Ticker.get_shares()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.history"><code class="docutils literal notranslate"><span class="pre">Ticker.history()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.income_stmt"><code class="docutils literal notranslate"><span class="pre">Ticker.income_stmt</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.info"><code class="docutils literal notranslate"><span class="pre">Ticker.info</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.inin"><code class="docutils literal notranslate"><span class="pre">Ticker.inin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.institutional_holders"><code class="docutils literal notranslate"><span class="pre">Ticker.institutional_holders</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.major_holders"><code class="docutils literal notranslate"><span class="pre">Ticker.major_holders</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.news"><code class="docutils literal notranslate"><span class="pre">Ticker.news</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.options"><code class="docutils literal notranslate"><span class="pre">Ticker.options</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.quarterly_balance_sheet"><code class="docutils literal notranslate"><span class="pre">Ticker.quarterly_balance_sheet</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.quarterly_cashflow"><code class="docutils literal notranslate"><span class="pre">Ticker.quarterly_cashflow</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.quarterly_earnings"><code class="docutils literal notranslate"><span class="pre">Ticker.quarterly_earnings</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.quarterly_financials"><code class="docutils literal notranslate"><span class="pre">Ticker.quarterly_financials</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.quarterly_income_stmt"><code class="docutils literal notranslate"><span class="pre">Ticker.quarterly_income_stmt</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.recommendations"><code class="docutils literal notranslate"><span class="pre">Ticker.recommendations</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.splits"><code class="docutils literal notranslate"><span class="pre">Ticker.splits</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.sustainability"><code class="docutils literal notranslate"><span class="pre">Ticker.sustainability</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.verify_cached_prices"><code class="docutils literal notranslate"><span class="pre">Ticker.verify_cached_prices()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.Ticker.yf_lag"><code class="docutils literal notranslate"><span class="pre">Ticker.yf_lag</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_ticker.verify_cached_tickers_prices"><code class="docutils literal notranslate"><span class="pre">verify_cached_tickers_prices()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_time">yfinance_cache.yfc_time module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.CalcIntervalLastDataDt"><code class="docutils literal notranslate"><span class="pre">CalcIntervalLastDataDt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.CalcIntervalLastDataDt_batch"><code class="docutils literal notranslate"><span class="pre">CalcIntervalLastDataDt_batch()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.ConvertToDatetime"><code class="docutils literal notranslate"><span class="pre">ConvertToDatetime()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.DtSubtractPeriod"><code class="docutils literal notranslate"><span class="pre">DtSubtractPeriod()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.ExchangeOpenOnDay"><code class="docutils literal notranslate"><span class="pre">ExchangeOpenOnDay()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetCalendarViaCache"><code class="docutils literal notranslate"><span class="pre">GetCalendarViaCache()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetExchangeDataDelay"><code class="docutils literal notranslate"><span class="pre">GetExchangeDataDelay()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetExchangeSchedule"><code class="docutils literal notranslate"><span class="pre">GetExchangeSchedule()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetExchangeScheduleIntervals"><code class="docutils literal notranslate"><span class="pre">GetExchangeScheduleIntervals()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetExchangeTzName"><code class="docutils literal notranslate"><span class="pre">GetExchangeTzName()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetExchangeWeekSchedule"><code class="docutils literal notranslate"><span class="pre">GetExchangeWeekSchedule()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampCurrentInterval"><code class="docutils literal notranslate"><span class="pre">GetTimestampCurrentInterval()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampCurrentInterval_batch"><code class="docutils literal notranslate"><span class="pre">GetTimestampCurrentInterval_batch()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampCurrentSession"><code class="docutils literal notranslate"><span class="pre">GetTimestampCurrentSession()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampMostRecentSession"><code class="docutils literal notranslate"><span class="pre">GetTimestampMostRecentSession()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampNextInterval"><code class="docutils literal notranslate"><span class="pre">GetTimestampNextInterval()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampNextInterval_batch"><code class="docutils literal notranslate"><span class="pre">GetTimestampNextInterval_batch()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.GetTimestampNextSession"><code class="docutils literal notranslate"><span class="pre">GetTimestampNextSession()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.IdentifyMissingIntervalRanges"><code class="docutils literal notranslate"><span class="pre">IdentifyMissingIntervalRanges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.IdentifyMissingIntervals"><code class="docutils literal notranslate"><span class="pre">IdentifyMissingIntervals()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.IsPriceDatapointExpired"><code class="docutils literal notranslate"><span class="pre">IsPriceDatapointExpired()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.IsTimestampInActiveSession"><code class="docutils literal notranslate"><span class="pre">IsTimestampInActiveSession()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.JoinTwoXcals"><code class="docutils literal notranslate"><span class="pre">JoinTwoXcals()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.MapPeriodToDates"><code class="docutils literal notranslate"><span class="pre">MapPeriodToDates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.SetExchangeTzName"><code class="docutils literal notranslate"><span class="pre">SetExchangeTzName()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.Simple247xcal"><code class="docutils literal notranslate"><span class="pre">Simple247xcal()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_time.TimestampInBreak_batch"><code class="docutils literal notranslate"><span class="pre">TimestampInBreak_batch()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_upgrade">yfinance_cache.yfc_upgrade module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache.yfc_utils">yfinance_cache.yfc_utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.CalculateRounding"><code class="docutils literal notranslate"><span class="pre">CalculateRounding()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.ChunkDatesIntoYfFetches"><code class="docutils literal notranslate"><span class="pre">ChunkDatesIntoYfFetches()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame"><code class="docutils literal notranslate"><span class="pre">CustomNanCheckingDataFrame</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.check_nans"><code class="docutils literal notranslate"><span class="pre">CustomNanCheckingDataFrame.check_nans()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.concat"><code class="docutils literal notranslate"><span class="pre">CustomNanCheckingDataFrame.concat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.merge"><code class="docutils literal notranslate"><span class="pre">CustomNanCheckingDataFrame.merge()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.GetCDF0"><code class="docutils literal notranslate"><span class="pre">GetCDF0()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.GetCSF0"><code class="docutils literal notranslate"><span class="pre">GetCSF0()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.GetMagnitude"><code class="docutils literal notranslate"><span class="pre">GetMagnitude()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.GetSigFigs"><code class="docutils literal notranslate"><span class="pre">GetSigFigs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.JsonDecodeDict"><code class="docutils literal notranslate"><span class="pre">JsonDecodeDict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.JsonEncodeValue"><code class="docutils literal notranslate"><span class="pre">JsonEncodeValue()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.ProcessUserDt"><code class="docutils literal notranslate"><span class="pre">ProcessUserDt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.RDtoDO"><code class="docutils literal notranslate"><span class="pre">RDtoDO()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckBool"><code class="docutils literal notranslate"><span class="pre">TypeCheckBool()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDataFrame"><code class="docutils literal notranslate"><span class="pre">TypeCheckDataFrame()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDateEasy"><code class="docutils literal notranslate"><span class="pre">TypeCheckDateEasy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDateStrict"><code class="docutils literal notranslate"><span class="pre">TypeCheckDateStrict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDatetime"><code class="docutils literal notranslate"><span class="pre">TypeCheckDatetime()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDatetimeIndex"><code class="docutils literal notranslate"><span class="pre">TypeCheckDatetimeIndex()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckFloat"><code class="docutils literal notranslate"><span class="pre">TypeCheckFloat()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckInt"><code class="docutils literal notranslate"><span class="pre">TypeCheckInt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckInterval"><code class="docutils literal notranslate"><span class="pre">TypeCheckInterval()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckIntervalDt"><code class="docutils literal notranslate"><span class="pre">TypeCheckIntervalDt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckIterable"><code class="docutils literal notranslate"><span class="pre">TypeCheckIterable()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckNpArray"><code class="docutils literal notranslate"><span class="pre">TypeCheckNpArray()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckPeriod"><code class="docutils literal notranslate"><span class="pre">TypeCheckPeriod()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckStr"><code class="docutils literal notranslate"><span class="pre">TypeCheckStr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckTimedelta"><code class="docutils literal notranslate"><span class="pre">TypeCheckTimedelta()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckYear"><code class="docutils literal notranslate"><span class="pre">TypeCheckYear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.VerifyPricesDf"><code class="docutils literal notranslate"><span class="pre">VerifyPricesDf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.display_progress_bar"><code class="docutils literal notranslate"><span class="pre">display_progress_bar()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.np_isin_optimised"><code class="docutils literal notranslate"><span class="pre">np_isin_optimised()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="yfinance_cache.html#yfinance_cache.yfc_utils.np_weighted_mean_and_std"><code class="docutils literal notranslate"><span class="pre">np_weighted_mean_and_std()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="yfinance_cache.html#module-yfinance_cache">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="yfinance-cache documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="yfinance_cache.html" class="btn btn-neutral float-right" title="yfinance_cache package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, ValueRaider@protonmail.com.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
