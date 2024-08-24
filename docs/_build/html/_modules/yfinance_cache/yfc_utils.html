@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>yfinance_cache.yfc_utils &mdash; yfc 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            yfc
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../yfinance_cache.html">yfinance_cache package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">yfc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">yfinance_cache.yfc_utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for yfinance_cache.yfc_utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span><span class="p">,</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">dateutil.relativedelta</span> <span class="kn">import</span> <span class="n">relativedelta</span>
+<span class="kn">from</span> <span class="nn">zoneinfo</span> <span class="kn">import</span> <span class="n">ZoneInfo</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">pprint</span> <span class="kn">import</span> <span class="n">pprint</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_dat</span> <span class="k">as</span> <span class="n">yfcd</span>
+
+
+<div class="viewcode-block" id="CustomNanCheckingDataFrame">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame">[docs]</a>
+<span class="k">class</span> <span class="nc">CustomNanCheckingDataFrame</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CustomNanCheckingDataFrame</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_nans</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CustomNanCheckingDataFrame</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_nans</span><span class="p">()</span>
+
+<div class="viewcode-block" id="CustomNanCheckingDataFrame.concat">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.concat">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">concat</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">objs</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">CustomNanCheckingDataFrame</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">objs</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">check_nans</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="CustomNanCheckingDataFrame.merge">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.merge">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">CustomNanCheckingDataFrame</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">check_nans</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="CustomNanCheckingDataFrame.check_nans">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.CustomNanCheckingDataFrame.check_nans">[docs]</a>
+    <span class="k">def</span> <span class="nf">check_nans</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;Repaired?&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;Repaired?&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;NaNs detected in column &#39;Repaired?&#39;!&quot;</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="TypeCheckStr">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckStr">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckStr</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be str not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckBool">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckBool">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckBool</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be bool not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckFloat">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckFloat">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckFloat</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be float not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckInt">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckInt">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckInt</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be int not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckIterable">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckIterable">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckIterable</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be iterable not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TypeCheckDateEasy">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDateEasy">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckDateEasy</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">date</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">datetime</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be date not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; if datetime must be timezone-aware&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">varName</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span><span class="p">,</span> <span class="n">ZoneInfo</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; tzinfo must be ZoneInfo not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckDateStrict">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDateStrict">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckDateStrict</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="p">):</span>
+        <span class="c1"># While Pandas missing support for &#39;zoneinfo&#39; must deny</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be date not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">date</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">datetime</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be date not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckDatetime">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDatetime">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckDatetime</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be datetime not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; if datetime must be timezone-aware&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">varName</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span><span class="p">,</span> <span class="n">ZoneInfo</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; tzinfo must be ZoneInfo not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">tzinfo</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckYear">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckYear">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckYear</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; must be int not </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">varName</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">var</span> <span class="o">&lt;</span> <span class="mi">1900</span> <span class="ow">or</span> <span class="n">var</span> <span class="o">&gt;</span> <span class="mi">2200</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; must be in range 1900-2200 not </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">varName</span><span class="p">,</span> <span class="n">var</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="TypeCheckTimedelta">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckTimedelta">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckTimedelta</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">timedelta</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be timedelta not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckInterval">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckInterval">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckInterval</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be yfcd.Interval not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckIntervalDt">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckIntervalDt">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckIntervalDt</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">varName</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">interval</span> <span class="ow">in</span> <span class="p">[</span><span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="o">.</span><span class="n">Days1</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="o">.</span><span class="n">Week</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+                <span class="n">TypeCheckDateStrict</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">TypeCheckDateEasy</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+                <span class="n">TypeCheckDatetime</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">TypeCheckDateEasy</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; for interval &quot;</span><span class="o">+</span><span class="n">yfcd</span><span class="o">.</span><span class="n">intervalToString</span><span class="p">[</span><span class="n">interval</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="TypeCheckPeriod">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckPeriod">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckPeriod</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Period</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="p">(</span><span class="n">timedelta</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">,</span> <span class="n">relativedelta</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be Timedelta or yfcd.Period not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TypeCheckNpArray">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckNpArray">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckNpArray</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be numpy array not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckDataFrame">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDataFrame">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckDataFrame</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be pd.DataFrame not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeCheckDatetimeIndex">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.TypeCheckDatetimeIndex">[docs]</a>
+<span class="k">def</span> <span class="nf">TypeCheckDatetimeIndex</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">varName</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DatetimeIndex</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">varName</span><span class="si">}</span><span class="s2">&#39; must be pd.DatetimeIndex not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="JsonEncodeValue">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.JsonEncodeValue">[docs]</a>
+<span class="k">def</span> <span class="nf">JsonEncodeValue</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">date</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">timedelta</span><span class="p">):</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="s2">&quot;timedelta-</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">e</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="JsonDecodeDict">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.JsonDecodeDict">[docs]</a>
+<span class="k">def</span> <span class="nf">JsonDecodeDict</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;timedelta-&quot;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">sfx</span> <span class="o">=</span> <span class="s1">&#39;-&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:])</span>
+                <span class="n">sfxf</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">sfx</span><span class="p">)</span>
+                <span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sfxf</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># TODO: add suffix &quot;date-&quot; or &quot;datetime-&quot;. Will need to upgrade existing cache</span>
+            <span class="n">decoded</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">date</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">decoded</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">decoded</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                    <span class="n">decoded</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+
+<div class="viewcode-block" id="GetSigFigs">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.GetSigFigs">[docs]</a>
+<span class="k">def</span> <span class="nf">GetSigFigs</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">n_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;0*[1-9](\d*[1-9])?&#39;</span><span class="p">,</span> <span class="n">n_str</span><span class="p">)</span>
+    <span class="n">sf</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">sf</span></div>
+
+
+
+<div class="viewcode-block" id="GetMagnitude">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.GetMagnitude">[docs]</a>
+<span class="k">def</span> <span class="nf">GetMagnitude</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">*=</span> <span class="mf">0.1</span>
+            <span class="n">m</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">*=</span> <span class="mf">10.0</span>
+            <span class="n">m</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">m</span></div>
+
+
+
+<div class="viewcode-block" id="CalculateRounding">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.CalculateRounding">[docs]</a>
+<span class="k">def</span> <span class="nf">CalculateRounding</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">sigfigs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">GetSigFigs</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">n</span><span class="p">))</span> <span class="o">&gt;=</span> <span class="n">sigfigs</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">sigfigs</span> <span class="o">-</span> <span class="n">GetSigFigs</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">n</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="ProcessUserDt">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.ProcessUserDt">[docs]</a>
+<span class="k">def</span> <span class="nf">ProcessUserDt</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">tz_name</span><span class="p">):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">tz</span> <span class="o">=</span> <span class="n">ZoneInfo</span><span class="p">(</span><span class="n">tz_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">combine</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">time</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">tz</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">date</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">dt</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">combine</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">time</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">tz</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Argument &#39;dt&#39; must be str, date or datetime&quot;</span><span class="p">)</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">tz</span><span class="p">)</span> <span class="k">if</span> <span class="n">dt</span><span class="o">.</span><span class="n">tzinfo</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">dt</span><span class="o">.</span><span class="n">astimezone</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dt</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">==</span> <span class="n">time</span><span class="p">(</span><span class="mi">0</span><span class="p">):</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">dt</span><span class="p">,</span> <span class="n">d</span></div>
+
+
+
+<div class="viewcode-block" id="RDtoDO">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.RDtoDO">[docs]</a>
+<span class="k">def</span> <span class="nf">RDtoDO</span><span class="p">(</span><span class="n">rd</span><span class="p">):</span>
+    <span class="c1"># Convert a relativedelta to Pandas.DateOffset</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DateOffset</span><span class="p">(</span><span class="n">years</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">years</span><span class="p">,</span>
+                         <span class="n">months</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">months</span><span class="p">,</span>
+                         <span class="n">days</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">days</span><span class="p">,</span>
+                         <span class="n">hours</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">hours</span><span class="p">,</span>
+                         <span class="n">minutes</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">minutes</span><span class="p">,</span>
+                         <span class="n">seconds</span><span class="o">=</span><span class="n">rd</span><span class="o">.</span><span class="n">seconds</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GetCSF0">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.GetCSF0">[docs]</a>
+<span class="k">def</span> <span class="nf">GetCSF0</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
+    <span class="k">if</span> <span class="s2">&quot;Stock Splits&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;DataFrame does not contain column &#39;Stock Splits&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;DataFrame is empty&quot;</span><span class="p">)</span>
+
+    <span class="n">ss</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Stock Splits&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">ss</span><span class="p">[</span><span class="n">ss</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+    <span class="k">if</span> <span class="s2">&quot;CSF&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">csf</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;CSF&quot;</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ss_rcp</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">ss</span>
+        <span class="n">csf</span> <span class="o">=</span> <span class="n">ss_rcp</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">cumprod</span><span class="p">()</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">csf0</span> <span class="o">=</span> <span class="n">csf</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">ss0</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">ss0</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="n">csf0</span> <span class="o">*=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">ss0</span>
+
+    <span class="k">return</span> <span class="n">csf0</span></div>
+
+
+
+<div class="viewcode-block" id="GetCDF0">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.GetCDF0">[docs]</a>
+<span class="k">def</span> <span class="nf">GetCDF0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">close_day_before</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="s2">&quot;CDF&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;DataFrame does not contain column &#39;CDF&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;DataFrame is empty&quot;</span><span class="p">)</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">cdf</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;CDF&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">cdf</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="c1"># Yahoo&#39;s dividend adjustment has tiny variation (~1e-6),</span>
+        <span class="c1"># so use mean to minimise accuracy loss of adjusted-&gt;deadjust-&gt;adjust</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Dividends&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="n">cdf_mean</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;CDF&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">cdf_mean</span><span class="o">-</span><span class="n">cdf</span><span class="p">)</span><span class="o">/</span><span class="n">cdf</span> <span class="o">&gt;</span> <span class="mf">0.0001</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Mean CDF=</span><span class="si">{}</span><span class="s2"> is sig. different to CDF[0]=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cdf_mean</span><span class="p">,</span> <span class="n">cdf</span><span class="p">))</span>
+        <span class="n">cdf</span> <span class="o">=</span> <span class="n">cdf_mean</span>
+
+    <span class="n">div0</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Dividends&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">div0</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">close_day_before</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Dividend in most recent row so need to know yesterday&#39;s close&quot;</span><span class="p">)</span>
+        <span class="n">cdf</span> <span class="o">*=</span> <span class="p">(</span><span class="n">close_day_before</span><span class="o">-</span><span class="n">div0</span><span class="p">)</span><span class="o">/</span><span class="n">close_day_before</span>
+
+    <span class="k">return</span> <span class="n">cdf</span></div>
+
+
+
+
+<div class="viewcode-block" id="ChunkDatesIntoYfFetches">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.ChunkDatesIntoYfFetches">[docs]</a>
+<span class="k">def</span> <span class="nf">ChunkDatesIntoYfFetches</span><span class="p">(</span><span class="n">schedule</span><span class="p">,</span> <span class="n">maxDays</span><span class="p">,</span> <span class="n">overlapDays</span><span class="p">):</span>
+    <span class="n">TypeCheckDataFrame</span><span class="p">(</span><span class="n">schedule</span><span class="p">,</span> <span class="s2">&quot;schedule&quot;</span><span class="p">)</span>
+    <span class="n">TypeCheckInt</span><span class="p">(</span><span class="n">maxDays</span><span class="p">,</span> <span class="s2">&quot;maxDays&quot;</span><span class="p">)</span>
+    <span class="n">TypeCheckInt</span><span class="p">(</span><span class="n">overlapDays</span><span class="p">,</span> <span class="s2">&quot;overlapDays&quot;</span><span class="p">)</span>
+
+    <span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1"># debug = True</span>
+
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ChunkDatesIntoYfFetches()&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- schedule:&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">schedule</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">schedule</span><span class="p">[</span><span class="s2">&quot;close&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- maxDays =&quot;</span><span class="p">,</span> <span class="n">maxDays</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- overlap =&quot;</span><span class="p">,</span> <span class="n">overlapDays</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">schedule</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">step</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">step</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">date</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">date</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">step</span> <span class="p">;</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">days</span>
+
+    <span class="c1"># groupStarts = [s.index[0]]</span>
+    <span class="n">groupStarts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">groupEnds</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">grpSize</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># TODO: probably need to compile this loop</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">ctr</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">s</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="n">ctr</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">ctr</span> <span class="o">&gt;</span> <span class="mi">1000</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;infinite loop detected&quot;</span><span class="p">)</span>
+
+        <span class="n">size</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">grpSize</span> <span class="o">+</span> <span class="n">size</span> <span class="o">&lt;=</span> <span class="n">maxDays</span><span class="p">:</span>
+            <span class="c1"># Add to group</span>
+            <span class="n">grpSize</span> <span class="o">+=</span> <span class="n">size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Close current group</span>
+            <span class="c1"># groupEnds.append(s.index[i])</span>
+            <span class="n">groupEnds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="c1"># Start new group, 2 indices back</span>
+            <span class="n">i</span> <span class="o">-=</span> <span class="mi">2</span>
+            <span class="c1"># nextStart = s.index[i]</span>
+            <span class="c1"># groupStarts.append(nextStart)</span>
+            <span class="n">groupStarts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">grpSize</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">tz</span> <span class="o">=</span> <span class="n">schedule</span><span class="p">[</span><span class="s2">&quot;close&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tz</span>
+
+    <span class="c1"># groupEnds.append(schedule.index[-1] + pd.Timedelta(days=1))</span>
+    <span class="c1"># groups = [[groupStarts[i], groupEnds[i]] for i in range(len(groupStarts))]</span>
+    <span class="c1"># groups = [[groupStarts[i].tz_localize(tz), groupEnds[i].tz_localize(tz)] for i in range(len(groupStarts))]</span>
+    <span class="c1"># return groups</span>
+
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="c1"># print(&quot;- groups:&quot;)</span>
+        <span class="c1"># pprint([ (groupStarts[i], groupEnds[i]) for i in range(len(groupStarts))])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- groupStarts&quot;</span><span class="p">)</span>
+        <span class="n">pprint</span><span class="p">(</span><span class="n">groupStarts</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- groupEnds&quot;</span><span class="p">)</span>
+        <span class="n">pprint</span><span class="p">(</span><span class="n">groupEnds</span><span class="p">)</span>
+
+    <span class="n">groups</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">td_1d</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">groupStarts</span><span class="p">)):</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">g</span><span class="p">[</span><span class="s2">&quot;fetch start&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">groupStarts</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+        <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core start&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">groupStarts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">groupStarts</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core end&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+            <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core end&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s2">&quot;core end&quot;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core start&quot;</span><span class="p">]</span><span class="o">+</span><span class="n">td_1d</span><span class="p">)</span>
+            <span class="n">g</span><span class="p">[</span><span class="s2">&quot;fetch end&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core end&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">td_1d</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">g</span><span class="p">[</span><span class="s2">&quot;core end&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">groupEnds</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+            <span class="n">g</span><span class="p">[</span><span class="s2">&quot;fetch end&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">groupEnds</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="n">tz</span><span class="p">)</span>
+        <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">groups</span></div>
+
+
+
+<div class="viewcode-block" id="VerifyPricesDf">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.VerifyPricesDf">[docs]</a>
+<span class="k">def</span> <span class="nf">VerifyPricesDf</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">df_yf</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">vol_rtol</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">exit_first_error</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">df_yf</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;VerifyPricesDf() has been given empty df_yf&quot;</span><span class="p">)</span>
+
+    <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="n">interday</span> <span class="o">=</span> <span class="n">interval</span> <span class="ow">in</span> <span class="p">[</span><span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="o">.</span><span class="n">Days1</span><span class="p">,</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">Interval</span><span class="o">.</span><span class="n">Week</span><span class="p">]</span><span class="c1">#, yfcd.Interval.Months1, yfcd.Interval.Months3]</span>
+    <span class="n">istr</span> <span class="o">=</span> <span class="n">yfcd</span><span class="o">.</span><span class="n">intervalToString</span><span class="p">[</span><span class="n">interval</span><span class="p">]</span>
+
+
+    <span class="c1"># Test: no NaNs in dividends &amp; stock splits</span>
+    <span class="n">f_na</span> <span class="o">=</span> <span class="n">h</span><span class="p">[[</span><span class="s2">&quot;Dividends&quot;</span><span class="p">,</span> <span class="s2">&quot;Stock Splits&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">f_na</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;WARNING: NaNs detected in dividends &amp; stock splits&quot;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_na</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> NaNs detected in dividends &amp; stock splits&quot;</span><span class="p">)</span>
+        <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_na</span>
+
+    <span class="c1"># Drop NaNs from YF data:</span>
+    <span class="n">df_yf</span> <span class="o">=</span> <span class="n">df_yf</span><span class="p">[</span><span class="o">~</span><span class="n">df_yf</span><span class="p">[</span><span class="n">yfcd</span><span class="o">.</span><span class="n">yf_price_data_cols</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+
+    <span class="c1"># Drop mismatching indices for value check</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">h</span><span class="p">[</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">df_yf</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">h</span><span class="p">[</span><span class="n">h</span><span class="p">[</span><span class="s1">&#39;Final?&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()]</span>
+    <span class="n">df_yf</span> <span class="o">=</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">df_yf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Apply dividend-adjustment</span>
+    <span class="n">h_adj</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Open&quot;</span><span class="p">,</span> <span class="s2">&quot;Close&quot;</span><span class="p">,</span> <span class="s2">&quot;Low&quot;</span><span class="p">,</span> <span class="s2">&quot;High&quot;</span><span class="p">]:</span>
+        <span class="n">h_adj</span><span class="p">[</span><span class="s2">&quot;Adj &quot;</span> <span class="o">+</span> <span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">h_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="o">*</span> <span class="n">h_adj</span><span class="p">[</span><span class="s2">&quot;CDF&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="n">h_adj</span> <span class="o">=</span> <span class="n">h_adj</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">df_yf_adj</span> <span class="o">=</span> <span class="n">df_yf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">adj_f</span> <span class="o">=</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Adj Close&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="o">/</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Close&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+    <span class="n">df_yf_adj</span> <span class="o">=</span> <span class="n">df_yf_adj</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">&quot;Close&quot;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Open&quot;</span><span class="p">,</span> <span class="s2">&quot;Low&quot;</span><span class="p">,</span> <span class="s2">&quot;High&quot;</span><span class="p">]:</span>
+        <span class="n">df_yf_adj</span><span class="p">[</span><span class="s2">&quot;Adj &quot;</span> <span class="o">+</span> <span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_yf_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="o">*</span> <span class="n">adj_f</span>
+        <span class="n">df_yf_adj</span> <span class="o">=</span> <span class="n">df_yf_adj</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Verify dividends</span>
+    <span class="c1"># - first compare dates</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="s2">&quot;Dividends&quot;</span>
+    <span class="n">h_divs</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;FetchDate&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+    <span class="n">yf_divs</span> <span class="o">=</span> <span class="n">df_yf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+    <span class="n">dts_missing_from_cache</span> <span class="o">=</span> <span class="n">yf_divs</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="o">~</span><span class="n">yf_divs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">dts_missing_from_yf</span> <span class="o">=</span> <span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="o">~</span><span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">yf_divs</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">divs_bad</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dts_missing_from_cache</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING: Dividends missing from cache:&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- &quot;</span><span class="p">,</span> <span class="n">dts_missing_from_cache</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dt</span> <span class="ow">in</span> <span class="n">dts_missing_from_cache</span><span class="p">:</span>
+            <span class="n">f_diff_all</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">dt</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">exit_first_error</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">f_diff_all</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dts_missing_from_yf</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ERROR: Cache contains dividends missing from Yahoo:&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">dts_missing_from_yf</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dt</span> <span class="ow">in</span> <span class="n">dts_missing_from_yf</span><span class="p">:</span>
+            <span class="n">f_diff_all</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">dt</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">exit_first_error</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">f_diff_all</span>
+    <span class="c1"># - now compare values</span>
+    <span class="n">h_divs</span> <span class="o">=</span> <span class="n">h_divs</span><span class="p">[</span><span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">yf_divs</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">yf_divs</span> <span class="o">=</span> <span class="n">yf_divs</span><span class="p">[</span><span class="n">yf_divs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h_divs</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">yf_divs</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rtol</span><span class="o">=</span><span class="n">rtol</span><span class="p">)</span>
+    <span class="n">f_close</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">f_close</span><span class="p">,</span> <span class="n">h_divs</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+    <span class="n">f_diff</span> <span class="o">=</span> <span class="o">~</span><span class="n">f_close</span>
+    <span class="k">if</span> <span class="n">f_diff</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="n">n_diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;WARNING: </span><span class="si">{</span><span class="n">istr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_diff</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> differences in column </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">df_diffs</span> <span class="o">=</span> <span class="n">h_divs</span><span class="p">[</span><span class="n">f_diff</span><span class="p">]</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">yf_divs</span><span class="p">[</span><span class="n">f_diff</span><span class="p">],</span> <span class="n">lsuffix</span><span class="o">=</span><span class="s2">&quot;_cache&quot;</span><span class="p">,</span> <span class="n">rsuffix</span><span class="o">=</span><span class="s2">&quot;_yf&quot;</span><span class="p">)</span>
+        <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_cache&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">]</span>
+        <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error %&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span><span class="o">*</span><span class="mi">100</span> <span class="o">/</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;%&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">df_diffs</span><span class="p">)</span>
+        <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_diff</span>
+        <span class="k">if</span> <span class="n">exit_first_error</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">f_diff_all</span>
+
+    <span class="c1"># Verify stock splits</span>
+    <span class="c1"># - first compare dates</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="s2">&quot;Stock Splits&quot;</span>
+    <span class="n">h_ss</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;FetchDate&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+    <span class="n">yf_ss</span> <span class="o">=</span> <span class="n">df_yf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+    <span class="n">dts_missing_from_cache</span> <span class="o">=</span> <span class="n">yf_ss</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="o">~</span><span class="n">yf_ss</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">h_ss</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">dts_missing_from_yf</span> <span class="o">=</span> <span class="n">h_ss</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="o">~</span><span class="n">h_ss</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">yf_ss</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">splits_bad</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dts_missing_from_cache</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARNING: Stock splits missing from cache:&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- &quot;</span><span class="p">,</span> <span class="n">dts_missing_from_cache</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dt</span> <span class="ow">in</span> <span class="n">dts_missing_from_cache</span><span class="p">:</span>
+            <span class="n">f_diff_all</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">dt</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># - now compare values</span>
+    <span class="n">h_ss</span> <span class="o">=</span> <span class="n">h_ss</span><span class="p">[</span><span class="n">h_ss</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">yf_ss</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="n">yf_ss</span> <span class="o">=</span> <span class="n">yf_ss</span><span class="p">[</span><span class="n">yf_ss</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">h_ss</span><span class="o">.</span><span class="n">index</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">yf_ss</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h_ss</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">yf_ss</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rtol</span><span class="o">=</span><span class="n">rtol</span><span class="p">)</span>
+        <span class="n">f_diff</span> <span class="o">=</span> <span class="o">~</span><span class="n">f_close</span>
+        <span class="k">if</span> <span class="n">f_diff</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="n">n_diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;WARNING: </span><span class="si">{</span><span class="n">istr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_diff</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> differences in column </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">df_diffs</span> <span class="o">=</span> <span class="n">h_ss</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">yf_ss</span><span class="p">[</span><span class="n">f_diff</span><span class="p">],</span> <span class="n">lsuffix</span><span class="o">=</span><span class="s2">&quot;_cache&quot;</span><span class="p">,</span> <span class="n">rsuffix</span><span class="o">=</span><span class="s2">&quot;_yf&quot;</span><span class="p">)</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_cache&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">]</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error %&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span><span class="o">*</span><span class="mi">100</span> <span class="o">/</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;%&#39;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">df_diffs</span><span class="p">)</span>
+            <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_diff</span>
+            <span class="n">splits_bad</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_print_sig_diffs</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">df_yf</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">rtol</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">column</span>
+        <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rtol</span><span class="o">=</span><span class="n">rtol</span><span class="p">)</span>
+        <span class="n">f_diff</span> <span class="o">=</span> <span class="o">~</span><span class="n">f_close</span>
+        <span class="k">if</span> <span class="n">f_diff</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="c1"># Use looser tolerance if different &#39;Repaired?&#39; states</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s1">&#39;Volume&#39;</span><span class="p">:</span>
+                <span class="c1"># Volume is very sensitive fetch</span>
+                <span class="n">f_repair_mismatch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">f_repair_mismatch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_xor</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">f_repair_mismatch</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s1">&#39;Volume&#39;</span><span class="p">:</span>
+                    <span class="n">loose_tol</span> <span class="o">=</span> <span class="mf">0.5</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loose_tol</span> <span class="o">=</span> <span class="mf">0.1</span>
+                <span class="n">f_diff</span><span class="p">[</span><span class="n">f_repair_mismatch</span><span class="p">]</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="n">loose_tol</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">f_diff</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;FetchDate&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s2">&quot;Adj&quot;</span> <span class="ow">in</span> <span class="n">column</span><span class="p">:</span>
+                <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;LastDivAdjustDt&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;LastSplitAdjustDt&quot;</span><span class="p">)</span>
+            <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">)</span>
+            <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="c1"># yahoo_cols = [c]</span>
+            <span class="n">yahoo_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span>
+            <span class="n">df_diffs</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">f_diff</span><span class="p">,</span> <span class="n">cols</span><span class="p">]</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">df_yf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">f_diff</span><span class="p">,</span> <span class="n">yahoo_cols</span><span class="p">],</span> <span class="n">lsuffix</span><span class="o">=</span><span class="s2">&quot;_cache&quot;</span><span class="p">,</span> <span class="n">rsuffix</span><span class="o">=</span><span class="s2">&quot;_yf&quot;</span><span class="p">)</span>
+            <span class="n">df_diffs</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz_convert</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_cache&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">]</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error %&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span><span class="o">*</span><span class="mi">100</span> <span class="o">/</span> <span class="n">df_diffs</span><span class="p">[</span><span class="n">c</span><span class="o">+</span><span class="s2">&quot;_yf&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;%&#39;</span>
+
+            <span class="c1"># Combine the &#39;Repaired?&#39; columns</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;cache=&quot;</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;Repaired?_cache&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">df_diffs</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">f</span><span class="p">,</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;Y&#39;</span>
+            <span class="n">df_diffs</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="o">~</span><span class="n">f</span><span class="p">,</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;N&#39;</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39; yf=&#39;</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;Repaired?_yf&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">df_diffs</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">f</span><span class="p">,</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;Y&#39;</span>
+            <span class="n">df_diffs</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="o">~</span><span class="n">f</span><span class="p">,</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;N&#39;</span>
+            <span class="n">df_diffs</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="o">.</span><span class="n">drop</span><span class="p">([</span><span class="s2">&quot;Repaired?_cache&quot;</span><span class="p">,</span> <span class="s2">&quot;Repaired?_yf&quot;</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;FetchDate&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;FetchDate&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">tz_convert</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+            <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;FetchDate&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;FetchDate&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S%z&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;LastDivAdjustDt&quot;</span> <span class="ow">in</span> <span class="n">df_diffs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastDivAdjustDt&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastDivAdjustDt&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">tz_convert</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+                <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastDivAdjustDt&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastDivAdjustDt&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;LastSplitAdjustDt&quot;</span> <span class="ow">in</span> <span class="n">df_diffs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastSplitAdjustDt&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastSplitAdjustDt&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">tz_convert</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+                <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastSplitAdjustDt&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="p">[</span><span class="s2">&quot;LastSplitAdjustDt&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">interday</span><span class="p">:</span>
+                <span class="n">df_diffs</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">df_diffs</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">date</span>
+            <span class="n">f_diff_n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f_diff</span><span class="p">)</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;WARNING: </span><span class="si">{</span><span class="n">istr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">f_diff_n</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> sig. diffs in column </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2"> with rtol=</span><span class="si">{</span><span class="n">rtol</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">df_diffs</span><span class="p">)</span>
+
+    <span class="c1"># Verify volumes match</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="s2">&quot;Volume&quot;</span>
+    <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">vol_rtol</span><span class="p">)</span>
+    <span class="n">f_close</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">f_close</span><span class="p">,</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+    <span class="n">f_yfZeroVol</span> <span class="o">=</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">f_yfZeroVol</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="c1"># Ignore differences where YF volume = 0, because what has happened</span>
+        <span class="c1"># is cached data contains repair but now too old for YF to repair</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;ignoring </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_yfZeroVol</span><span class="p">)</span><span class="si">}</span><span class="s2"> diffs where YF volume = 0&quot;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- &quot;</span> <span class="o">+</span> <span class="n">msg</span><span class="p">)</span>
+        <span class="n">f_close</span><span class="p">[</span><span class="n">f_yfZeroVol</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">f_diff_vol</span> <span class="o">=</span> <span class="o">~</span><span class="n">f_close</span>
+    <span class="k">if</span> <span class="n">f_diff_vol</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="c1"># Use looser tolerance if different &#39;Repaired?&#39; states</span>
+        <span class="n">f_repair_mismatch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">f_repair_mismatch</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="c1"># loose_tol = 0.5</span>
+            <span class="n">loose_tol</span> <span class="o">=</span> <span class="mf">1.0</span>
+            <span class="n">f_diff_vol</span><span class="p">[</span><span class="n">f_repair_mismatch</span><span class="p">]</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="n">loose_tol</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">f_diff_vol</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="n">_print_sig_diffs</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">df_yf</span><span class="p">,</span> <span class="s2">&quot;Volume&quot;</span><span class="p">,</span> <span class="n">vol_rtol</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;WARNING: </span><span class="si">{</span><span class="n">istr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_vol</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> differences in &#39;Volume&#39;&quot;</span>
+            <span class="c1"># If very few date(times), append to string</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">interday</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_vol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; @ </span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">f_diff_vol</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">elif</span> <span class="n">interday</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_vol</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; @ </span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">date</span><span class="p">[</span><span class="n">f_diff_vol</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_diff_vol</span>
+
+    <span class="n">f_diff_prices</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Open&quot;</span><span class="p">,</span> <span class="s2">&quot;Close&quot;</span><span class="p">,</span> <span class="s2">&quot;High&quot;</span><span class="p">,</span> <span class="s2">&quot;Low&quot;</span><span class="p">]:</span>
+        <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rtol</span><span class="p">)</span>
+        <span class="n">f_close</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">f_close</span><span class="p">,</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">f_diff_c</span> <span class="o">=</span> <span class="o">~</span><span class="n">f_close</span>
+        <span class="k">if</span> <span class="n">f_diff_c</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="c1"># Use looser tolerance if different &#39;Repaired?&#39; states</span>
+            <span class="n">f_repair_mismatch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_xor</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">f_repair_mismatch</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                <span class="n">loose_tol</span> <span class="o">=</span> <span class="mf">0.1</span>
+                <span class="n">f_diff_c</span><span class="p">[</span><span class="n">f_repair_mismatch</span><span class="p">]</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">df_yf</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="n">loose_tol</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">f_diff_c</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+                <span class="n">_print_sig_diffs</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">df_yf</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">rtol</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;WARNING: </span><span class="si">{</span><span class="n">istr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_c</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> differences in &#39;</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="c1"># If very few date(times), append to string</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">interday</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; @ </span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">f_diff_c</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">elif</span> <span class="n">interday</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_c</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; @ </span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">date</span><span class="p">[</span><span class="n">f_diff_c</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="n">f_diff_prices</span> <span class="o">=</span> <span class="n">f_diff_prices</span> <span class="o">|</span> <span class="n">f_diff_c</span>
+    <span class="n">prices_bad</span> <span class="o">=</span> <span class="n">f_diff_prices</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+    <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_diff_prices</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">divs_bad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">splits_bad</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">prices_bad</span><span class="p">:</span>
+        <span class="n">f_diff_divs</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interday</span><span class="p">:</span>
+            <span class="c1"># Yahoo div-adjusts interday data, so check my div adjustment</span>
+            <span class="c1"># Use looser tolerance if different &#39;Repaired?&#39; states</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">f_repair_mismatch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logical_xor</span><span class="p">(</span><span class="n">h_adj</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf_adj</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- h_adj.shape:&quot;</span><span class="p">,</span> <span class="n">h_adj</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- df_yf_adj.shape:&quot;</span><span class="p">,</span> <span class="n">df_yf_adj</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;h_adj[&quot;Repaired?&quot;].dtype&#39;</span><span class="p">)</span> <span class="p">;</span> <span class="nb">print</span><span class="p">(</span><span class="n">h_adj</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;df_yf_adj[&quot;Repaired?&quot;].dtype&#39;</span><span class="p">)</span> <span class="p">;</span> <span class="nb">print</span><span class="p">(</span><span class="n">df_yf_adj</span><span class="p">[</span><span class="s2">&quot;Repaired?&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="k">raise</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Open&quot;</span><span class="p">,</span> <span class="s2">&quot;Close&quot;</span><span class="p">,</span> <span class="s2">&quot;High&quot;</span><span class="p">,</span> <span class="s2">&quot;Low&quot;</span><span class="p">]:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="s2">&quot;Adj &quot;</span><span class="o">+</span><span class="n">c</span>
+                <span class="n">f_close</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">df_yf_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">0.0005</span><span class="p">)</span>
+                <span class="n">f_close</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">f_close</span><span class="p">,</span> <span class="n">h</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">f_repair_mismatch</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                    <span class="n">loose_tol</span> <span class="o">=</span> <span class="mf">0.1</span>
+                    <span class="n">f_close2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">h_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">df_yf_adj</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[</span><span class="n">f_repair_mismatch</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="n">loose_tol</span><span class="p">)</span>
+                    <span class="n">f_close</span><span class="p">[</span><span class="n">f_repair_mismatch</span><span class="p">]</span> <span class="o">=</span> <span class="n">f_close2</span>
+                <span class="n">f_diff_c</span> <span class="o">=</span> <span class="p">(</span><span class="o">~</span><span class="n">f_close</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="o">~</span><span class="n">f_diff_all</span><span class="p">)</span>
+                <span class="n">f_diff_divs</span> <span class="o">=</span> <span class="n">f_diff_divs</span> <span class="o">|</span> <span class="n">f_diff_c</span>
+        <span class="n">f_diff_divs</span> <span class="o">=</span> <span class="n">f_diff_divs</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">f_diff_all</span>
+        <span class="k">if</span> <span class="n">f_diff_divs</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Bad div-adjustments detected:&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">f_diff_all</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;- no other differences&quot;</span><span class="p">)</span>
+                <span class="n">_print_sig_diffs</span><span class="p">(</span><span class="n">h_adj</span><span class="p">,</span> <span class="n">df_yf_adj</span><span class="p">,</span> <span class="s2">&quot;Adj Open&quot;</span><span class="p">,</span> <span class="n">rtol</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f_diff_divs</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> div-adjustment errors&quot;</span><span class="p">)</span>
+
+        <span class="n">only_div_errors</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">f_diff_all</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+        <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span> <span class="o">|</span> <span class="n">f_diff_divs</span>
+        <span class="k">if</span> <span class="n">f_diff_divs</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">and</span> <span class="n">only_div_errors</span><span class="p">:</span>
+            <span class="n">f_diff_all</span> <span class="o">=</span> <span class="n">f_diff_all</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s2">&quot;Div-Adjust&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">f_diff_all</span></div>
+
+
+
+<div class="viewcode-block" id="np_isin_optimised">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.np_isin_optimised">[docs]</a>
+<span class="k">def</span> <span class="nf">np_isin_optimised</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">invert</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">hasobject</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">hasobject</span><span class="p">:</span>
+        <span class="c1"># Apparently not optimised in numpy, faster to DIY</span>
+        <span class="c1"># https://github.com/numpy/numpy/issues/14997#issuecomment-560516888</span>
+        <span class="n">b_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">elem</span> <span class="ow">in</span> <span class="n">b_set</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">a</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">invert</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="o">~</span><span class="n">x</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">invert</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">invert</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="np_weighted_mean_and_std">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.np_weighted_mean_and_std">[docs]</a>
+<span class="k">def</span> <span class="nf">np_weighted_mean_and_std</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">weights</span><span class="p">):</span>
+    <span class="c1"># print(&quot;values:&quot;)</span>
+    <span class="c1"># print(values)</span>
+    <span class="c1"># print(&quot;weights:&quot;)</span>
+    <span class="c1"># print(weights)</span>
+    <span class="c1"># mean = np.mean(values)</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
+    <span class="c1"># print(f&quot;mean = {mean}&quot;)</span>
+    <span class="n">dev</span> <span class="o">=</span> <span class="p">(</span><span class="n">values</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="c1"># print(&quot;dev:&quot;)</span>
+    <span class="c1"># print(dev)</span>
+    <span class="n">std2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span>
+    <span class="c1"># print(f&quot;std2 = {std2}&quot;)</span>
+    <span class="n">std2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">dev</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
+    <span class="c1"># print(f&quot;std2 = {std2}&quot;)</span>
+
+    <span class="n">std</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">std2</span><span class="p">)</span>
+    <span class="c1"># print(f&quot;std = {std}&quot;)</span>
+
+    <span class="c1"># std_pct = std / mean</span>
+    <span class="c1"># print(f&quot;std_pct = {std_pct}&quot;)</span>
+
+    <span class="c1"># return std_pct</span>
+    <span class="k">return</span> <span class="n">mean</span><span class="p">,</span> <span class="n">std</span></div>
+
+
+<div class="viewcode-block" id="display_progress_bar">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_utils.display_progress_bar">[docs]</a>
+<span class="k">def</span> <span class="nf">display_progress_bar</span><span class="p">(</span><span class="n">completed</span><span class="p">,</span> <span class="n">total</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Function to display progress bar with percentage completion.&quot;&quot;&quot;</span>
+    <span class="c1"># percentage = (completed / total) * 100</span>
+    <span class="n">bar_length</span> <span class="o">=</span> <span class="mi">48</span>  <span class="c1"># Number of characters in the progress bar</span>
+    <span class="n">completed_length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">bar_length</span> <span class="o">*</span> <span class="n">completed</span> <span class="o">//</span> <span class="n">total</span><span class="p">)</span>
+    <span class="n">bar</span> <span class="o">=</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="n">completed_length</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">*</span> <span class="p">(</span><span class="n">bar_length</span> <span class="o">-</span> <span class="n">completed_length</span><span class="p">)</span>
+    <span class="c1"># print(f&quot;\rProgress: |{bar}| {percentage:.0f}% Completed&quot;, end=&#39;&#39;, flush=True)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\r</span><span class="s2">[</span><span class="si">{</span><span class="n">bar</span><span class="si">}</span><span class="s2">]  </span><span class="si">{</span><span class="n">completed</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2"> completed&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># add return after the last progress</span>
+    <span class="k">if</span> <span class="n">completed</span> <span class="o">==</span> <span class="n">total</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, cs.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

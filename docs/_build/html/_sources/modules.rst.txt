@@ -1,7 +1,7 @@
-yfinance-cache
+yfinance_cache
 ==============
 
 .. toctree::
    :maxdepth: 4
 
-   yfinance-cache
+   yfinance_cache

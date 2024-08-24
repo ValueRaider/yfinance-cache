@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>yfinance_cache.yfc_multi &mdash; yfc 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            yfc
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../yfinance_cache.html">yfinance_cache package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">yfc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">yfinance_cache.yfc_multi</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for yfinance_cache.yfc_multi</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">multiprocessing</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">traceback</span><span class="o">,</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">mode</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_ticker</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_utils</span> <span class="k">as</span> <span class="n">yfcu</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">yfc_dat</span> <span class="k">as</span> <span class="n">yfcd</span>
+
+<div class="viewcode-block" id="reinitialize_locks">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_multi.reinitialize_locks">[docs]</a>
+<span class="k">def</span> <span class="nf">reinitialize_locks</span><span class="p">(</span><span class="n">locks</span><span class="p">):</span>
+    <span class="n">yfcd</span><span class="o">.</span><span class="n">exchange_locks</span> <span class="o">=</span> <span class="n">locks</span></div>
+
+
+<div class="viewcode-block" id="download">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_multi.download">[docs]</a>
+<span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="n">tickers</span><span class="p">,</span>
+            <span class="n">threads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ignore_tz</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+            <span class="n">progress</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;1d&quot;</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="s1">&#39;column&#39;</span><span class="p">,</span>
+            <span class="n">max_age</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># defaults to half of interval</span>
+            <span class="n">period</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prepost</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">actions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">adjust_splits</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">adjust_divs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">keepna</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">proxy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rounding</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">trigger_at_market_close</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+    <span class="k">if</span> <span class="n">ignore_tz</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Set default value depending on interval</span>
+        <span class="n">ignore_tz</span> <span class="o">=</span> <span class="n">interval</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;h&#39;</span><span class="p">]</span>
+
+    <span class="c1"># create ticker list</span>
+    <span class="n">tickers</span> <span class="o">=</span> <span class="n">tickers</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tickers</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="k">else</span> <span class="n">tickers</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">tickers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">ticker</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">ticker</span> <span class="ow">in</span> <span class="n">tickers</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">tqdm</span>
+            <span class="n">have_tqdm</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">have_tqdm</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">threads</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">threads</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">threads</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+            <span class="n">queue</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Manager</span><span class="p">()</span><span class="o">.</span><span class="n">Queue</span><span class="p">()</span>
+            <span class="n">partial_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">download_one_parallel</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span> 
+                                    <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">,</span>
+                                    <span class="n">max_age</span><span class="o">=</span><span class="n">max_age</span><span class="p">,</span>
+                                    <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">prepost</span><span class="o">=</span><span class="n">prepost</span><span class="p">,</span>
+                                    <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">,</span> <span class="n">adjust_divs</span><span class="o">=</span><span class="n">adjust_divs</span><span class="p">,</span>
+                                    <span class="n">adjust_splits</span><span class="o">=</span><span class="n">adjust_splits</span><span class="p">,</span> <span class="n">keepna</span><span class="o">=</span><span class="n">keepna</span><span class="p">,</span>
+                                    <span class="n">proxy</span><span class="o">=</span><span class="n">proxy</span><span class="p">,</span>
+                                    <span class="n">rounding</span><span class="o">=</span><span class="n">rounding</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">threads</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="n">reinitialize_locks</span><span class="p">,</span> <span class="n">initargs</span><span class="o">=</span><span class="p">(</span><span class="n">yfcd</span><span class="o">.</span><span class="n">exchange_locks</span><span class="p">,))</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+                <span class="n">result_async</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map_async</span><span class="p">(</span><span class="n">partial_func</span><span class="p">,</span> <span class="n">tickers</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">have_tqdm</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">=</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="n">tickers</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
+                    <span class="n">status</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>  <span class="c1"># Blocks until a value is available</span>
+                    <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">&#39;error&#39;</span><span class="p">:</span>
+                        <span class="n">e</span><span class="p">,</span> <span class="n">tb</span> <span class="o">=</span> <span class="n">value</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">tb</span><span class="p">)</span>
+                        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">have_tqdm</span><span class="p">:</span>
+                        <span class="n">yfcu</span><span class="o">.</span><span class="n">display_progress_bar</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">))</span>
+                <span class="n">results</span> <span class="o">=</span> <span class="n">result_async</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">partial_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">download_one</span><span class="p">,</span> 
+                                    <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">,</span>
+                                    <span class="n">max_age</span><span class="o">=</span><span class="n">max_age</span><span class="p">,</span>
+                                    <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">prepost</span><span class="o">=</span><span class="n">prepost</span><span class="p">,</span>
+                                    <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">,</span> <span class="n">adjust_divs</span><span class="o">=</span><span class="n">adjust_divs</span><span class="p">,</span>
+                                    <span class="n">adjust_splits</span><span class="o">=</span><span class="n">adjust_splits</span><span class="p">,</span> <span class="n">keepna</span><span class="o">=</span><span class="n">keepna</span><span class="p">,</span>
+                                    <span class="n">proxy</span><span class="o">=</span><span class="n">proxy</span><span class="p">,</span>
+                                    <span class="n">rounding</span><span class="o">=</span><span class="n">rounding</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">threads</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+                <span class="n">results</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">partial_func</span><span class="p">,</span> <span class="n">tickers</span><span class="p">)</span>
+        <span class="n">dfs</span> <span class="o">=</span> <span class="p">{</span><span class="n">tickers</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span><span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">))}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dfs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">hist_args</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;period&#39;</span><span class="p">:</span><span class="n">period</span><span class="p">,</span> <span class="s1">&#39;interval&#39;</span><span class="p">:</span><span class="n">interval</span><span class="p">,</span>
+                     <span class="s1">&#39;max_age&#39;</span><span class="p">:</span><span class="n">max_age</span><span class="p">,</span>
+                     <span class="s1">&#39;start&#39;</span><span class="p">:</span><span class="n">start</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span><span class="n">end</span><span class="p">,</span> <span class="s1">&#39;prepost&#39;</span><span class="p">:</span><span class="n">prepost</span><span class="p">,</span>
+                     <span class="s1">&#39;actions&#39;</span><span class="p">:</span><span class="n">actions</span><span class="p">,</span> <span class="s1">&#39;adjust_divs&#39;</span><span class="p">:</span><span class="n">adjust_divs</span><span class="p">,</span>
+                     <span class="s1">&#39;adjust_splits&#39;</span><span class="p">:</span><span class="n">adjust_splits</span><span class="p">,</span> <span class="s1">&#39;keepna&#39;</span><span class="p">:</span><span class="n">keepna</span><span class="p">,</span>
+                     <span class="s1">&#39;proxy&#39;</span><span class="p">:</span><span class="n">proxy</span><span class="p">,</span>
+                     <span class="s1">&#39;rounding&#39;</span><span class="p">:</span><span class="n">rounding</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">have_tqdm</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">tkr</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="n">tickers</span><span class="p">):</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">yfc_ticker</span><span class="o">.</span><span class="n">Ticker</span><span class="p">(</span><span class="n">tkr</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span><span class="o">.</span><span class="n">history</span><span class="p">(</span><span class="o">**</span><span class="n">hist_args</span><span class="p">)</span>
+                    <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">)):</span>
+                    <span class="n">tkr</span> <span class="o">=</span> <span class="n">tickers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">yfc_ticker</span><span class="o">.</span><span class="n">Ticker</span><span class="p">(</span><span class="n">tkr</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span><span class="o">.</span><span class="n">history</span><span class="p">(</span><span class="o">**</span><span class="n">hist_args</span><span class="p">)</span>
+                    <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span>
+                    <span class="n">yfcu</span><span class="o">.</span><span class="n">display_progress_bar</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">)):</span>
+                <span class="n">tkr</span> <span class="o">=</span> <span class="n">tickers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">yfc_ticker</span><span class="o">.</span><span class="n">Ticker</span><span class="p">(</span><span class="n">tkr</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span><span class="o">.</span><span class="n">history</span><span class="p">(</span><span class="o">**</span><span class="n">hist_args</span><span class="p">)</span>
+                <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span>
+
+    
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tickers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ticker</span> <span class="o">=</span> <span class="n">tickers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">dfs</span><span class="p">[</span><span class="n">ticker</span><span class="p">]</span>
+
+    <span class="n">reindex_dfs</span><span class="p">(</span><span class="n">dfs</span><span class="p">,</span> <span class="n">ignore_tz</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">dfs</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">dfs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">reindex_dfs</span><span class="p">(</span><span class="n">dfs</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">dfs</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">dfs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="n">group_by</span> <span class="o">==</span> <span class="s1">&#39;column&#39;</span><span class="p">:</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">swaplevel</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<div class="viewcode-block" id="reindex_dfs">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_multi.reindex_dfs">[docs]</a>
+<span class="k">def</span> <span class="nf">reindex_dfs</span><span class="p">(</span><span class="n">dfs</span><span class="p">,</span> <span class="n">ignore_tz</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">ignore_tz</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">tkr</span> <span class="ow">in</span> <span class="n">dfs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">empty</span><span class="p">):</span>
+                <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Align each df to most common timezone</span>
+        <span class="n">tzs</span> <span class="o">=</span> <span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz</span> <span class="k">for</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">dfs</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">]</span>
+        <span class="n">tz_mode</span> <span class="o">=</span> <span class="n">mode</span><span class="p">(</span><span class="n">tzs</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">mode</span>
+        <span class="k">for</span> <span class="n">tkr</span> <span class="ow">in</span> <span class="n">dfs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">empty</span><span class="p">):</span>
+                <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">dfs</span><span class="p">[</span><span class="n">tkr</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">tz_convert</span><span class="p">(</span><span class="n">tz_mode</span><span class="p">)</span>
+
+    <span class="n">all_indices</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">dfs</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">all_indices</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">all_indices</span><span class="p">)</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">dfs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">dfs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="download_one_parallel">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_multi.download_one_parallel">[docs]</a>
+<span class="k">def</span> <span class="nf">download_one_parallel</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">adjust_divs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">adjust_splits</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                  <span class="n">actions</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;1d&quot;</span><span class="p">,</span>
+                  <span class="n">prepost</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">proxy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rounding</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                  <span class="n">keepna</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">download_one</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="n">max_age</span><span class="p">,</span>
+                      <span class="n">adjust_divs</span><span class="o">=</span><span class="n">adjust_divs</span><span class="p">,</span> <span class="n">adjust_splits</span><span class="o">=</span><span class="n">adjust_splits</span><span class="p">,</span>
+                      <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">,</span>
+                      <span class="n">prepost</span><span class="o">=</span><span class="n">prepost</span><span class="p">,</span> <span class="n">proxy</span><span class="o">=</span><span class="n">proxy</span><span class="p">,</span> <span class="n">rounding</span><span class="o">=</span><span class="n">rounding</span><span class="p">,</span>
+                      <span class="n">keepna</span><span class="o">=</span><span class="n">keepna</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="s1">&#39;success&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">df</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">tb</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exception</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="n">e</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">__traceback__</span><span class="p">)</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tb</span><span class="p">))))</span>
+        <span class="k">return</span> <span class="n">e</span></div>
+
+
+
+<div class="viewcode-block" id="download_one">
+<a class="viewcode-back" href="../../yfinance_cache.html#yfinance_cache.yfc_multi.download_one">[docs]</a>
+<span class="k">def</span> <span class="nf">download_one</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">adjust_divs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">adjust_splits</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                  <span class="n">actions</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;1d&quot;</span><span class="p">,</span>
+                  <span class="n">prepost</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">proxy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rounding</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                  <span class="n">keepna</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">dat</span> <span class="o">=</span> <span class="n">yfc_ticker</span><span class="o">.</span><span class="n">Ticker</span><span class="p">(</span><span class="n">ticker</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">dat</span><span class="o">.</span><span class="n">history</span><span class="p">(</span>
+            <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="n">max_age</span><span class="p">,</span>
+            <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">prepost</span><span class="o">=</span><span class="n">prepost</span><span class="p">,</span>
+            <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">,</span> <span class="n">adjust_divs</span><span class="o">=</span><span class="n">adjust_divs</span><span class="p">,</span>
+            <span class="n">adjust_splits</span><span class="o">=</span><span class="n">adjust_splits</span><span class="p">,</span> <span class="n">proxy</span><span class="o">=</span><span class="n">proxy</span><span class="p">,</span>
+            <span class="n">rounding</span><span class="o">=</span><span class="n">rounding</span><span class="p">,</span> <span class="n">keepna</span><span class="o">=</span><span class="n">keepna</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">df</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, cs.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
