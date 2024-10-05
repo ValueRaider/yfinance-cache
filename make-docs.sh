@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-pip install sphinx
+# pip install sphinx
 
 
 # Configure and fix the conf.py

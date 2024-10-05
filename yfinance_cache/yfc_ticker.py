@@ -74,6 +74,12 @@ class Ticker:
                 debug=True, quiet=False,
                 trigger_at_market_close=False):
 
+        """Example docstring for Ticker.history() function
+
+        Arguments:
+            interval - ...
+        """
+
         # t0 = perf_counter()
 
         if prepost:
