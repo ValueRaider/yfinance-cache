@@ -60,6 +60,14 @@ def GetPackedDataCat(objectName):
     return None
 
 
+def is_json_serializable(obj):
+    try:
+        json.dumps(obj)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+
 def GetFilepath(ticker, objectName, obj=None, prune=False):
     if IsObjectInPackedData(objectName):
         return GetFilepathPacked(ticker, objectName)
@@ -67,6 +75,9 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
     fp = None
     if obj is not None:
         if isinstance(obj, list) and (len(obj)==0 or isinstance(obj[0], (int, float, str, datetime, date, timedelta))):
+            ext = "json"
+            ext_bad = "pkl"
+        elif isinstance(obj, dict) and is_json_serializable(obj):
             ext = "json"
             ext_bad = "pkl"
         elif isinstance(obj, (int, float, str, datetime, date, timedelta)):

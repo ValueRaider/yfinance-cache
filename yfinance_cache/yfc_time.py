@@ -33,6 +33,8 @@ def SetExchangeTzName(exchange, tz):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckStr(tz, "tz")
 
+    if exchange not in yfcd.exchange_locks:
+        raise Exception(f"Need to add mapping of exchange {exchange} to xcal")
     exchange_lock = yfcd.exchange_locks[exchange]
     with exchange_lock:
         tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
@@ -1539,19 +1541,12 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
             print("CalcIntervalLastDataDt() returning {} because exchange closed".format(lastDataDt))
         return lastDataDt + yf_lag
 
-    # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
+    # For daily+ intervals, Yahoo can update prices until next market open, 
+    # and update volume until the second-next market open.
     if not intraday:
         # lastDataDt = start of next trading session, even if next day (or later)
         next_sesh = GetTimestampNextSession(exchange, intervalSched["close"].iloc[-1]-timedelta(minutes=1))
-        if debug:
-            print("- next_sesh:")
-            print(next_sesh)
-        if i_td > timedelta(days=1):
-            # start of second trading day in next interval
-            next_sesh = GetTimestampNextSession(exchange, next_sesh['market_close']-timedelta(minutes=1))
-            if debug:
-                print("- next_sesh:")
-                print(next_sesh)
+        next_sesh = GetTimestampNextSession(exchange, next_sesh['market_close']-timedelta(minutes=1))
         lastDataDt = next_sesh["market_open"] + yf_lag
 
         # Attempt to handle Yahoo changing weekly interval data after the last market update.
@@ -1681,9 +1676,8 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
 
         # Handle Yahoo changing weekly interval data after the last market update.
         # Also happens with daily but less often.
-        if i_td > timedelta(days=1):
-            # Get next trading day after next
-            next_intervals = GetTimestampNextInterval_batch(exchange, (next_intervals['interval_close']-pd.Timedelta('1m')).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
+        # Get next trading day after next
+        next_intervals = GetTimestampNextInterval_batch(exchange, (next_intervals['interval_close']-pd.Timedelta('1m')).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
 
         lastDataDt = next_intervals["interval_open"].to_numpy() + yf_lag
         if f_na.any():

@@ -59,8 +59,9 @@ class Ticker:
 
         self._tz = None
         self._exchange = None
+        self._listing_day = None
 
-        exchange, tz_name = self._getExchangeAndTz()
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
 
     def history(self,
@@ -89,9 +90,17 @@ class Ticker:
         yfcl.TraceEnter(log_msg)
 
         td_1d = datetime.timedelta(days=1)
-        exchange, tz_name = self._getExchangeAndTz()
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
+        if exchange == 'YHD':
+            raise Exception(f"Ticker symbol '{self.ticker}' not on Yahoo Finance.")
         tz_exchange = ZoneInfo(tz_name)
-        yfct.SetExchangeTzName(exchange, tz_name)
+        try:
+            yfct.SetExchangeTzName(exchange, tz_name)
+        except Exception as e:
+            if "Need to add mapping" in str(e):
+                raise Exception(f"Need to add mapping of exchange {exchange} to xcal (ticker={self.ticker})")
+            else:
+                raise
         dt_now = pd.Timestamp.utcnow()
 
         # Type checks
@@ -219,7 +228,7 @@ class Ticker:
                 raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self.ticker))
 
         if self._histories_manager is None:
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy)
 
         # t1_setup = perf_counter()
 
@@ -231,14 +240,7 @@ class Ticker:
         else:
             h = hist.get(start_dt, end_dt, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
-            msg = f"YFC: history() exiting without price data (tkr={self.ticker}"
-            if start_dt is not None or end_dt is not None:
-                msg += f" start_dt={start_dt} end_dt={end_dt}"
-            else:
-                msg += f" period={period}"
-            msg += f" max_age={max_age}"
-            msg += f" interval={yfcd.intervalToString[interval]})"
-            raise Exception(msg)
+            return pd.DataFrame()
 
         # t2_sync = perf_counter()
 
@@ -261,56 +263,56 @@ class Ticker:
         # t3_filter = perf_counter()
 
         if h.shape[0] == 0:
-            h = None
+            return h
+
+        if adjust_splits:
+            if not h_copied:
+                h = h.copy()
+            for c in ["Open", "Close", "Low", "High", "Dividends"]:
+                h[c] = np.multiply(h[c].to_numpy(), h["CSF"].to_numpy())
+            h["Volume"] = np.round(np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy()), 0).astype('int')
+        if adjust_divs:
+            if not h_copied:
+                h = h.copy()
+            for c in ["Open", "Close", "Low", "High"]:
+                h[c] = np.multiply(h[c].to_numpy(), h["CDF"].to_numpy())
         else:
-            if adjust_splits:
-                if not h_copied:
-                    h = h.copy()
-                for c in ["Open", "Close", "Low", "High", "Dividends"]:
-                    h[c] = np.multiply(h[c].to_numpy(), h["CSF"].to_numpy())
-                h["Volume"] = np.round(np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy()), 0).astype('int')
-            if adjust_divs:
-                if not h_copied:
-                    h = h.copy()
-                for c in ["Open", "Close", "Low", "High"]:
-                    h[c] = np.multiply(h[c].to_numpy(), h["CDF"].to_numpy())
+            if not h_copied:
+                h = h.copy()
+            h["Adj Close"] = np.multiply(h["Close"].to_numpy(), h["CDF"].to_numpy())
+        h = h.drop(["CSF", "CDF"], axis=1)
+
+        if rounding:
+            # Round to 4 sig-figs
+            if not h_copied:
+                h = h.copy()
+            f_na = h["Close"].isna()
+            na = f_na.any()
+            if na:
+                f_nna = ~f_na
+                if not f_nna.any():
+                    raise Exception(f"{self.ticker}: price table is entirely NaNs. Delisted?" +" \n" + log_msg)
+                last_close = h["Close"][f_nna].iloc[-1]
             else:
-                if not h_copied:
-                    h = h.copy()
-                h["Adj Close"] = np.multiply(h["Close"].to_numpy(), h["CDF"].to_numpy())
-            h = h.drop(["CSF", "CDF"], axis=1)
-
-            if rounding:
-                # Round to 4 sig-figs
-                if not h_copied:
-                    h = h.copy()
-                f_na = h["Close"].isna()
-                na = f_na.any()
+                last_close = h["Close"].iloc[-1]
+            rnd = yfcu.CalculateRounding(last_close, 4)
+            for c in ["Open", "Close", "Low", "High"]:
                 if na:
-                    f_nna = ~f_na
-                    if not f_nna.any():
-                        raise Exception(f"{self.ticker}: price table is entirely NaNs. Delisted?" +" \n" + log_msg)
-                    last_close = h["Close"][f_nna].iloc[-1]
+                    h.loc[f_nna, c] = np.round(h.loc[f_nna, c].to_numpy(), rnd)
                 else:
-                    last_close = h["Close"].iloc[-1]
-                rnd = yfcu.CalculateRounding(last_close, 4)
-                for c in ["Open", "Close", "Low", "High"]:
-                    if na:
-                        h.loc[f_nna, c] = np.round(h.loc[f_nna, c].to_numpy(), rnd)
-                    else:
-                        h[c] = np.round(h[c].to_numpy(), rnd)
+                    h[c] = np.round(h[c].to_numpy(), rnd)
 
-            if debug_yfc:
-                print("- h:")
-                cols = [c for c in ["Close", "Dividends", "Volume", "CDF", "CSF"] if c in h.columns]
-                print(h[cols])
-                if "Dividends" in h.columns:
-                    f = h["Dividends"] != 0.0
-                    if f.any():
-                        print("- dividends:")
-                        print(h.loc[f, cols])
-                print("")
-            yfcl.TraceExit("Ticker::history() returning")
+        if debug_yfc:
+            print("- h:")
+            cols = [c for c in ["Close", "Dividends", "Volume", "CDF", "CSF"] if c in h.columns]
+            print(h[cols])
+            if "Dividends" in h.columns:
+                f = h["Dividends"] != 0.0
+                if f.any():
+                    print("- dividends:")
+                    print(h.loc[f, cols])
+            print("")
+        yfcl.TraceExit("Ticker::history() returning")
 
         # t4_adjust = perf_counter()
         # t_setup = t1_setup - t0
@@ -328,10 +330,14 @@ class Ticker:
 
         return h
 
+    @property
+    def history_metadata(self):
+        return yfcm.ReadCacheDatum(self.ticker, "history_metadata")
+
     def _getCachedPrices(self, interval, proxy=None):
         if self._histories_manager is None:
-            exchange, tz_name = self._getExchangeAndTz()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy)
+            exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy)
 
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
@@ -340,29 +346,35 @@ class Ticker:
 
         return self._histories_manager.GetHistory(interval).h
 
-    def _getExchangeAndTz(self):
-        if self._tz is not None and self._exchange is not None:
-            return self._exchange, self._tz
+    def _getExchangeAndTzAndListingDay(self):
+        if self._tz is not None and self._exchange is not None and self._listing_day is not None:
+            return self._exchange, self._tz, self._listing_day
 
-        exchange, tz_name = None, None
+        exchange, tz_name, lday = None, None, None
         try:
-            exchange = self.get_info('9999d')['exchange']
-            if "exchangeTimezoneName" in self.get_info('9999d'):
-                tz_name = self.get_info('9999d')["exchangeTimezoneName"]
+            i = self.get_info('9999d')
+            exchange = i['exchange']
+            if "exchangeTimezoneName" in i:
+                tz_name = i["exchangeTimezoneName"]
             else:
-                tz_name = self.get_info('9999d')["timeZoneFullName"]
+                tz_name = i["timeZoneFullName"]
+            if 'firstTradeDateEpochUtc' in i and tz_name is not None:
+                lday = pd.Timestamp(i['firstTradeDateEpochUtc'], unit='s').tz_localize("UTC").tz_convert(tz_name).date()
         except Exception:
             md = yf.Ticker(self.ticker, session=self.session).history_metadata
-            if 'exchangeName' in md.keys():
+            if 'exchangeName' in md:
                 exchange = md['exchangeName']
-            if 'exchangeTimezoneName' in md.keys():
+            if 'exchangeTimezoneName' in md:
                 tz_name = md['exchangeTimezoneName']
+            if 'firstTradeDate' in md and tz_name is not None:
+                lday = pd.Timestamp(md['firstTradeDate'], unit='s').tz_localize("UTC").tz_convert(tz_name).date()
 
         if exchange is None or tz_name is None:
             raise Exception(f"{self.ticker}: exchange and timezone not available")
         self._tz = tz_name
         self._exchange = exchange
-        return self._exchange, self._tz
+        self._listing_day = lday
+        return self._exchange, self._tz, self._listing_day
 
     def verify_cached_prices(self, rtol=0.0001, vol_rtol=0.005, correct='none', discard_old=False, quiet=True, debug=False, debug_interval=None):
         if debug:
@@ -381,14 +393,17 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::verify_cached_prices(tkr={self.ticker} {fn_locals})")
 
         if self._histories_manager is None:
-            exchange, tz_name = self._getExchangeAndTz()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
+            exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy=None)
 
         v = True
 
         # First verify 1d
         dt0 = self._histories_manager.GetHistory(interval)._getCachedPrices().index[0]
-        self.history(start=dt0.date(), quiet=quiet, trigger_at_market_close=True)  # ensure have all dividends
+        try:
+            self.history(start=dt0.date(), quiet=quiet, trigger_at_market_close=True)  # ensure have all dividends
+        except yfcd.NoPriceDataInRangeException:
+            pass
         v = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
         if debug_interval == yfcd.Interval.Days1:
             yfcl.TraceExit(f"Ticker::verify_cached_prices() returning {v} (1st pass)")
@@ -464,8 +479,8 @@ class Ticker:
         yfcl.TraceEnter(f"Ticker::_verify_cached_prices_interval(tkr={self.ticker}, {fn_locals})")
 
         if self._histories_manager is None:
-            exchange, tz_name = self._getExchangeAndTz()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, self.session, proxy=None)
+            exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
+            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy=None)
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
 
@@ -473,7 +488,7 @@ class Ticker:
         return v
 
     def _process_user_dt(self, dt):
-        exchange, tz_name = self._getExchangeAndTz()
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         return yfcu.ProcessUserDt(dt, tz_name)
 
     @property
@@ -499,6 +514,8 @@ class Ticker:
                 fp = yfcm.GetFilepath(self.ticker, 'info')
                 mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
                 self._info['FetchDate'] = mod_dt
+                if md is None:
+                    md = {}
                 md['LastCheck'] = mod_dt
                 yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
@@ -544,7 +561,7 @@ class Ticker:
         md['LastCheck'] = i['FetchDate']
         yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
 
-        exchange, tz_name = self._getExchangeAndTz()
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         yfct.SetExchangeTzName(exchange, tz_name)
 
         return self._info
@@ -600,7 +617,7 @@ class Ticker:
         max_age = pd.Timedelta(max_age)
 
         # Process dates
-        exchange, tz = self._getExchangeAndTz()
+        exchange, tz, lday = self._getExchangeAndTzAndListingDay()
         dt_now = pd.Timestamp.utcnow().tz_convert(tz)
         if start is not None:
             start_dt, start_d = self._process_user_dt(start)
@@ -690,7 +707,7 @@ class Ticker:
     def _fetch_shares(self, start, end):
         td_1d = datetime.timedelta(days=1)
 
-        exchange, tz = self._getExchangeAndTz()
+        exchange, tz, lday = self._getExchangeAndTzAndListingDay()
         if isinstance(end, datetime.datetime):
             end_dt = end
             end_d = end.date()
@@ -913,7 +930,7 @@ class Ticker:
         if self._yf_lag is not None:
             return self._yf_lag
 
-        exchange, tz_name = self._getExchangeAndTz()
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         exchange_str = "exchange-{0}".format(exchange)
         if yfcm.IsDatumCached(exchange_str, "yf_lag"):
             self._yf_lag = yfcm.ReadCacheDatum(exchange_str, "yf_lag")

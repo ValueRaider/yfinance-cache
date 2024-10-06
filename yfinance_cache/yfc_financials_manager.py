@@ -15,6 +15,7 @@ from statistics import mean
 import math
 from decimal import Decimal
 from pprint import pprint
+import pulp
 
 
 d_today = date.today()
@@ -80,6 +81,11 @@ class EarningsRelease():
         s += f" ending {self.period_end}"
         s += " released"
         s += " ?" if self.release_date is None else f" {self.release_date}"
+        if self.release_date is not None:
+            delay = self.release_date - self.period_end
+            if isinstance(delay, (timedelta, pd.Timedelta)):
+                delay = f"{delay.days} days"
+            s += f" (delay = {delay})"
         return s
 
     def __repr__(self):
@@ -106,14 +112,41 @@ class EarningsRelease():
         diff = (rpe - self.full_year_end)
         diff += timedelta(days=365)  # just in case is negative
         diff = diff % timedelta(days=365)
+        tol = 35
         try:
-            if (diff > timedelta(days=-15) and diff < timedelta(days=15)) or\
-                (diff > timedelta(days=350) and diff < timedelta(days=370)):
+            if (diff > timedelta(days=-tol) and diff < timedelta(days=tol)) or \
+                (diff > timedelta(days=365-tol) and diff < timedelta(days=365+tol)):
                 # Aligns with annual release date
                 r_is_end_of_year = True
         except yfcd.AmbiguousComparisonException:
             r_is_end_of_year = True
         return r_is_end_of_year
+
+    def year_pct(self):
+        if self.is_end_of_year():
+            return 1.0
+        else:
+            rpe = self.period_end
+            diff = (rpe - self.full_year_end)
+            diff += timedelta(days=365)  # just in case is negative
+            diff = diff % timedelta(days=365)
+            tol = 35
+            try:
+                if diff > timedelta(days=91-tol) and diff < timedelta(days=91+tol):
+                    return 0.25
+            except yfcd.AmbiguousComparisonException:
+                return 0.25
+            try:
+                if diff > timedelta(days=182-tol) and diff < timedelta(days=182+tol):
+                    return 0.5
+            except yfcd.AmbiguousComparisonException:
+                return 0.5
+            try:
+                if diff > timedelta(days=274-tol) and diff < timedelta(days=274+tol):
+                    return 0.75
+            except yfcd.AmbiguousComparisonException:
+                return 0.75
+            raise Exception(f'Failed to determine % progress through year of release (diff={diff}): {self.__str__()}')
 
 
 interval_str_to_days = {}
@@ -191,7 +224,7 @@ class FinancialsManager:
         # debug = True
 
         if debug:
-            print(f"_get_fin_table({finType}, {period}, refresh={refresh})")
+            print(f"{self.ticker}: _get_fin_table({finType}, {period}, refresh={refresh})")
 
         if not isinstance(finType, yfcd.Financials):
             raise Exception('Argument finType must be type Financials')
@@ -266,8 +299,7 @@ class FinancialsManager:
             else:
                 td_1d = pd.Timedelta(1, unit='D')
                 releases = self.get_release_dates(period, refresh=False)
-                if debug:
-                    print("- releases:") ; pprint(releases)
+                next_release = None
                 if releases is None:
                     # Use crude logic to estimate when to re-fetch
                     if 'LastFetch' in md.keys():
@@ -275,32 +307,26 @@ class FinancialsManager:
                     else:
                         do_fetch = True
                 else:
-                    next_release = None
+                    releases = sorted(releases)
                     # last_d = df.columns.max().date()
                     # Update: analyse pruned dates:
                     last_d = self._prune_yf_financial_df(df).columns.max().date()
+                    # Find next release after last fetch:
                     for r in releases:
-                        # Release is newer than cache
                         try:
                             if r.period_end <= last_d:
                                 continue
                         except yfcd.AmbiguousComparisonException:
                             # Treat as match
                             continue
-
-                        try:
-                            fetched_long_after_release = md['LastFetch'].date() > (r.release_date + yf_max_grace_days_period)
-                        except yfcd.AmbiguousComparisonException:
-                            fetched_long_after_release = False
-                        if not fetched_long_after_release:
-                            next_release = r
-                            break
+                        next_release = r
+                        break
                     if next_release is None:
                         pprint(releases)
                         print("- last_d =", last_d)
                         raise Exception('Failed to determine next release after cached financials')
                     if debug:
-                        print("- last_d =", last_d, ", last_fetch =", md['LastFetch'])
+                        print("- last_d =", last_d, ", last_fetch =", md['LastFetch'].date())
                         print("- next_release:", next_release)
                     rd = next_release.release_date
                     try:
@@ -311,9 +337,30 @@ class FinancialsManager:
                         print("- next_release_in_future =", next_release_in_future)
                     if not next_release_in_future:
                         try:
-                            fair_to_expect_Yahoo_updated = (d_today-rd) >= yf_min_grace_days_period
+                            fetched_long_after_release = md['LastFetch'].date() > (r.release_date + yf_max_grace_days_period)
                         except yfcd.AmbiguousComparisonException:
-                            fair_to_expect_Yahoo_updated = True
+                            fetched_long_after_release = (r.release_date + yf_max_grace_days_period).prob_lt(md['LastFetch'].date()) > 0.5
+                        if debug:
+                            print("- fetched_long_after_release =", fetched_long_after_release)
+                        if fetched_long_after_release:
+                            # Yahoo should have returned the expected data in previous fetch!
+                            # So keep re-fetching but with longer delays
+                            refetch_delay = yf_min_grace_days_period
+                            try:
+                                refetch_delay = 0.5 * (md['LastFetch'].date() - (r.release_date + yf_min_grace_days_period))
+                            except yfcd.AmbiguousComparisonException:
+                                pass
+                            if debug:
+                                print("- refetch_delay =", refetch_delay)
+                            try:
+                                fair_to_expect_Yahoo_updated = (md['LastFetch'].date() + refetch_delay) < d_today
+                            except yfcd.AmbiguousComparisonException:
+                                fair_to_expect_Yahoo_updated = True
+                        else:
+                            try:
+                                fair_to_expect_Yahoo_updated = (d_today-rd) >= yf_min_grace_days_period
+                            except yfcd.AmbiguousComparisonException:
+                                fair_to_expect_Yahoo_updated = True
                         if debug:
                             print("- fair_to_expect_Yahoo_updated =", fair_to_expect_Yahoo_updated)
                         if fair_to_expect_Yahoo_updated:
@@ -343,7 +390,7 @@ class FinancialsManager:
                 df_pruned = df.drop([c for c in df.columns if c in df_new], axis=1)
                 df_new_pruned = df_new.drop([c for c in df_new.columns if c in df], axis=1)
                 if df_pruned.empty and df_new_pruned.empty:
-                    if hasattr(next_release.release_date, 'confidence') and next_release.release_date.confidence == yfcd.Confidence.Low:
+                    if next_release is not None and hasattr(next_release.release_date, 'confidence') and next_release.release_date.confidence == yfcd.Confidence.Low:
                         # Probably not released yet
                         pass
                     # else:
@@ -418,7 +465,6 @@ class FinancialsManager:
         if len(dates) <= 1:
             return yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=6), yfcd.Confidence.Medium)
 
-        interval = None
         intervals = [(dates[i-1] - dates[i]).days for i in range(1,len(dates))]
         intervals = np.array(intervals)
 
@@ -640,6 +686,8 @@ class FinancialsManager:
 
         # Get calendar
         cal_release_dates = self._get_calendar_dates(refresh)
+        if cal_release_dates is None:
+            cal_release_dates = []
         if debug:
             if len(cal_release_dates) == 0:
                 print("- calendar empty")
@@ -782,8 +830,8 @@ class FinancialsManager:
                 p = r.period_end.prob_gt(d_today+timedelta(days=270))
                 if p > 0.9:
                     break
+        releases.sort()
         if debug:
-            releases.sort()
             print("# Intermediate set of releases:")
             pprint(releases)
 
@@ -874,161 +922,243 @@ class FinancialsManager:
         # Assign known dates to appropriate release(s) without dates
         if debug:
             print("# Assigning known dates to releases ...")
-        releases = sort_estimates(releases)
-        release_dates.sort()
-        for i in range(len(release_dates)):
-            dt = release_dates[i]
-            if debug:
-                print("- dt =", dt)
-            # Find most recent period-end:
-            rj = 0
-            for j in range(1, len(releases)):
-                try:
-                    if releases[j].period_end > (dt-company_release_delay):
-                        break
-                except yfcd.AmbiguousComparisonException:
-                    if hasattr(releases[j].period_end, "prob_gt"):
-                        p = releases[j].period_end.prob_gt(dt-company_release_delay)
-                    else:
-                        p = (dt-company_release_delay).prob_lt(releases[j].period_end)
+        rdts = []
+        for dt in release_dates:
+            if hasattr(dt, 'confidence'):
+                dt = dt.date
+            elif isinstance(dt, yfcd.DateRange):
+                dt = dt.start + (dt.end-dt.start)*0.5
+            rdts.append(dt)
+        pes = []
+        for r in releases:
+            pe = r.period_end
+            if hasattr(pe, 'confidence'):
+                pe = pe.date
+            pes.append(pe)
+        rdts = sorted(rdts)
+        pes = sorted(pes)
+        # Create the LP problem
+        prob = pulp.LpProblem("MatchingReleaseDates", pulp.LpMinimize)
+        # Variables: x_ij
+        x = pulp.LpVariable.dicts("assignment", 
+                                  ((i,j) for i in range(len(pes)) for j in range(len(rdts))),
+                                  cat='Binary')
+
+        # Constraints
+        # - period end assigned max once
+        for i in range(len(pes)):
+            prob += pulp.lpSum(x[i,j] for j in range(len(rdts))) <= 1
+        # - release date assigned max once
+        for j in range(len(rdts)):
+            prob += pulp.lpSum(x[i,j] for i in range(len(pes))) <= 1
+        # - release date > period end
+        for i in range(len(pes)):
+            for j in range(len(rdts)):
+                if rdts[j] <= pes[i]:
+                    prob += x[i,j] == 0
+        # - for p1 > p0, then r1 > r0
+        for i0 in range(len(pes)-1):
+            for i1 in range(i0+1, len(pes)):
+                for j0 in range(len(rdts)-1):
+                    for j1 in range(j0+1, len(rdts)):
+                        prob += x[i0,j1] + x[i1,j0] <= 1
+
+        # Penalise no assignments.
+        obj_assigns = pulp.lpSum(1 - x[i,j] for i in range(len(pes)) for j in range(len(rdts)))
+
+        # Penalise assigning R0->P0 when R0 is > P1
+        # Aka, minimise how far R0 extends past P1
+        slack_vars = pulp.LpVariable.dicts("Slack", ((i, j) for i in range(len(pes) - 1) for j in range(len(rdts))), lowBound=0)
+        for i in range(len(pes) - 1):
+            for j in range(len(rdts)):
+                prob += (rdts[j] - pes[i + 1]).days/14 * x[i, j] - slack_vars[(i, j)] <= 0
+        penalty_overlap = pulp.lpSum([slack_vars[i, j] for i, j in slack_vars])
+
+        # Objective: Minimize delay between assigned period end and release date
+        obj_min_delay = pulp.lpSum((rdts[j] - pes[i]).days/14 * x[i,j] for i in range(len(pes)) for j in range(len(rdts)))
+
+        # Penalty: avoid adjacent assigned release dates closer than 30 days
+        proximity1_slack_vars = pulp.LpVariable.dicts("Proximity1Slack", ((i, j) for i in range(len(pes)-1) for j in range(len(rdts)-1)), lowBound=0)
+        for i0 in range(len(pes)-1):
+            for j0 in range(len(rdts)-1):  # j0 is R0, j0+1 is R1
+                for i1 in range(i0+1, len(pes)):
+                    day_diff = (rdts[j0+1] - rdts[j0]).days
+                    if day_diff < 30:
+                        prob += proximity1_slack_vars[i0,j0] >= (30-day_diff)/14 * (x[i0,j0]+x[i1,j0+1])
+        obj_space_out_release_dts = pulp.lpSum(proximity1_slack_vars[i,j] for i in range(len(pes)-1) for j in range(len(rdts)-1))
+
+        # Penalty: avoid release date being very soon after period end
+        proximity2_slack_vars = pulp.LpVariable.dicts("Proximity2Slack", ((i, j) for i in range(len(pes)) for j in range(len(rdts))), lowBound=0)
+        # Add constraints for slack variables
+        # proximity = 5
+        # proximity = 10
+        proximity = 14
+        for i in range(len(pes)):
+            for j in range(len(rdts)):
+                day_diff = (rdts[j] - pes[i]).days
+                if day_diff < proximity:
+                    # Only activate slack if the release date is proximal to the period end
+                    prob += proximity2_slack_vars[i, j] >= (proximity - day_diff) * x[i, j]
+        obj_avoid_tight_assigns = pulp.lpSum(proximity2_slack_vars[i, j] for i in range(len(pes)) for j in range(len(rdts)))
+
+        prob += 10*obj_assigns + 0.5*penalty_overlap + 0.5*obj_min_delay + obj_space_out_release_dts + obj_avoid_tight_assigns
+
+        # Solve the problem
+        # prob.solve()
+        prob.solve(pulp.PULP_CBC_CMD(msg=False))  # silent
+
+        # Cluster the delays
+        delays = []
+        for i in range(len(pes)):
+            for j in range(len(rdts)):
+                if pulp.value(x[i,j]) == 1:
+                    delay = rdts[j] - pes[i]
                     if debug:
-                        print(f"  - prob. that {releases[j].period_end} > {dt-company_release_delay} = {100.0*p:.1f}%")
-                    if p > 0.5:
-                        break
-                rj = j
-            r = releases[rj]
-            if debug:
-                print("  - rj =", rj, ",  r =", r)
+                        print(f"pulp: period-end {pes[i]} -> {rdts[j]} release (delay = {delay.days} days)")
+                    delays.append((delay.days, releases[i].is_end_of_year()))
+        for r in releases:
             if r.release_date is not None:
-                # Already assigned an earlier release date.
+                d = r.release_date - r.period_end
+                if hasattr(d, "confidence"):
+                    d = d.td
+                delays.append((d.days, r.is_end_of_year()))
+        delays = sorted(delays, key=lambda x: x[0])
+        clusters = []
+        std_pct_threshold = 0.4
+        for i in range(len(delays)):
+            d = delays[i]
+            dd = d[0]
+            if not clusters:
+                clusters.append([d])
+            else:
+                added_to_cluster = False
+                for c in clusters:
+                    c_values = np.array([cx[0] for cx in c])
+                    std_pct_pre = np.std(c_values) / np.mean(c_values)
+                    c_values = np.append(c_values, dd)
+                    std_pct_post = np.std(c_values) / np.mean(c_values)
+                    if (std_pct_pre == 0.0 or (std_pct_post < 30*std_pct_pre)) and (np.std(c_values) / np.mean(c_values)) < std_pct_threshold:
+                        # Append for real
+                        c.append(d)
+                        added_to_cluster = True
+                        break
+                if not added_to_cluster:
+                    clusters.append([d])
 
-                dt_is_for_same_period = False
-                if isinstance(dt, date) and dt in edf.index.date:
-                    if isinstance(r.release_date, date) and r.release_date in edf.index.date:
-                        # Not great because assumes two consecutive earnings don't report same EPS
-                        dt_is_for_same_period1 = edf['Reported EPS'].loc[str(dt)].iloc[0] == edf['Reported EPS'].loc[str(r.release_date)].iloc[0]
-                        dt_is_for_same_period2 = edf['EPS Estimate'].loc[str(dt)].iloc[0] == edf['EPS Estimate'].loc[str(r.release_date)].iloc[0]
-                        dt_is_for_same_period = dt_is_for_same_period1 and dt_is_for_same_period2
-                if dt_is_for_same_period:
-                    # Assume the earlier release was just a preliminary cash-flow update, and that
-                    # this later release is the full financials report
-                    if debug:
-                        print(f"  - assume earlier release {r.release_date} was just a preliminary cash-flow update, and that")
-                        print(f"  - this later release {dt} is the full financials report")
-                    r.release_date = dt
-                    continue
-
-                dt_is_better = False
-                if not hasattr(dt, 'confidence'):
-                    if hasattr(r.release_date, 'confidence'):
-                        # Maybe the previously-assigned date was estimate, from bad Yahoo data
-                        dt_is_better = True
-                else:
-                    if hasattr(r.release_date, 'confidence') and dt.confidence > r.release_date.confidence:
-                        dt_is_better = True
-                if debug:
-                    print("  - dt_is_better =", dt_is_better)
-                if dt_is_better:
-                    if debug:
-                        print(f"  - dt={dt} is more accurate than date already assigned to {r}. so overwrite with dt")
-                        print(f"  - discarding previously assigned dt={r.release_date}")
-                    r.release_date = dt
-                    continue
-
-                try:
-                    quarterly = interval_td <= timedelta(days=100)
-                except yfcd.AmbiguousComparisonException:
-                    quarterly = True
-                if not quarterly:
-                    # Not quarterly releases so can't safely reassign dates.
-                    # Probably this date 'dt' is for a cashflow update, not
-                    # full earnings release.
-                    # So treat this date 'dt' unassignable.
-                    if debug:
-                        print(f"  - because not quarterly, have to discard unassigned date {dt}")
-                    continue
-
-                r_is_end_of_year = r.is_end_of_year()
-                if debug:
-                    print("  - r_is_end_of_year =", r_is_end_of_year)
-
-                # if r_is_end_of_year and rj > 0:
-                #     # For annual reports, allow reassigned date to previous release,
-                #     # because annual reports can take longer to release.
-                #     if (releases[rj-1].release_date is not None) and (not dt_is_better):
-                #         # print("- dt =", dt)
-                #         # print("- dt_is_for_same_period =", dt_is_for_same_period)
-                #         # print("- r_is_end_of_year =", r_is_end_of_year)
-                #         # print("- this release:", releases[rj])
-                #         # print("- previous release:", releases[rj-1])
-                #         # print("- edf:")
-                #         # print(edf.drop(['FetchDate'], axis=1))
-                #         # print(edf.columns)
-                #         # print("- release_dates:") ; pprint(release_dates)
-                #         # raise Exception('Expected prior report to not be assigned date')
-                #         # Update:
-                #         # If this date not better, then just discard.
-                #         pass
-                #     else:
-                #         if debug:
-                #             print(f"  - reassigning dt={releases[rj].release_date} to previous report {releases[rj-1]}")
-                #         releases[rj-1].release_date = r.release_date
-                #         r.release_date = dt
-                # else:
-                #     if debug:
-                #         print(f"  - discarding previously assigned dt={releases[rj].release_date}")
-                # Update: refactor logic
-                if r_is_end_of_year or dt_is_better:
-                    # First, decide whether to reassign assigned date to previous release
-                    if rj > 0 and releases[rj-1].release_date is None:
-                        # if debug:
-                        #     print(f"  - reassigning dt={releases[rj].release_date} to previous report {releases[rj-1]}")
-                        # releases[rj-1].release_date = r.release_date
-                        #
-                        # But what if I don't? Might be causing trouble no benefit
-                        pass
-                    else:
-                        if debug:
-                            print(f"  - discarding previously assigned dt={releases[rj].release_date}")
-                    r.release_date = dt
-
-            if debug:
-                print(f"  - assigning dt={dt} to report={r}")
-            r.release_date = dt
+        # Prune clusters
+        interim_clusters = []
+        fy_clusters = []
+        for c in clusters:
+            if all([x[1] for x in c]):
+                fy_clusters.append(c)
+            else:
+                interim_clusters.append(c)
         if debug:
-            releases.sort()
-            print("> releases with known release dates:")
+            print("- clusters before pruning:")
+            if any(interim_clusters):
+                print("  - interims:")
+                for c in interim_clusters:
+                    print(f"    {c}")
+            if any(fy_clusters):
+                print("  - FY:")
+                for c in fy_clusters:
+                    print(f"    {c}")
+        if len(fy_clusters) > 1:
+            if any(len(c)>1 for c in fy_clusters):
+                # Discard any with length 1
+                for i in range(len(fy_clusters)-1, -1, -1):
+                    if len(fy_clusters[i]) == 1:
+                        del fy_clusters[i]
+            elif len(fy_clusters) == 2:
+                # 2x clusters of length 1: just combine. Probably one date is real and other Yahoo estimate.
+                fy_clusters = [ [fy_clusters[0][0], fy_clusters[1][0]] ]
+        if len(fy_clusters) > 1:
+            # Fuck, need to prune again. This time, any with mean delay < 40 days
+            for i in range(len(fy_clusters)-1, -1, -1):
+                m = mean([d[0] for d in fy_clusters[i]])
+                if m < 40:
+                    del fy_clusters[i]
+        if len(fy_clusters) > 1:
+            for c in fy_clusters:
+                print(c)
+            print("- releases:")
             for r in releases:
                 print(r)
+            raise Exception(f'Have more than 1x FY cluster (see above) (period={period})')
+        if debug:
+            print("- clusters after pruning:")
+            if any(interim_clusters):
+                print("  - interims:")
+                for c in interim_clusters:
+                    print(f"    {c}")
+            if any(fy_clusters):
+                print("  - FY:")
+                for c in fy_clusters:
+                    print(f"    {c}")
+        fy_cluster = [] if len(fy_clusters) == 0 else fy_clusters[0]
+        # Can now discard end-of-year information:
+        for i in range(len(interim_clusters)):
+            interim_clusters[i] = [x[0] for x in interim_clusters[i]]
+        fy_cluster = [x[0] for x in fy_cluster]
+        if debug:
+            print("- clusters after discarding EoY info:")
+            if any(interim_clusters):
+                print("  - interim_clusters:")
+                for c in interim_clusters:
+                    print(f"    {c}")
+            if any(fy_cluster):
+                print(f"- fy_cluster: {fy_cluster}")
+        if any(len(c)>1 for c in interim_clusters):
+            for i in range(len(interim_clusters)-1, -1, -1):
+                # Discard any with length 1
+                if len(interim_clusters[i]) == 1:
+                    del interim_clusters[i]
+            if debug:
+                print("- interims after discarding single-length interims:")
+                if any(interim_clusters):
+                    for c in interim_clusters:
+                        print(f"    {c}")
+        if len(interim_clusters) == 0:
+            interim_clusters = None
+        # Keep longest interim delay // discard assignments not in interim nor FY cluster
+        if interim_clusters is None:
+            interim_cluster = None
+        else:
+            longest_i = 0
+            longest_delay = interim_clusters[0]
+            for i in range(1, len(interim_clusters)):
+                m = mean(interim_clusters[i])
+                if m > longest_delay:
+                    longest_i = i
+                    longest_delay = m
+            interim_cluster = interim_clusters[longest_i]
+        for i in range(len(pes)):
+            for j in range(len(rdts)):
+                if pulp.value(x[i,j]) == 1:
+                    delay = rdts[j] - pes[i]
+                    # if delay.days not in interim_cluster:
+                    # if delay.days not in interim_cluster and delay.days not in fy_cluster:
+                    if delay.days not in fy_cluster and (interim_cluster is None or delay.days not in interim_cluster):
+                        if debug:
+                            if interim_cluster is None:
+                                msg = f"discard pulp assignment {rdts[j]} -> {pes[i]} (delay={delay.days}) for not being in FY cluster {fy_cluster} (and no interim clusters detected)"
+                            else:
+                                msg = f"discard pulp assignment {rdts[j]} -> {pes[i]} (delay={delay.days}) for not being in chosen interim cluster {interim_cluster} nor in FY cluster {fy_cluster}"
+                            print(msg)
+                        x[i,j] = 0
 
-        # Discard date assignments where delays are much higher than average
-        delays = [(r.release_date - r.period_end) for r in releases if r.release_date is not None]
-        if len(delays) >= 3:
-            delays = sort_estimates(delays)
-            median_delay = delays[len(delays)//2]
-            delays = [(r.release_date - r.period_end) if r.release_date is not None else timedelta(0) for r in releases]
-            outliers = np.ones(len(delays), dtype=bool)
-            for i in range(len(delays)):
-                r = releases[i]
-                r_is_end_of_year = r.is_end_of_year()
-                if debug:
-                    print("  - r_is_end_of_year =", r_is_end_of_year)
+        # Output results
+        for i in range(len(pes)):
+            for j in range(len(rdts)):
+                if pulp.value(x[i,j]) == 1:
+                    releases[i].release_date = release_dates[j]
 
-                threshold = median_delay*3
-                if r_is_end_of_year:
-                    threshold += timedelta(days=30)
-                try:
-                    outliers[i] = delays[i] > threshold
-                except yfcd.AmbiguousComparisonException:
-                    if hasattr(delays[i], 'prob_gt'):
-                        p = delays[i].prob_gt(threshold)
-                    else:
-                        p = threshold.prob_lt(delays[i])
-                    outliers[i] = p > 0.9
-            for i in np.where(outliers)[0]:
-                if debug:
-                    print(f"discarding a release date because delay far above median {median_delay}:", releases[i])
-                releases[i].release_date = None
+        if debug:
+            releases.sort()
+            print("> releases with pulp-assigned release dates:")
+            for r in releases:
+                print(r)
+            print(f"- {len(release_dates)}x release dates , {len(releases)}x period-end dates")
 
         # For any releases still without release dates, estimate with the following heuristics:
         # 1 - if release 12 months before/after has a date (or a multiple of 12), use that +/- 12 months
@@ -1043,8 +1173,9 @@ class FinancialsManager:
                 for i in range(len(releases)):
                     if releases[i].release_date is None:
                         # Need to find a similar release to extrapolate date from
+                        r = releases[i]
                         date_set = False
-
+                        candidates = []
                         for i2 in range(len(releases)):
                             if i2==i:
                                 continue
@@ -1067,70 +1198,72 @@ class FinancialsManager:
                                     m2 = abs(rem-itd).prob_lt(tolerance) > 0.9
                                 match = m1 or m2
                                 if match:
-                                    if debug:
-                                        print(f"- matching '{releases[i]}' with '{releases[i2]}' for interval '{try_interval}'")
-                                    delay = releases[i2].release_date - releases[i2].period_end
-                                    dt = delay + releases[i].period_end
+                                    candidates.append(releases[i2])
 
-                                    r_is_end_of_year = releases[i].is_end_of_year()
-                                    if debug:
-                                        print("  - r_is_end_of_year =", r_is_end_of_year)
-                                    if r_is_end_of_year and try_interval != 365:
-                                        # Annual reports take longer than interims, so add on some more days
-                                        if debug:
-                                            print("  - adding 14d to dt")
-                                        dt += timedelta(days=14)
+                        if len(candidates) > 0:
+                            # Pick closest one
+                            closest_r = candidates[0]
+                            for i2 in range(1, len(candidates)):
+                                try:
+                                    if abs(candidates[i2].period_end-r.period_end) < abs(closest_r.period_end-r.period_end):
+                                        closest_r = candidates[i2]
+                                except yfcd.AmbiguousComparisonException:
+                                    pass
+                            if debug:
+                                print(f"- matching '{releases[i]}' with '{closest_r}' for interval '{try_interval}'")
+                            delay = closest_r.release_date - closest_r.period_end
+                            dt = delay + releases[i].period_end
 
-                                    if not hasattr(dt, 'confidence'):
-                                        if r_is_end_of_year and try_interval != 365:
-                                            confidence = yfcd.Confidence.Low
-                                        else:
-                                            confidence = yfcd.Confidence.Medium
-                                        if isinstance(dt, date):
-                                            dt = yfcd.DateEstimate(dt, confidence)
-                                        elif isinstance(dt, yfcd.DateRange):
-                                            dt = yfcd.DateRangeEstimate(dt.start, dt.end, confidence)
-                                        else:
-                                            raise Exception('Need to ensure this value has confidence:', dt)
+                            r_is_end_of_year = releases[i].is_end_of_year()
+                            if r_is_end_of_year and try_interval != 365:
+                                # Annual reports take longer than interims, so add on some more days
+                                dt += timedelta(days=28)
+
+                            if not hasattr(dt, 'confidence'):
+                                if r_is_end_of_year and try_interval != 365:
+                                    confidence = yfcd.Confidence.Low
+                                else:
+                                    confidence = yfcd.Confidence.Medium
+                                if isinstance(dt, date):
+                                    dt = yfcd.DateEstimate(dt, confidence)
+                                elif isinstance(dt, yfcd.DateRange):
+                                    dt = yfcd.DateRangeEstimate(dt.start, dt.end, confidence)
+                                else:
+                                    raise Exception('Need to ensure this value has confidence:', dt)
+                            else:
+                                if r_is_end_of_year and try_interval != 365:
+                                    confidences = [yfcd.Confidence.Low]
+                                else:
+                                    confidences = [yfcd.Confidence.Medium]
+                                if isinstance(closest_r.period_end, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
+                                    confidences.append(closest_r.period_end.confidence)
+                                if isinstance(closest_r.release_date, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
+                                    confidences.append(closest_r.release_date.confidence)
+                                dt.confidence = min(confidences)
+
+                            if i > 0 and (releases[i-1].release_date is not None):
+                                too_close_to_previous = False
+                                try:
+                                    if isinstance(releases[i-1].release_date, yfcd.DateEstimate):
+                                        too_close_to_previous = releases[i-1].release_date.isclose(dt)
                                     else:
-                                        if r_is_end_of_year and try_interval != 365:
-                                            confidences = [yfcd.Confidence.Low]
+                                        if releases[i-1].is_end_of_year():
+                                            threshold = timedelta(days=1)
                                         else:
-                                            confidences = [yfcd.Confidence.Medium]
-                                        if isinstance(releases[i2].period_end, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
-                                            confidences.append(releases[i2].period_end.confidence)
-                                        if isinstance(releases[i2].release_date, (yfcd.DateEstimate, yfcd.DateRangeEstimate)):
-                                            confidences.append(releases[i2].release_date.confidence)
-                                        dt.confidence = min(confidences)
-
-                                    if i > 0 and (releases[i-1].release_date is not None):
-                                        too_close_to_previous = False
-                                        try:
-                                            if isinstance(releases[i-1].release_date, yfcd.DateEstimate):
-                                                too_close_to_previous = releases[i-1].release_date.isclose(dt)
-                                            else:
-                                                if releases[i-1].is_end_of_year():
-                                                    threshold = timedelta(days=1)
-                                                else:
-                                                    threshold = timedelta(days=30)
-                                                if debug:
-                                                    diff = dt-releases[i-1].release_date
-                                                    print(f"  - diff = {diff}")
-                                                    print(f"  - threshold = {threshold}")
-                                                too_close_to_previous = (dt-releases[i-1].release_date) < threshold
-                                        except yfcd.AmbiguousComparisonException:
-                                            p = (dt-releases[i-1].release_date).prob_lt(threshold)
-                                            too_close_to_previous = p > 0.9
-                                        if too_close_to_previous:
-                                            if debug:
-                                                print(f"  - dt '{dt}' would be too close to previous release date '{releases[i-1]}'")
-                                            # Too close to last release date
-                                            continue
-                                    releases[i].release_date = dt
-                                    date_set = True
+                                            threshold = timedelta(days=30)
+                                        if debug:
+                                            diff = dt-releases[i-1].release_date
+                                        too_close_to_previous = (dt-releases[i-1].release_date) < threshold
+                                except yfcd.AmbiguousComparisonException:
+                                    p = (dt-releases[i-1].release_date).prob_lt(threshold)
+                                    too_close_to_previous = p > 0.9
+                                if too_close_to_previous:
                                     if debug:
-                                        print("  - estimated release date {} of period-end {} from period-end {}".format(releases[i].release_date, releases[i].period_end, releases[i2].period_end))
-                                    break
+                                        print(f"  - dt '{dt}' would be too close to previous release date '{releases[i-1]}'")
+                                    # Too close to last release date
+                                    continue
+                            releases[i].release_date = dt
+                            date_set = True
 
                         if date_set and (report_delay is not None):
                             releases[i].release_date.date += report_delay
@@ -1146,7 +1279,7 @@ class FinancialsManager:
                 break
         if not any_release_has_date:
             if debug:
-                print(f"- unable to map all {period} financials to release dates")
+                print(f"- unable to map any {period} financials to release dates")
             return None
 
         # Check for any releases still missing a release date that could be the Last earnings release:
@@ -1164,10 +1297,6 @@ class FinancialsManager:
                     if problem:
                         print(r)
                         raise Exception("A release that could be last is missing release date")
-        if debug:
-            print("> releases after estimating release dates:")
-            for r in releases:
-                print(r)
 
         if check:
             self._check_release_dates(releases, finType, period, refresh)
@@ -1207,22 +1336,6 @@ class FinancialsManager:
                     print(r1)
                     raise Exception(f'{self.ticker} Release dates have been assigned multiple times')
 
-                if not r0.is_end_of_year():
-                    try:
-                        # bad_order = r0.release_date > r1.period_end
-                        bad_order = r0.release_date > (r1.period_end+timedelta(days=7))
-                    except yfcd.AmbiguousComparisonException:
-                        p = r0.release_date.prob_gt(r1.period_end+timedelta(days=7))
-                        bad_order = p > 0.9
-                    # try:
-                    #     bad_order = bad_order and ((r1.period_end - r0.period_end)*2.0 > interval_td)
-                    # except yfcd.AmbiguousComparisonException:
-                    #     bad_order = False
-                    if bad_order:
-                        pprint(releases)
-                        print(r0)
-                        print(r1)
-                        raise Exception(f'{self.ticker} Some releases dates are after next period ends')
         #
         for r in releases:
             try:
@@ -1704,6 +1817,7 @@ class FinancialsManager:
                             print("- checking against release dates ...")
                         rds = self.get_release_dates(yfcd.ReportingPeriod.Interim, as_df=False, refresh=False)
                         if rds is not None:
+                            rds = sorted(rds)
                             latest_certain_dt = df.index[np.where(f_nna)[0][0]].date()
                             for i in range(len(rds)):
                                 try:

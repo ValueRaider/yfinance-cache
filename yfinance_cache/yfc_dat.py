@@ -94,6 +94,7 @@ exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # NYSE Arca
 exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC pink
 exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
+exchangeToXcalExchange["OQB"] = exchangeToXcalExchange["NYQ"]  # OTCQB
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
@@ -117,7 +118,9 @@ exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
 exchangeToXcalExchange["DUS"] = "XDUS"  # Duesseldorf
 exchangeToXcalExchange["HAM"] = "XHAM"  # Hamburg
 exchangeToXcalExchange["HEL"] = "XHEL"  # Helsinki
+exchangeToXcalExchange["ICE"] = "XICE"  # Iceland
 exchangeToXcalExchange["ISE"] = "XDUB"  # Ireland
+exchangeToXcalExchange["LIS"] = "XLIS"  # Lisbon
 exchangeToXcalExchange["MCE"] = "XMAD"  # Madrid
 exchangeToXcalExchange["MIL"] = "XMIL"  # Milan
 exchangeToXcalExchange["OSL"] = "XOSL"  # Oslo
@@ -135,6 +138,7 @@ exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
+exchangeToXcalExchange["TWO"] = "XTAI"  # Taipai OTC, Taiwan. Closes 5 minutes before TWSE, otherwise same.
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
 exchangeToXcalExchange["SES"] = "XSES"  # Singapore
 exchangeToXcalExchange["HKG"] = "XHKG"  # Hong Kong
@@ -143,6 +147,9 @@ exchangeToXcalExchange["NZE"] = "XNZE"  # New Zealand
 exchangeToXcalExchange["SAU"] = "XSAU"  # Saudi Arabia
 exchangeToXcalExchange['BSE'] = 'XBOM'  # Bombai, India
 exchangeToXcalExchange['NSI'] = 'XBOM'  # National Stock Exchange of India. Schedule appears identical to Bombai
+exchangeToXcalExchange['PHS'] = 'XPHS'  # Philippines
+exchangeToXcalExchange['IST'] = 'XIST'  # Istanbul, Turkey
+exchangeToXcalExchange['JKT'] = 'XIDX'  # Jakarta, Indonesia
 # FX
 exchangeToXcalExchange["CCY"] = "IEPA"  # ICE Data Services
 
@@ -157,7 +164,8 @@ exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PCX"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["OQX"] = timedelta(minutes=15)
-exchangeToYfLag["OEM"] = timedelta(minutes=15)
+exchangeToYfLag["OEM"] = exchangeToYfLag["OQX"]
+exchangeToYfLag["OQB"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
@@ -181,7 +189,9 @@ exchangeToYfLag["GER"] = timedelta(minutes=15)
 exchangeToYfLag["DUS"] = timedelta(minutes=15)
 exchangeToYfLag["HAM"] = timedelta(minutes=15)
 exchangeToYfLag["HEL"] = timedelta(0)
+exchangeToYfLag["ICE"] = timedelta(0)
 exchangeToYfLag["ISE"] = timedelta(minutes=15)
+exchangeToYfLag["LIS"] = timedelta(minutes=15)
 exchangeToYfLag["MCE"] = timedelta(minutes=15)
 exchangeToYfLag["MIL"] = timedelta(minutes=20)
 exchangeToYfLag["OSL"] = timedelta(minutes=15)
@@ -199,6 +209,7 @@ exchangeToYfLag["MEX"] = timedelta(minutes=20)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["SHZ"] = timedelta(minutes=30)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
+exchangeToYfLag["TWO"] = timedelta(minutes=20)
 exchangeToYfLag["KSC"] = timedelta(minutes=20)
 exchangeToYfLag["SES"] = timedelta(minutes=20)
 exchangeToYfLag["HKG"] = timedelta(minutes=15)
@@ -207,6 +218,9 @@ exchangeToYfLag["NZE"] = timedelta(minutes=20)
 exchangeToYfLag["SAU"] = timedelta(minutes=15)
 exchangeToYfLag['BSE'] = timedelta(minutes=15)
 exchangeToYfLag['NSI'] = timedelta(0)
+exchangeToYfLag['PHS'] = timedelta(minutes=15)
+exchangeToYfLag['IST'] = timedelta(minutes=15)
+exchangeToYfLag['JKT'] = timedelta(minutes=10)
 # FX:
 exchangeToYfLag["CCY"] = timedelta(0)
 exchangeToYfLag["CCC"] = timedelta(0)
@@ -567,6 +581,9 @@ class ComparableRelativedelta(relativedelta):
         if x != 0:
             s += f'{x}m'
 
+        if s == '':
+            s = '0'
+
         return s
 
     def __repr__(self):
@@ -635,9 +652,7 @@ class TimedeltaEstimate():
         return TimedeltaEstimate(self.td, self.confidence)
 
     def __str__(self):
-        tdstr = ''
-        if self.td.days != 0:
-            tdstr += f'{self.td.days}d'
+        tdstr = f'{self.td.days} days'
         s = f"{tdstr} (conf={self.confidence}/2)"
         return s
 
@@ -688,7 +703,7 @@ class TimedeltaEstimate():
             return TimedeltaEstimate(self.td - other, self.confidence)
         elif isinstance(other, date):
             return DateEstimate(self.td - other, self.confidence)
-        raise NotImplementedError(f'Not implemented {self} - {type(other)}={other}')
+        raise NotImplementedError(f'Not implemented {type(self)}{self} - {type(other)}={other}')
 
     def __rsub__(self, other):
         if isinstance(other, date):
@@ -699,6 +714,11 @@ class TimedeltaEstimate():
         if isinstance(other, (int, float)):
             return TimedeltaEstimate(self.td * other, self.confidence)
         raise NotImplementedError(f'Not implemented {self} * {type(other)}={other}')
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__mul__(other)
+        raise NotImplementedError(f'Not implemented {type(other)}={other} * {self}')
 
     def __imul__(self, other):
         if isinstance(other, (int, float)):
@@ -794,7 +814,7 @@ class TimedeltaRangeEstimate():
         self.uncertainty = confidence_to_buffer[confidence]
 
     def __str__(self):
-        s = f"TimedeltaRangeEstimate {self.td1} -> {self.td2} (conf={self.confidence}/2)"
+        s = f"{self.td1.days}->{self.td2.days} days (conf={self.confidence}/2)"
         return s
 
     def __repr__(self):
@@ -827,9 +847,14 @@ class TimedeltaRangeEstimate():
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
     def __mul__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, (int, float)):
             return TimedeltaRangeEstimate(self.td1 * other, self.td2 * other, self.confidence)
         raise NotImplementedError(f'Not implemented {self} * {type(other)}={other}')
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__mul__(other)
+        raise NotImplementedError(f'Not implemented {type(other)}={other} * {self}')
 
     def prob_lt(self, other):
         if isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
@@ -896,7 +921,7 @@ class TimedeltaRange():
         self.td2 = td2
 
     def __str__(self):
-        s = f"TimedeltaRange {self.td1} -> {self.td2}"
+        s = f"{self.td1.days}->{self.td2.days} days"
         return s
 
     def __repr__(self):
@@ -920,10 +945,18 @@ class TimedeltaRange():
             return TimedeltaRange(self.td1 + other, self.td2 + other)
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __mul__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, (int, float)):
             return TimedeltaRange(self.td1 * other, self.td2 * other)
         raise NotImplementedError(f'Not implemented {self} * {type(other)}={other}')
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return self.__mul__(other)
+        raise NotImplementedError(f'Not implemented {type(other)}={other} * {self}')
 
     def prob_lt(self, other):
         if isinstance(other, (timedelta, pd.Timedelta, ComparableRelativedelta)):
@@ -983,7 +1016,7 @@ class DateRangeEstimate():
         return DateRangeEstimate(self.start, self.end, self.confidence)
 
     def __str__(self):
-        s = f"DateRangeEstimate {self.start} -> {self.end} (conf={self.confidence}/2)"
+        s = f"{self.start}->{self.end} (conf={self.confidence}/2)"
         return s
 
     def __repr__(self):
@@ -1042,7 +1075,7 @@ class DateRangeEstimate():
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
     def __radd__(self, other):
-        raise NotImplementedError(f'Not implemented {self} radd {type(other)}={other}')
+        return self.__add__(other)
 
     def __isub__(self, other):
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
@@ -1129,7 +1162,7 @@ class DateRange():
         return DateRange(self.start, self.end)
 
     def __str__(self):
-        s = f"DateRange {self.start} -> {self.end}"
+        s = f"{self.start}->{self.end}"
         return s
 
     def __repr__(self):
@@ -1207,8 +1240,10 @@ class DateRange():
             return DateRange(self.start + other, self.end + other)
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
+    # def __radd__(self, other):
+    #     raise NotImplementedError(f'Not implemented {self} radd {type(other)}={other}')
     def __radd__(self, other):
-        raise NotImplementedError(f'Not implemented {self} radd {type(other)}={other}')
+        return self.__add__(other)
 
     def __isub__(self, other):
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
@@ -1254,7 +1289,7 @@ class DateEstimate():
         return DateEstimate(self.date, self.confidence)
 
     def __str__(self):
-        s = f"DateEstimate {self.date} (conf={self.confidence}/2)"
+        s = f"{self.date} (conf={self.confidence}/2)"
         return s
 
     def __repr__(self):
