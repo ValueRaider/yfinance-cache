@@ -20,13 +20,14 @@ package_dir =
 packages = find:
 python_requires = >=3.9
 install_requires = 
-    yfinance >= 0.2.36
+    yfinance >= 0.2.44
     numpy >= 1.26
     pandas >= 1.5
     exchange_calendars >= 4.5.5
     scipy >= 1.6.3
     click
     appdirs
+    pulp
 
 [options.packages.find]
 where = ./
