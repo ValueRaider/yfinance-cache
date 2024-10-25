@@ -436,13 +436,13 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_e
             n_diff = np.sum(f_diff)
             if not quiet:
                 print(f"WARNING: {istr}: {n_diff}/{n} differences in column {c}")
-            df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_yf")
-            df_diffs.index = df_diffs.index.tz_convert(h_divs.index.tz)
-            if interday:
-                df_diffs.index = df_diffs.index.date
-            df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
-            df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(1).astype(str) + '%'
             if not quiet:
+                df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_yf")
+                df_diffs.index = df_diffs.index.tz_convert(h_divs.index.tz)
+                if interday:
+                    df_diffs.index = df_diffs.index.tz_convert(df_yf.index.tz).date
+                df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
+                df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(1).astype(str) + '%'
                 print(df_diffs)
             f_diff_all = f_diff_all | f_diff
             if 'Dividends' not in errors_str:
@@ -487,7 +487,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_e
             df_diffs = h_ss.join(yf_ss[f_diff], lsuffix="_cache", rsuffix="_yf")
             df_diffs.index = df_diffs.index.tz_convert(h_ss.index.tz)
             if interday:
-                df_diffs.index = df_diffs.index.date
+                df_diffs.index = df_diffs.index.tz_convert(df_yf.index.tz).date
             df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
             df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(2).astype(str) + '%'
             if not quiet:
@@ -546,7 +546,7 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_e
                         df_diffs = h_cg.join(yf_cg[f_diff], lsuffix="_cache", rsuffix="_yf")
                         df_diffs.index = df_diffs.index.tz_convert(h_cg.index.tz)
                         if interday:
-                            df_diffs.index = df_diffs.index.date
+                            df_diffs.index = df_diffs.index.tz_convert(df_yf.index.tz).date
                         df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]
                         df_diffs["error %"] = (df_diffs["error"]*100 / df_diffs[c+"_yf"]).round(2).astype(str) + '%'
                         if not quiet:

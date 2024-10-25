@@ -1124,14 +1124,17 @@ class FinancialsManager:
         if interim_clusters is None:
             interim_cluster = None
         else:
-            longest_i = 0
-            longest_delay = interim_clusters[0]
-            for i in range(1, len(interim_clusters)):
-                m = mean(interim_clusters[i])
-                if m > longest_delay:
-                    longest_i = i
-                    longest_delay = m
-            interim_cluster = interim_clusters[longest_i]
+            if isinstance(interim_clusters[0], int):
+                interim_cluster = interim_clusters
+            else:
+                longest_i = 0
+                longest_delay = mean(interim_clusters[0])
+                for i in range(1, len(interim_clusters)):
+                    m = mean(interim_clusters[i])
+                    if m > longest_delay:
+                        longest_i = i
+                        longest_delay = m
+                interim_cluster = interim_clusters[longest_i]
         for i in range(len(pes)):
             for j in range(len(rdts)):
                 if pulp.value(x[i,j]) == 1:

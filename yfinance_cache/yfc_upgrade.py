@@ -262,3 +262,25 @@ def _fix_prices_inconsistencies():
     with open(state_fp, 'w'):
         pass
 
+
+def _add_xcal_to_options():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-xcal-to-options")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    o = yfcm._option_manager
+    o.calendar.accept_unexpected_Yahoo_intervals = True
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+

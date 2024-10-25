@@ -849,7 +849,7 @@ def GetTimestampNextSession(exchange, ts):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDatetime(ts, "ts")
 
-    sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=7))
+    sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=10))
     if "auction" in sched.columns:
         sched = sched.copy()
         f = ~(sched["auction"].isna())
@@ -862,7 +862,7 @@ def GetTimestampNextSession(exchange, ts):
         if ts < sched["open"].iloc[i]:
             tz = ZoneInfo(GetExchangeTzName(exchange))
             return {"market_open": sched["open"].iloc[i].to_pydatetime().astimezone(tz), "market_close": sched["close"].iloc[i].to_pydatetime().astimezone(tz)}
-    raise Exception("Failed to find next '{0}' session for ts = {1}".format(exchange, ts))
+    raise Exception(f"Failed to find next '{exchange}' session for ts = {ts}")
 
 
 def GetTimestampCurrentInterval(exchange, ts, interval, discardTimes=None, week7days=True, ignore_breaks=False):

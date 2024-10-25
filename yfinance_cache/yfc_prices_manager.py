@@ -15,7 +15,6 @@ from datetime import datetime, date, time, timedelta
 import dateutil
 from zoneinfo import ZoneInfo
 from pprint import pprint
-import click
 import logging
 
 
@@ -1655,26 +1654,23 @@ class PriceHistory:
             if self.interval == yfcd.Interval.Days1 and divs_df is not None and not divs_df.empty:
                 # Verify dividends
                 c = "Dividends"
-                h_divs = h.loc[h[c] != 0.0, c].copy().dropna()
+                divs = divs_df['Dividends']
                 yf_divs = df_yf['Dividends'][df_yf['Dividends']!=0.0]
-                f_orphan = np.full(h_divs.shape[0], False)
-                for i in range(len(h_divs)):
-                   if h_divs.index[i] not in yf_divs.index:
-                        f_orphan[i] = True
+                f_orphan = ~divs.index.isin(yf_divs.index)
                 if f_orphan.any():
                     if correct in ['one', 'all']:
-                        print(f'Dropping these orphan dividends: {h_divs.index.date[f_orphan]}')
-                        orphan_divs = h.loc[h_divs.index[f_orphan], [c, 'FetchDate']].copy().dropna()
+                        print(f'Dropping these orphan dividends: {divs.index.date[f_orphan]}')
+                        orphan_divs = divs_df.loc[divs.index[f_orphan], [c, 'FetchDate']].copy().dropna()
                         orphan_divs['Dividends'] = 0.0
                         orphan_divs['Close before'] = 1.0
                         orphan_divs['FetchDate'] = dt_now
                         self.manager.GetHistory("Events").UpdateDividends(orphan_divs)
                     else:
                         if not quiet:
-                            divs_orphan = h_divs[f_orphan]
-                            divs_orphan.index = divs_orphan.index.date
-                            print(f'- detected orphan dividends: { {str(k):v for k,v in divs_orphan.to_dict().items()} }')
-                        for dt in h_divs.index[f_orphan]:
+                            orphan_divs = divs[f_orphan]
+                            orphan_divs.index = orphan_divs.index.date
+                            print(f'- detected orphan dividends: { {str(k):v for k,v in orphan_divs.to_dict().items()} }')
+                        for dt in divs.index[f_orphan]:
                             f_diff_all[dt] = True
 
             f_diff = yfcu.VerifyPricesDf(h, df_yf, self.interval, rtol=rtol, vol_rtol=vol_rtol, quiet=quiet, debug=debug, exit_first_error=True)
@@ -1872,7 +1868,6 @@ class PriceHistory:
             first_fetch_failed = False
             try:
                 df = self._fetchYfHistory_dateRange(fetch_start_pad, fetch_end, prepost, debug, quiet=quiet)
-                df = df.loc[str(fetch_start):].copy()
             except yfcd.NoPriceDataInRangeException as e:
                 first_fetch_failed = True
                 ex = e
@@ -1906,10 +1901,6 @@ class PriceHistory:
                     yfcm.StoreCacheDatum(self.ticker, "history_metadata", hist_md)
 
                     df = df_wider
-                    if fetch_start is not None:
-                        df = df.loc[fetch_start_dt:]
-                    if fetch_end is not None:
-                        df = df.loc[:fetch_end_dt-timedelta(milliseconds=1)]
 
             if first_fetch_failed:
                 if second_fetch_failed:
@@ -1930,7 +1921,6 @@ class PriceHistory:
             fetch_end_pad   = s.iloc[s.index.get_indexer([str(fetch_end)], method="bfill")[0]+1].name.date()
 
             df = self._fetchYfHistory_dateRange(fetch_start_pad, fetch_end_pad, prepost, debug, quiet=quiet)
-            df = df.loc[str(fetch_start) : str(fetch_end-td_1d)].copy()
 
         else:
             # Intraday
@@ -2179,6 +2169,7 @@ class PriceHistory:
                             # Send these out so at least can de-adjust h_pre.
                             self.manager.GetHistory("Events").UpdateDividends(df_divs)
 
+                            # append new divs in df_divs to new_divs
                             divs_pretty = df_divs['Dividends'].copy()
                             divs_pretty.index = divs_pretty.index.date
                             self.manager.LogEvent("info", "DividendManager", f"detected {divs_pretty.shape[0]} new dividends: {divs_pretty} (before reversing adjust)")
@@ -2190,23 +2181,19 @@ class PriceHistory:
                                 yfcm.StoreCacheDatum(self.ticker, "new_divs", cached_new_divs)
                     else:
                         yfcm.StoreCacheDatum(self.ticker, "new_divs", df_divs)
+                        # Send these out so at least can de-adjust h_pre.
+                        self.manager.GetHistory("Events").UpdateDividends(df_divs)
 
         # Remove any out-of-range data:
-        if (n > 0):
+        if n > 0:
             # NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
             if end is not None:
-                if self.interday:
-                    df = df[df.index.date < end_d]
-                else:
-                    df = df[df.index < end_dt]
+                df = df.loc[:fetch_end_dt-timedelta(milliseconds=1)]
                 n = df.shape[0]
             #
             # And again for pre-start data:
             if start is not None:
-                if self.interday:
-                    df = df[df.index.date >= start_d]
-                else:
-                    df = df[df.index >= start_dt]
+                df = df.loc[fetch_start_dt:]
                 n = df.shape[0]
 
         # Verify that all datetimes match up with actual intervals:
@@ -2417,10 +2404,7 @@ class PriceHistory:
                     print(warning_msg)
                     print(df_na)
                     msg = "Accept into cache anyway?"
-                    if False:
-                        accept = True
-                    else:
-                        accept = click.confirm(msg, default=False)
+                    accept = yfcm._option_manager.calendar.accept_unexpected_Yahoo_intervals
                     if accept:
                         for idx in np.where(f_na)[0]:
                             dt = intervals.index[idx]
@@ -3676,7 +3660,7 @@ class PriceHistory:
                 if correct_dividend:
                     df2.iloc[r[0]:r[1], df2.columns.get_loc('Dividends')] *= m
                 if correct_volume:
-                    df2.iloc[r[0]:r[1], df2.columns.get_loc("Volume")] *= m_rcp
+                    df2.iloc[r[0]:r[1], df2.columns.get_loc("Volume")] = (df2['Volume'].iloc[r[0]:r[1]]*m_rcp).round().astype('int')
                 df2.iloc[r[0]:r[1], df2.columns.get_loc('Repaired?')] = True
                 if r[0] == r[1] - 1:
                     if self.interday:

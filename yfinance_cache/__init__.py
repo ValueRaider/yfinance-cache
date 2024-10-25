@@ -18,3 +18,6 @@ _init_history_metadata()
 from .yfc_upgrade import _tidy_upgrade_history, _fix_prices_inconsistencies
 _tidy_upgrade_history()
 _fix_prices_inconsistencies()
+
+from .yfc_upgrade import _add_xcal_to_options
+_add_xcal_to_options()
