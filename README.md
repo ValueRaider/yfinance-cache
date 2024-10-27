@@ -89,7 +89,8 @@ Implemented to behave like `pandas.options`, except YFC options are persistent.
 {
     "max_ages": {
         "calendar": "7d",
-        "info": "180d"
+        "info": "180d",
+        "options": "1d"
     }
 }
 >>> yfc.options.max_ages.calendar = '30d'
@@ -97,7 +98,8 @@ Implemented to behave like `pandas.options`, except YFC options are persistent.
 {
     "max_ages": {
         "calendar": "30d",
-        "info": "180d"
+        "info": "180d",
+        "options": "1d"
     }
 }
 ```

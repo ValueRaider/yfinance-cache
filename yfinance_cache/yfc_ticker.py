@@ -15,6 +15,7 @@ from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 import os
 import re
+from collections import namedtuple
 # from time import perf_counter
 
 # TODO: Ticker: add method to delete ticker from cache
@@ -51,6 +52,8 @@ class Ticker:
         self._isin = None
 
         self._options = None
+        self._options_age = None
+        self._option_chain = None
 
         self._news = None
 
@@ -496,7 +499,7 @@ class Ticker:
         return self.get_info()
 
     def get_info(self, max_age=None):
-        if self._info is not None:
+        if self._info is None:
             return self._info
 
         if max_age is None:
@@ -608,7 +611,6 @@ class Ticker:
         self._splits = self.dat.splits
         yfcm.StoreCacheDatum(self.ticker, "splits", self._splits)
         return self._splits
-
 
     def get_shares(self, start=None, end=None, max_age='30d'):
         debug = False
@@ -901,16 +903,94 @@ class Ticker:
 
     @property
     def options(self):
-        if self._options is not None:
+        return self.get_options()
+
+    def get_options(self, exclude_expired_contracts=True, max_age=None):
+        if not exclude_expired_contracts:
+            raise NotImplementedError(f'Not implement exclude_expired_contracts={exclude_expired_contracts}')
+
+        if max_age is None:
+            max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
+        if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age < pd.Timedelta(0):
+            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
+
+        if (self._options is not None) and (max_age > self._options_age):
             return self._options
 
+        md = None
         if yfcm.IsDatumCached(self.ticker, "options"):
-            self._options = yfcm.ReadCacheDatum(self.ticker, "options")
-            return self._options
+            self._options, md = yfcm.ReadCacheDatum(self.ticker, "options", True)
+            if 'FetchDate' not in md.keys():
+                raise Exception(f'{self.ticker}: why YFC options[] still missing FetchDate?!')
 
-        self._options = self.dat.options
-        yfcm.StoreCacheDatum(self.ticker, "options", self._options)
+            if self._options is not None:
+                if md is None:
+                    md = {}
+                self._options_age = pd.Timestamp.now() - md['FetchDate']
+                if self._options_age < max_age:
+                    return self._options
+
+        o = self.dat.options
+        if md is None:
+            md = {}
+        md['FetchDate'] = pd.Timestamp.now()
+
+        if self._options is None:
+            self._options = o
+        else:
+            # Merge
+            merged = tuple(sorted(set(self._options).union(o)))
+            self._options = merged
+
+        if md is None:
+            md = {}
+        yfcm.StoreCacheDatum(self.ticker, "options", self._options, metadata=md)
+
+        self._options_age = pd.Timestamp.now() - md['FetchDate']
+
         return self._options
+
+    def option_chain(self, expiry_date, max_age=None):
+        if expiry_date not in self.options:
+            raise Exception(f"expiry_date='{expiry_date}' not found in: {self.options}")
+
+        if max_age is None:
+            max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
+        if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age < pd.Timedelta(0):
+            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
+
+        if self._option_chain is None:
+            if yfcm.IsDatumCached(self.ticker, "option_chain"):
+                self._option_chain = yfcm.ReadCacheDatum(self.ticker, "option_chain", False)
+            else:
+                self._option_chain = {}
+
+        if expiry_date in self._option_chain:
+            md = self._option_chain[expiry_date]['metadata']
+            age = pd.Timestamp.now() - md['FetchDate']
+            # If 'expiry_date' in past, don't bother re-fetching from YF
+            if age < max_age or pd.Timestamp(expiry_date) < pd.Timestamp.now():
+                return namedtuple('Options', ['calls', 'puts', 'underlying'])(**{
+                    "calls": self._option_chain[expiry_date]['calls'],
+                    "puts": self._option_chain[expiry_date]['puts'], 
+                    "underlying": self._option_chain[expiry_date]['underlying']
+                })
+
+        oc = self.dat.option_chain(expiry_date)
+        md = {'FetchDate': pd.Timestamp.now()}
+        self._option_chain[expiry_date] = {
+            'calls': oc.calls,
+            'puts': oc.puts,
+            'underlying': oc.underlying,
+            'metadata': md
+        }
+        yfcm.StoreCacheDatum(self.ticker, "option_chain", self._option_chain)
+        return oc
+        
 
     @property
     def news(self):

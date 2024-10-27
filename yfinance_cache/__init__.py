@@ -21,3 +21,6 @@ _fix_prices_inconsistencies()
 
 from .yfc_upgrade import _add_xcal_to_options
 _add_xcal_to_options()
+
+from .yfc_upgrade import _add_options_max_age_to_options
+_add_options_max_age_to_options()
