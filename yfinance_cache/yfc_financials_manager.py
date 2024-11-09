@@ -179,6 +179,7 @@ class FinancialsManager:
         self._earnings_dates = None
         self._calendar = None
         self._calendar_clean = None
+        self._calendar_md = None
 
         self._pruned_tbl_cache = {}
         self._fin_tbl_cache = {}
@@ -500,6 +501,8 @@ class FinancialsManager:
                 intervals.append(yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=3), yfcd.Confidence.Medium))
             else:
                 del clusters[i]
+        if len(clusters) == 0:
+            return yfcd.TimedeltaEstimate(yfcd.ComparableRelativedelta(months=6), yfcd.Confidence.Medium)
         if len(intervals) == 1:
             # good!
             return intervals[0]
@@ -557,30 +560,27 @@ class FinancialsManager:
         else:
             do_calc = False
 
-            # Check if cached release dates need a recalc
+            # Check if cached release dates need a recalc = 
+            # at least one new release since calculation
             if md['CalcDate'] < (dt_now - max_age):
                 prev_r, next_r = None, None
                 for i in range(len(releases)-1):
                     r0 = releases[i]
                     r1 = releases[i+1]
                     try:
-                        r_is_history = r0.release_date < d_exchange
+                        r_is_history = r0.release_date < md['CalcDate'].date()
                     except yfcd.AmbiguousComparisonException:
-                        r_is_history = r0.release_date.prob_lt(d_exchange) > 0.9
+                        r_is_history = r0.release_date.prob_lt(md['CalcDate'].date()) > 0.9
                     if r_is_history:
                         prev_r = r0
                         next_r = r1
-                if hasattr(prev_r, 'confidence'):
-                    do_calc = True
-                elif hasattr(next_r, 'confidence'):
-                    try:
-                        d_exchange < next_r.release_date
-                    except yfcd.AmbiguousComparisonException:
-                        print("- next release date is estimated, time to recalc:", next_r)
-                        do_calc = True
-                # print("- releases:") ; pprint(releases)
-                # print("- md:") ; pprint(md)
-                # raise Exception('review cached release dates')
+                try:
+                    do_calc = next_r.release_date < d_exchange
+                except yfcd.AmbiguousComparisonException:
+                    do_calc = next_r.release_date.prob_lt(d_exchange) > 0.9
+
+        if not refresh:
+            do_calc = False
 
         if do_calc:
             releases = self._calc_release_dates(period, refresh, check)
@@ -808,7 +808,7 @@ class FinancialsManager:
         ct = 0
         while True:
             ct += 1
-            if ct > 10:
+            if ct > 15:
                 for r in releases:
                     print(r)
                 print("interval_td = {0}".format(interval_td))
@@ -1079,6 +1079,12 @@ class FinancialsManager:
                 if m < 40:
                     del fy_clusters[i]
         if len(fy_clusters) > 1:
+            # Fuck, need to prune again. This time, any with mean delay > 200 days
+            for i in range(len(fy_clusters)-1, -1, -1):
+                m = mean([d[0] for d in fy_clusters[i]])
+                if m > 200:
+                    del fy_clusters[i]
+        if len(fy_clusters) > 1:
             for c in fy_clusters:
                 print(c)
             print("- releases:")
@@ -1100,14 +1106,6 @@ class FinancialsManager:
         for i in range(len(interim_clusters)):
             interim_clusters[i] = [x[0] for x in interim_clusters[i]]
         fy_cluster = [x[0] for x in fy_cluster]
-        if debug:
-            print("- clusters after discarding EoY info:")
-            if any(interim_clusters):
-                print("  - interim_clusters:")
-                for c in interim_clusters:
-                    print(f"    {c}")
-            if any(fy_cluster):
-                print(f"- fy_cluster: {fy_cluster}")
         if any(len(c)>1 for c in interim_clusters):
             for i in range(len(interim_clusters)-1, -1, -1):
                 # Discard any with length 1
@@ -1264,6 +1262,23 @@ class FinancialsManager:
                                     if debug:
                                         print(f"  - dt '{dt}' would be too close to previous release date '{releases[i-1]}'")
                                     # Too close to last release date
+                                    continue
+                            # Update: also check against next.
+                            if i < (len(releases)-1) and (releases[i+1].release_date is not None):
+                                too_close_to_next = False
+                                try:
+                                    if releases[i+1].is_end_of_year():
+                                        threshold = timedelta(days=1)
+                                    else:
+                                        threshold = timedelta(days=30)
+                                    diff = releases[i+1].release_date - dt
+                                    too_close_to_next = diff < threshold
+                                except yfcd.AmbiguousComparisonException:
+                                    too_close_to_next = diff.prob_lt(threshold) > 0.9
+                                if too_close_to_next:
+                                    if debug:
+                                        print(f"  - dt '{dt}' would be too close to next release date '{releases[i+1]}'")
+                                    # Too close to next release date
                                     continue
                             releases[i].release_date = dt
                             date_set = True
@@ -1699,6 +1714,14 @@ class FinancialsManager:
                     if self._earnings_dates.empty:
                         self._earnings_dates = None
                     else:
+                        if not isinstance(self._earnings_dates.index, pd.DatetimeIndex):
+                            # timezones mixed up
+                            tz = self._earnings_dates.index[0].tzinfo
+                            self._earnings_dates.index = pd.to_datetime(self._earnings_dates.index, utc='True')
+                            self._earnings_dates.index = self._earnings_dates.index.tz_convert(tz)
+                            if not isinstance(self._earnings_dates.index, pd.DatetimeIndex):
+                                raise Exception('edf lost datetimeindex')
+                            yfcm.StoreCacheDatum(self.ticker, "earnings_dates", self._earnings_dates)
                         edf_clean = self._clean_earnings_dates(self._earnings_dates, refresh)
                         if len(edf_clean) < len(self._earnings_dates):
                             # This is ok, because since the last fetch, the calendar can be updated which then allows resolving a 
@@ -1881,7 +1904,11 @@ class FinancialsManager:
                     if self._earnings_dates is not None:
                         df_old = self._earnings_dates[self._earnings_dates.index < (new_df.index[-1]-timedelta(days=14))]
                         if not df_old.empty:
-                            new_df = pd.concat([new_df, df_old])
+                            new_df2 = pd.concat([new_df, df_old])
+                            if not isinstance(new_df2.index, pd.DatetimeIndex):
+                                tz = new_df2.index[0].tzinfo
+                                new_df2.index = pd.to_datetime(new_df2.index, utc='True').tz_convert(tz)
+                            new_df = new_df2
                         if debug:
                             print("- new_df:") ; print(new_df)
                     self._earnings_dates = new_df
@@ -2020,7 +2047,10 @@ class FinancialsManager:
 
         if self._calendar is None:
             if yfcm.IsDatumCached(self.ticker, "calendar"):
-                self._calendar = yfcm.ReadCacheDatum(self.ticker, "calendar")
+                self._calendar, self._calendar_md = yfcm.ReadCacheDatum(self.ticker, "calendar", True)
+                if self._calendar_md is None:
+                    self._calendar_md = {'LastCheck': self._calendar['FetchDate']}
+                    yfcm.WriteCacheMetadata(self.ticker, "calendar", 'LastCheck', self._calendar_md['LastCheck'])
 
                 self._calendar_clean = dict(self._calendar)
                 del self._calendar_clean['FetchDate']
@@ -2030,11 +2060,17 @@ class FinancialsManager:
         if (self._calendar is not None) and (self._calendar["FetchDate"] + max_age) > pd.Timestamp.now():
             return self._calendar_clean
 
+        if (self._calendar is not None) and (self._calendar_md['LastCheck'] + yf_spam_window) > pd.Timestamp.now():
+            return self._calendar_clean
+
         if not refresh:
             return self._calendar_clean
 
         if print_fetches:
-            print(f"{self.ticker}: Fetching calendar (last fetch = {self._calendar['FetchDate'].date()})")
+            msg = f"{self.ticker}: Fetching calendar"
+            if self._calendar is None:
+                msg += f" (last fetch = {self._calendar['FetchDate'].date()})"
+            print(msg)
 
         c = self.dat.calendar
         c["FetchDate"] = pd.Timestamp.now()
@@ -2043,21 +2079,20 @@ class FinancialsManager:
             # Check calendar is not downgrade
             diff = len(c) - len(self._calendar)
             if diff < -1:
-                # More than 1 element disappeared
-                msg = "When fetching new calendar, data has disappeared\n"
-                msg += "- cached calendar:\n"
-                msg += f"{self._calendar}" + "\n"
-                msg += "- new calendar:\n"
-                msg += f"{c}" + "\n"
-                raise Exception(msg)
+                # Discard fetch
+                c = None
+                yfcm.WriteCacheMetadata(self.ticker, "calendar", 'LastCheck', pd.Timestamp.now())
+        else:
+            if c is None:
+                c = {}
 
         if c is not None:
             yfcm.StoreCacheDatum(self.ticker, "calendar", c)
-        self._calendar = c
-        self._calendar_clean = dict(self._calendar)
-        del self._calendar_clean['FetchDate']
-        if len(self._calendar_clean.keys()) == 0:
-            self._calendar_clean = None
+            self._calendar = c
+            self._calendar_clean = dict(self._calendar)
+            del self._calendar_clean['FetchDate']
+            if len(self._calendar_clean.keys()) == 0:
+                self._calendar_clean = None
         return self._calendar_clean
 
     def _get_calendar_dates(self, refresh=True):

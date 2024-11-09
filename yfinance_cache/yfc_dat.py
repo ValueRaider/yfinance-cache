@@ -846,6 +846,9 @@ class TimedeltaRangeEstimate():
             return TimedeltaRangeEstimate(self.td1 + other, self.td2 + other, self.confidence)
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __mul__(self, other):
         if isinstance(other, (int, float)):
             return TimedeltaRangeEstimate(self.td1 * other, self.td2 * other, self.confidence)
@@ -1255,6 +1258,8 @@ class DateRange():
             return TimedeltaRange(self.start - other.end, self.end - other.start)
         elif isinstance(other, DateEstimate):
             return TimedeltaRangeEstimate(self.start - other.date, self.end - other.date, other.confidence)
+        elif isinstance(other, DateRangeEstimate):
+            return TimedeltaRangeEstimate(self.start - other.end, self.end - other.start, other.confidence)
         elif isinstance(other, timedelta):
             return DateRange(self.start - other, self.end - other)
         raise NotImplementedError(f'Not implemented {self} - {type(other)}={other}')
