@@ -99,7 +99,7 @@ def TypeCheckIntervalDt(var, interval, varName, strict=True):
             else:
                 TypeCheckDateEasy(var, varName)
     except Exception as e:
-        raise TypeError(str(e) + " for interval "+yfcd.intervalToString[interval])
+        raise TypeError(str(e) + " for interval "+yfcd.intervalToString[interval] + f' (value = {var})')
 
 def TypeCheckPeriod(var, varName):
     if not isinstance(var, yfcd.Period) and not isinstance(var, (timedelta, pd.Timedelta, relativedelta)):

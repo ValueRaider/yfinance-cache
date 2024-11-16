@@ -292,6 +292,7 @@ class EventsHistory:
                 # adj = close_today / (close_today + new_div)
                 try:
                     if np.isnan(adj):  # todo: remove once confirm YFC bug-free
+                        print(f"- divs_df.loc[{dt}]:")
                         print(divs_df.loc[dt])
                         raise Exception("Back Adj. is NaN")
                 except:
@@ -746,7 +747,14 @@ class PriceHistory:
                     # Update: only necessary to be up-to-date to now if a fetch happens
                     dt_start = yfct.ConvertToDatetime(self.h.index[0], tz=tz_exchange)
                     dt_end = yfct.ConvertToDatetime(self.h.index[-1], tz=tz_exchange)
-                    h_start = yfct.GetTimestampCurrentInterval(self.exchange, dt_start, self.interval, ignore_breaks=True)["interval_open"]
+                    start_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_start, self.interval, ignore_breaks=True)
+                    if start_interval is None:
+                        # Possible if Yahoo returned price data when 'exchange_calendars' thinks exchange was closed
+                        for i in range(1, 5):
+                            start_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_end + td_1d*i, self.interval, ignore_breaks=True)
+                            if start_interval is not None:
+                                break
+                    h_start = start_interval["interval_open"]
                     last_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_end, self.interval, ignore_breaks=True)
                     if last_interval is None:
                         # Possible if Yahoo returned price data when 'exchange_calendars' thinks exchange was closed

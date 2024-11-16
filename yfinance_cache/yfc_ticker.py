@@ -33,6 +33,7 @@ class Ticker:
         self._histories_manager = None
 
         self._info = None
+        self._info_age = None
         self._fast_info = None
 
         self._splits = None
@@ -354,6 +355,7 @@ class Ticker:
             return self._exchange, self._tz, self._listing_day
 
         exchange, tz_name, lday = None, None, None
+        i = None
         try:
             i = self.get_info('9999d')
             exchange = i['exchange']
@@ -371,8 +373,20 @@ class Ticker:
                 tz_name = md['exchangeTimezoneName']
             if 'firstTradeDate' in md and tz_name is not None:
                 lday = pd.Timestamp(md['firstTradeDate'], unit='s').tz_localize("UTC").tz_convert(tz_name).date()
+            if i is not None:
+                # info fetch was successful, just missing some keys
+                n = len(i)
+                if exchange is not None:
+                    i['exchange'] = exchange
+                if tz_name is not None:
+                    i['exchangeTimezoneName'] = tz_name
+                if 'firstTradeDate' in md:
+                    i['firstTradeDateEpochUtc'] = md['firstTradeDate']
+                if len(i) > n:
+                    yfcm.StoreCacheDatum(self.ticker, "info", i)
 
         if exchange is None or tz_name is None:
+            print("- info:") ; print(i)
             raise Exception(f"{self.ticker}: exchange and timezone not available")
         self._tz = tz_name
         self._exchange = exchange
@@ -499,15 +513,15 @@ class Ticker:
         return self.get_info()
 
     def get_info(self, max_age=None):
-        if self._info is None:
-            return self._info
-
         if max_age is None:
             max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
         elif not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
             max_age = pd.Timedelta(max_age)
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
+
+        if (self._info is not None) and (max_age > self._info_age):
+            return self._info
 
         md = None
         if yfcm.IsDatumCached(self.ticker, "info"):
@@ -529,7 +543,8 @@ class Ticker:
                     # Old bug meant this could happen
                     md['LastCheck'] = self._info['FetchDate']
                     yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
-                if max(self._info['FetchDate'], md['LastCheck']) + max_age > pd.Timestamp.now():
+                self._info_age = pd.Timestamp.now() - max(self._info['FetchDate'], md['LastCheck'])
+                if self._info_age < max_age:
                     return self._info
 
         i = self.dat.info
@@ -559,6 +574,7 @@ class Ticker:
                 return self._info
 
         self._info = i
+        self._info_age = pd.Timestamp.now() - i['FetchDate']
         if md is None:
             md = {}
         md['LastCheck'] = i['FetchDate']

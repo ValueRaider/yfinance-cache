@@ -203,7 +203,7 @@ def GetCalendarViaCache(exchange, start, end=None):
             cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
             if xcal.__version__ != md["version"]:
                 cal = None
-            elif 'np version' not in md or md['np version'] != np.__version__:
+            elif ('np version' not in md) or (md['np version'] != np.__version__):
                 cal = None
 
         # Calculate missing data
@@ -1099,7 +1099,7 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, discardTimes=None,
 
         intervals = ts_df
         if discardTimes:
-            intervals["interval_open"] = intervals["open"].dt.date
+            intervals["interval_open"] = intervals["open"].dt.date.replace({pd.NaT: pd.NA})
             intervals["interval_close"] = intervals["interval_open"] + td_1d
             intervals = intervals.drop(["day", "open", "close"], axis=1)
         else:
@@ -1284,7 +1284,8 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
         ts = np.array(ts)
     yfcu.TypeCheckNpArray(ts, "ts")
     if len(ts) > 0:
-        yfcu.TypeCheckIntervalDt(ts[0], interval, "ts", strict=False)
+        ts0 = ts[~pd.isna(ts)][0]
+        yfcu.TypeCheckIntervalDt(ts0, interval, "ts", strict=False)
     yfcu.TypeCheckInterval(interval, "interval")
     if discardTimes is not None:
         yfcu.TypeCheckBool(discardTimes, "discardTimes")
