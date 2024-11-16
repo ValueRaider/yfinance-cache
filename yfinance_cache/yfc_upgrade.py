@@ -16,7 +16,8 @@ def _tidy_upgrade_history():
                 "have-fixed-types-in-divs-splits",
                 "have-sorted-release-dates",
                 "have-initialised-history-metadata",
-                "have-fixed-prices-inconsistencies"
+                "have-fixed-prices-inconsistencies",
+                "have-added-options-max-age-to-options"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -284,8 +285,6 @@ def _add_xcal_to_options():
         os.makedirs(yfc_dp)
     with open(state_fp, 'w'):
         pass
-
-
 
 
 def _add_options_max_age_to_options():
