@@ -3,6 +3,7 @@ import pickle as pkl
 import json
 import pandas as pd
 import numpy as np
+import datetime
 
 from . import yfc_cache_manager as yfcm
 from . import yfc_dat as yfcd
@@ -15,7 +16,8 @@ def _tidy_upgrade_history():
                 "have-fixed-types-in-divs-splits",
                 "have-sorted-release-dates",
                 "have-initialised-history-metadata",
-                "have-fixed-prices-inconsistencies"
+                "have-fixed-prices-inconsistencies",
+                "have-added-options-max-age-to-options"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -278,6 +280,55 @@ def _add_xcal_to_options():
 
     o = yfcm._option_manager
     o.calendar.accept_unexpected_Yahoo_intervals = True
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _add_options_max_age_to_options():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-options-max-age-to-options")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    o = yfcm._option_manager
+    o.max_ages.options = '1d'
+
+    # Also ensure all fetched options have metadata with FetchDate
+    dp = yfcm.GetCacheDirpath()
+    for d in os.listdir(dp):
+        if d.startswith("exchange-"):
+            pass
+        else:
+            options_fp = os.path.join(dp, d, f'options.pkl')
+            if os.path.isfile(options_fp):
+                with open(options_fp, 'rb') as F:
+                    data = pkl.load(F)
+
+                md_modified = False
+                if 'metadata' not in data:
+                    md = {}
+                else:
+                    md = data['metadata']
+                if 'FetchDate' not in md.keys():
+                    mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(options_fp))
+                    md['FetchDate'] = mod_dt
+                    md['LastCheck'] = mod_dt
+                    md_modified = True
+
+                if md_modified:
+                    with open(options_fp, 'wb') as F:
+                        data['metadata'] = md
+                        pkl.dump(data, F, 4)
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)
