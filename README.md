@@ -2,14 +2,14 @@
 
 Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache where missing/outdated and new data expected. Idea is to minimise fetch frequency and quantity - Yahoo API officially only cares about frequency, but I'm guessing they also care about server load from scrapers.
 
-Cache auto-update implemented for:
-- prices
+Cache auto-update implemented for most properties:
+- prices & options
 - financials
 - calendar & earnings_dates
 - shares
 - info
-
-Everything else cached once but never updated (unless you delete their files).
+- holders stuff
+- analyst stuff
 
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
@@ -22,19 +22,19 @@ Available via PIP: `pip install yfinance_cache`
 
 ## Interface
 
-Interaction almost identical to yfinance, listed is attributes with auto-update:
+Interaction almost identical to yfinance
 
 ```python
 import yfinance_cache as yfc
+dat = yfc.Ticker("MSFT")
+dat.history(period="1wk")
+dat.calendar
+# etc
+```
 
-msft = yfc.Ticker("MSFT")
-msft.info
-msft.calendar
-msft.cashflow ; msft.quarterly_cashflow  # or: balance_sheet, financials
-msft.get_earnings_dates(4)
-msft.get_shares(start='2024-01-01')
-msft.history(period="1wk")
-yfc.download("MSFT AMZN", period="1wk")
+Many properties supported, for full list run:
+```python
+print( [p for p in dir(dat) if not p.startswith('_')] )
 ```
 
 ### Price data differences
@@ -43,7 +43,7 @@ Other people have implemented price caches, but none adjust cached data for new 
 YFC does. Price can be adjusted for stock splits, dividends, or both:
 
 ```python
-msft.history(..., adjust_splits=True, adjust_divs=True)
+dat.history(..., adjust_splits=True, adjust_divs=True)
 ```
 
 Price repair is force-enabled, to prevent bad Yahoo data corrupting cache.
@@ -62,7 +62,7 @@ Value must be `Timedelta` or equivalent `str`.
 #### Price data aging
 
 ``` python
-df = msft.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
+df = dat.history(interval="1d", max_age="1h", trigger_at_market_close=False, ...)
 ```
 
 With price data, YFC also considers how long exchange been open since last fetch, 
@@ -75,7 +75,7 @@ is cache refreshed.
 #### Shares aging
 
 ``` python
-df = msft.shares(..., max_age='60d')
+df = dat.shares(..., max_age='60d')
 ```
 
 #### Property aging
@@ -89,8 +89,7 @@ Implemented to behave like `pandas.options`, except YFC options are persistent.
 {
     "max_ages": {
         "calendar": "7d",
-        "info": "180d",
-        "options": "1d"
+        ...
     }
 }
 >>> yfc.options.max_ages.calendar = '30d'
@@ -98,8 +97,7 @@ Implemented to behave like `pandas.options`, except YFC options are persistent.
 {
     "max_ages": {
         "calendar": "30d",
-        "info": "180d",
-        "options": "1d"
+        ...
     }
 }
 ```
@@ -117,7 +115,7 @@ Cached prices can be compared against latest Yahoo Finance data, and correct dif
 
 ```python
 # Verify prices of one ticker symbol
-msft.verify_cached_prices(
+dat.verify_cached_prices(
 	rtol=0.0001,  # relative tolerance for differences
 	vol_rtol=0.005,  # relative tolerance specifically for Volume
 	correct=[False|'one'|'all'],  # delete incorrect cached data? 'one' = stop after correcting first incorrect prices table ; 'all' = correct all tickers & intervals
