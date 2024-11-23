@@ -2154,9 +2154,15 @@ class FinancialsManager:
 
                 calendars_backup = self._calendars.copy()
                 # If dates are roughly the same, then overwrite, otherwise append.
-                dt_diff = c2['Earnings Date1'] - self._calendar['Earnings Date1']
-                # if abs(dt_diff.days) < 30:
-                if abs(dt_diff.days) < 30 and 'Ex-Dividend Date' not in diffs and 'Ex-Dividend Date' not in losses:
+                if (c2['Earnings Date1'] is not None) and (self._calendar['Earnings Date1'] is not None):
+                    eps_dt_diff = c2['Earnings Date1'] - self._calendar['Earnings Date1']
+                else:
+                    eps_dt_diff = timedelta(1)
+                if (c2['Ex-Dividend Date'] is not None) and (self._calendar['Ex-Dividend Date'] is not None):
+                    div_dt_diff = c2['Ex-Dividend Date'] - self._calendar['Ex-Dividend Date']
+                else:
+                    div_dt_diff = timedelta(1)
+                if abs(eps_dt_diff.days) < 30 and abs(div_dt_diff.days) < 30:
                     self._calendars.iloc[-1] = c2
                 else:
                     self._calendars = pd.concat([self._calendars, c2_df], ignore_index=True)
