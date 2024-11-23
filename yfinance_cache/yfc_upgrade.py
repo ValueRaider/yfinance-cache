@@ -17,7 +17,9 @@ def _tidy_upgrade_history():
                 "have-sorted-release-dates",
                 "have-initialised-history-metadata",
                 "have-fixed-prices-inconsistencies",
-                "have-added-options-max-age-to-options"
+                "have-added-xcal-to-options",
+                "have-added-options-max-age-to-options",
+                "have-upgraded-calendar-to-df"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -335,3 +337,110 @@ def _add_options_max_age_to_options():
     with open(state_fp, 'w'):
         pass
 
+
+def _upgrade_calendar_to_df():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-upgraded-calendar-to-df")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    print("YFC upgrading cached calendars ...")
+
+    columns = ['Earnings Date1', 'Earnings Date2', 'Earnings Low', 'Earnings High', 'Earnings Average', 'Revenue Low', 'Revenue High', 'Revenue Average', 'Ex-Dividend Date']
+    date_cols = [c for c in columns if 'Date' in c]
+    num_cols = [c for c in columns if ('Revenue' in c or 'Earnings' in c) and c not in date_cols]
+    columns += ['FetchDate', 'LastCheck']
+    dp = yfcm.GetCacheDirpath()
+    for d in os.listdir(dp):
+        if d.startswith("exchange-"):
+            pass
+        else:
+            calendar_fp = os.path.join(dp, d, f'calendar.pkl')
+            calendars_fp = os.path.join(dp, d, f'calendars.pkl')
+            if os.path.isfile(calendar_fp):
+                with open(calendar_fp, 'rb') as F:
+                    data = pkl.load(F)
+                if isinstance(data['data'], pd.DataFrame):
+                    os.rename(calendar_fp, calendars_fp)
+                    continue
+
+                md = data['metadata']
+                data = data['data']
+
+                info = yfcm.ReadCacheDatum(d, 'info')
+                if info is None:
+                    tz = None
+                else:
+                    tz = info['timeZoneFullName']
+
+                if 'Earnings Date' in data:
+                    if len(data['Earnings Date']) > 0:
+                        data['Earnings Date1'] = data['Earnings Date'][0]
+                    else:
+                        data['Earnings Date1'] = None
+                    if len(data['Earnings Date']) > 1:
+                        data['Earnings Date2'] = data['Earnings Date'][1]
+                    else:
+                        data['Earnings Date2'] = None
+                    del data['Earnings Date']
+                else:
+                    # No calendar
+                    data['Earnings Date1'] = None
+                    data['Earnings Date2'] = None
+
+                if 'Ex-Dividend Date' not in data:
+                    data['Ex-Dividend Date'] = None
+
+                for c in num_cols:
+                    if c not in data:
+                        data[c] = None
+
+                if 'LastCheck' in md:
+                    data['LastCheck'] = md['LastCheck']
+                else:
+                    data['LastCheck'] = data['FetchDate']
+
+                df = pd.DataFrame(data, index=[0])
+                df = df[columns]  # order
+
+                data = {'data':df, 'metadata':None}
+                with open(calendars_fp, 'wb') as F:
+                    pkl.dump(data, F, 4)
+                os.remove(calendar_fp)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _add_holdings_analysis_to_options():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-holdings-analysis-to-options")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    o = yfcm._option_manager
+    o.max_ages.holdings = '91d'
+    o.max_ages.analysis = '91d'
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+#

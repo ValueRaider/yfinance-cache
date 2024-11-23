@@ -24,3 +24,7 @@ _add_xcal_to_options()
 
 from .yfc_upgrade import _add_options_max_age_to_options
 _add_options_max_age_to_options()
+
+from .yfc_upgrade import _upgrade_calendar_to_df, _add_holdings_analysis_to_options
+_upgrade_calendar_to_df()
+_add_holdings_analysis_to_options()

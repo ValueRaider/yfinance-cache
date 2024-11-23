@@ -23,14 +23,16 @@ from collections import namedtuple
 
 class Ticker:
     def __init__(self, ticker, session=None):
-        self.ticker = ticker.upper()
+        self._ticker = ticker.upper()
 
-        self.session = session
-        self.dat = yf.Ticker(self.ticker, session=self.session)
+        self._session = session
+        self._dat = yf.Ticker(self._ticker, session=self._session)
 
         self._yf_lag = None
 
         self._histories_manager = None
+
+        self._attributes = {}
 
         self._info = None
         self._info_age = None
@@ -66,7 +68,7 @@ class Ticker:
         self._listing_day = None
 
         exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self.session)
+        self._financials_manager = yfcf.FinancialsManager(ticker, exchange, tz_name, session=self._session)
 
     def history(self,
                 interval="1d",
@@ -77,7 +79,8 @@ class Ticker:
                 keepna=False,
                 proxy=None, rounding=False,
                 debug=True, quiet=False,
-                trigger_at_market_close=False):
+                trigger_at_market_close=False
+    ):
 
         # t0 = perf_counter()
 
@@ -88,21 +91,21 @@ class Ticker:
         # debug_yfc = True
 
         if start is not None or end is not None:
-            log_msg = f"Ticker::history(tkr={self.ticker} interval={interval} start={start} end={end} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
+            log_msg = f"Ticker::history(tkr={self._ticker} interval={interval} start={start} end={end} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
         else:
-            log_msg = f"Ticker::history(tkr={self.ticker} interval={interval} period={period} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
+            log_msg = f"Ticker::history(tkr={self._ticker} interval={interval} period={period} max_age={max_age} trigger_at_market_close={trigger_at_market_close} adjust_splits={adjust_splits}, adjust_divs={adjust_divs})"
         yfcl.TraceEnter(log_msg)
 
         td_1d = datetime.timedelta(days=1)
         exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         if exchange == 'YHD':
-            raise Exception(f"Ticker symbol '{self.ticker}' not on Yahoo Finance.")
+            raise Exception(f"Ticker symbol '{self._ticker}' not on Yahoo Finance.")
         tz_exchange = ZoneInfo(tz_name)
         try:
             yfct.SetExchangeTzName(exchange, tz_name)
         except Exception as e:
             if "Need to add mapping" in str(e):
-                raise Exception(f"Need to add mapping of exchange {exchange} to xcal (ticker={self.ticker})")
+                raise Exception(f"Need to add mapping of exchange {exchange} to xcal (ticker={self._ticker})")
             else:
                 raise
         dt_now = pd.Timestamp.utcnow()
@@ -204,11 +207,11 @@ class Ticker:
                 sched_14d = yfct.GetExchangeSchedule(exchange, start_dt.date(), start_dt.date()+14*td_1d)
             except Exception as e:
                 if "Need to add mapping" in str(e):
-                    raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self.ticker))
+                    raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self._ticker))
                 else:
                     raise
             if sched_14d is None:
-                raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start_dt.date(), start_dt.date()+14*td_1d, self.ticker))
+                raise Exception("sched_14d is None for date range {}->{} and ticker {}".format(start_dt.date(), start_dt.date()+14*td_1d, self._ticker))
             if sched_14d["open"].iloc[0] > dt_now:
                 # Requested date range is in future
                 return None
@@ -229,10 +232,10 @@ class Ticker:
             end_d = end_dt.date()+td_1d if end_dt >= sched["close"].iloc[n-1] else end_dt.date()
         else:
             if exchange not in yfcd.exchangeToXcalExchange:
-                raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self.ticker))
+                raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self._ticker))
 
         if self._histories_manager is None:
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy)
 
         # t1_setup = perf_counter()
 
@@ -250,7 +253,7 @@ class Ticker:
 
         f_dups = h.index.duplicated()
         if f_dups.any():
-            raise Exception("{}: These timepoints have been duplicated: {}".format(self.ticker, h.index[f_dups]))
+            raise Exception("{}: These timepoints have been duplicated: {}".format(self._ticker, h.index[f_dups]))
 
         # Present table for user:
         h_copied = False
@@ -295,7 +298,7 @@ class Ticker:
             if na:
                 f_nna = ~f_na
                 if not f_nna.any():
-                    raise Exception(f"{self.ticker}: price table is entirely NaNs. Delisted?" +" \n" + log_msg)
+                    raise Exception(f"{self._ticker}: price table is entirely NaNs. Delisted?" +" \n" + log_msg)
                 last_close = h["Close"][f_nna].iloc[-1]
             else:
                 last_close = h["Close"].iloc[-1]
@@ -336,12 +339,12 @@ class Ticker:
 
     @property
     def history_metadata(self):
-        return yfcm.ReadCacheDatum(self.ticker, "history_metadata")
+        return yfcm.ReadCacheDatum(self._ticker, "history_metadata")
 
     def _getCachedPrices(self, interval, proxy=None):
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy)
 
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
@@ -366,7 +369,7 @@ class Ticker:
             if 'firstTradeDateEpochUtc' in i and tz_name is not None:
                 lday = pd.Timestamp(i['firstTradeDateEpochUtc'], unit='s').tz_localize("UTC").tz_convert(tz_name).date()
         except Exception:
-            md = yf.Ticker(self.ticker, session=self.session).history_metadata
+            md = yf.Ticker(self._ticker, session=self._session).history_metadata
             if 'exchangeName' in md:
                 exchange = md['exchangeName']
             if 'exchangeTimezoneName' in md:
@@ -383,11 +386,11 @@ class Ticker:
                 if 'firstTradeDate' in md:
                     i['firstTradeDateEpochUtc'] = md['firstTradeDate']
                 if len(i) > n:
-                    yfcm.StoreCacheDatum(self.ticker, "info", i)
+                    yfcm.StoreCacheDatum(self._ticker, "info", i)
 
         if exchange is None or tz_name is None:
             print("- info:") ; print(i)
-            raise Exception(f"{self.ticker}: exchange and timezone not available")
+            raise Exception(f"{self._ticker}: exchange and timezone not available")
         self._tz = tz_name
         self._exchange = exchange
         self._listing_day = lday
@@ -404,14 +407,14 @@ class Ticker:
 
         interval = yfcd.Interval.Days1
         cache_key = "history-"+yfcd.intervalToString[interval]
-        if not yfcm.IsDatumCached(self.ticker, cache_key):
+        if not yfcm.IsDatumCached(self._ticker, cache_key):
             return True
 
-        yfcl.TraceEnter(f"Ticker::verify_cached_prices(tkr={self.ticker} {fn_locals})")
+        yfcl.TraceEnter(f"Ticker::verify_cached_prices(tkr={self._ticker} {fn_locals})")
 
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy=None)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy=None)
 
         v = True
 
@@ -460,7 +463,7 @@ class Ticker:
                 continue
             istr = yfcd.intervalToString[interval]
             cache_key = "history-"+istr
-            if not yfcm.IsDatumCached(self.ticker, cache_key):
+            if not yfcm.IsDatumCached(self._ticker, cache_key):
                 continue
             vi = self._verify_cached_prices_interval(interval, rtol, vol_rtol, correct, discard_old, quiet, debug)
             yfcl.TracePrint(f"{istr}: vi={vi}")
@@ -490,14 +493,14 @@ class Ticker:
 
         istr = yfcd.intervalToString[interval]
         cache_key = "history-"+istr
-        if not yfcm.IsDatumCached(self.ticker, cache_key):
+        if not yfcm.IsDatumCached(self._ticker, cache_key):
             return True
 
-        yfcl.TraceEnter(f"Ticker::_verify_cached_prices_interval(tkr={self.ticker}, {fn_locals})")
+        yfcl.TraceEnter(f"Ticker::_verify_cached_prices_interval(tkr={self._ticker}, {fn_locals})")
 
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self.ticker, exchange, tz_name, lday, self.session, proxy=None)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy=None)
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
 
@@ -508,108 +511,170 @@ class Ticker:
         exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
         return yfcu.ProcessUserDt(dt, tz_name)
 
+    def get_attribute(self, name, max_age=None, merge=False, metadata=False):
+        if max_age is None:
+            max_age = pd.Timedelta('365d')
+        if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = pd.Timedelta(max_age)
+        if max_age < pd.Timedelta(0):
+            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
+
+        if name in self._attributes:
+            a = self._attributes[name]
+        else:
+            a = None
+
+        if (a is not None) and (max_age > a['age']):
+            if metadata:
+                return a['data'], a['md']
+            return a['data']
+
+        md = None
+        if yfcm.IsDatumCached(self._ticker, name):
+            data, md = yfcm.ReadCacheDatum(self._ticker, name, True)
+            if data is not None:
+                if a is None:
+                    a = {}
+                a['data'] = data
+                if md is None:
+                    md = {}
+                a['md'] = md
+                if isinstance(data, dict) and 'FetchDate' in data:
+                    fetchDate = data['FetchDate']
+                    md['FetchDate'] = fetchDate
+                    del data['FetchDate']
+                    yfcm.StoreCacheDatum(self._ticker, name, data, metadata=md)
+                else:
+                    fetchDate = md['FetchDate']
+                age = pd.Timestamp.now() - max(fetchDate, md['LastCheck'])
+                a['age'] = age
+                if age < max_age:
+                    if metadata:
+                        return data, md
+                    return data
+
+        if name in dir(self._dat):
+            newd = getattr(self._dat, name)
+        else:
+            raise NotImplementedError(f"Implement fetching from YF: {name}")
+        if md is None:
+            md = {}
+        md['FetchDate'] = pd.Timestamp.now()
+
+        if a is not None and len(a['data']) > 0 and (not merge):
+            # Check new data is not downgrade
+            d = a['data']
+            if isinstance(d, dict):
+                diff = len(newd) - len(d)
+                diff_pct = float(diff) / float(len(d))
+                if diff_pct < -0.1 and diff < -10:
+                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
+                    missing_keys = [k for k in d.keys() if k not in data.keys()]
+                    new_keys = [k for k in data.keys() if k not in d.keys()]
+                    msg += "- missing: "
+                    msg += str({k:d[k] for k in missing_keys}) + '\n'
+                    msg += "- new: "
+                    msg += str({k:newd[k] for k in new_keys}) + '\n'
+                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
+                    msg += f"\nDiscarding fetched '{name}'."
+                    print(f'{self._ticker}: {msg}')
+                    print("- cached:")
+                    pprint(d)
+                    print("- fetched:")
+                    pprint(newd)
+                    raise Exception('review info diffs')
+                    yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
+                    if metadata:
+                        return d, a['md']
+                    return d
+            elif isinstance(d, pd.DataFrame):
+                diff = len(newd) - len(d)
+                diff_pct = float(diff) / float(len(d))
+                if diff_pct < -0.1 and diff < -10:
+                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
+                    msg += f"- cache had {len(d)} rows\n"
+                    msg += f"- fetched has {len(newd)} rows\n"
+                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
+                    msg += f"\nDiscarding fetched '{name}'."
+                    print(f'{self._ticker}: {msg}')
+                    yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
+                    if metadata:
+                        return d, a['md']
+                    return d
+            elif isinstance(d, str):
+                diff = len(newd) - len(d)
+                diff_pct = float(diff) / float(len(d))
+                if diff_pct < -0.1 and diff < -10:
+                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
+                    msg += "- cached: "
+                    msg += f"{d}\n"
+                    msg += "- new: "
+                    msg += f"{newd}\n"
+                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
+                    msg += f"\nDiscarding fetched '{name}'."
+                    print(f'{self._ticker}: {msg}')
+                    yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
+                    if metadata:
+                        return d, a['md']
+                    return d
+            else:
+                raise Exception(f"Implement check for lost data for type {type(d)}")
+
+        if a is None:
+            a = {}
+        if merge and 'data' in a.keys():
+            raise NotImplementedError(f"Implement merging cache+fetch for type {type(a['data'])}")
+        a['data'] = newd
+        a['age'] = pd.Timestamp.now() - md['FetchDate']
+        if md is None:
+            md = {}
+        md['LastCheck'] = md['FetchDate']
+        a['md'] = md
+        yfcm.StoreCacheDatum(self._ticker, name, a['data'], metadata=md)
+
+        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
+        yfct.SetExchangeTzName(exchange, tz_name)
+
+        if metadata:
+            return a['data'], a['md']
+        return a['data']
+
     @property
     def info(self):
         return self.get_info()
 
     def get_info(self, max_age=None):
         if max_age is None:
+            if yfcm._option_manager.max_ages.info is None:
+                raise Exception('why is yfcm._option_manager.max_ages.info None?')
             max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
-        elif not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
-            max_age = pd.Timedelta(max_age)
-        if max_age < pd.Timedelta(0):
-            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
-
-        if (self._info is not None) and (max_age > self._info_age):
-            return self._info
-
-        md = None
-        if yfcm.IsDatumCached(self.ticker, "info"):
-            self._info, md = yfcm.ReadCacheDatum(self.ticker, "info", True)
-            if 'FetchDate' not in self._info.keys():
-                # Old bug meant this could happen
-                fp = yfcm.GetFilepath(self.ticker, 'info')
-                mod_dt = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
-                self._info['FetchDate'] = mod_dt
-                if md is None:
-                    md = {}
-                md['LastCheck'] = mod_dt
-                yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
-
-            if self._info is not None:
-                if md is None:
-                    md = {}
-                if 'LastCheck' not in md.keys():
-                    # Old bug meant this could happen
-                    md['LastCheck'] = self._info['FetchDate']
-                    yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', md['LastCheck'])
-                self._info_age = pd.Timestamp.now() - max(self._info['FetchDate'], md['LastCheck'])
-                if self._info_age < max_age:
-                    return self._info
-
-        i = self.dat.info
-        i['FetchDate'] = pd.Timestamp.now()
-
-        if self._info is not None:
-            # Check new info is not downgrade
-            diff = len(i) - len(self._info)
-            diff_pct = float(diff) / float(len(self._info))
-            if diff_pct < -0.1 and diff < -10:
-                msg = 'When fetching new info, significant amount of data has disappeared\n'
-                missing_keys = [k for k in self._info.keys() if k not in i.keys()]
-                new_keys = [k for k in i.keys() if k not in self._info.keys()]
-                msg += "- missing: "
-                msg += str({k:self._info[k] for k in missing_keys}) + '\n'
-                msg += "- new: "
-                msg += str({k:i[k] for k in new_keys}) + '\n'
-
-                # msg += "\nKeep new data?"
-                # keep = click.confirm(msg, default=False)
-                # if not keep:
-                #     return self._info
-                #
-                msg += "\nDiscarding fetched info."
-                print(f'{self.ticker}: {msg}')
-                yfcm.WriteCacheMetadata(self.ticker, "info", 'LastCheck', i['FetchDate'])
-                return self._info
-
-        self._info = i
-        self._info_age = pd.Timestamp.now() - i['FetchDate']
-        if md is None:
-            md = {}
-        md['LastCheck'] = i['FetchDate']
-        yfcm.StoreCacheDatum(self.ticker, "info", self._info, metadata=md)
-
-        exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-        yfct.SetExchangeTzName(exchange, tz_name)
-
-        return self._info
+        return self.get_attribute("info", max_age)
 
     @property
     def fast_info(self):
         if self._fast_info is not None:
             return self._fast_info
 
-        if yfcm.IsDatumCached(self.ticker, "fast_info"):
+        if yfcm.IsDatumCached(self._ticker, "fast_info"):
             try:
-                self._fast_info = yfcm.ReadCacheDatum(self.ticker, "fast_info")
+                self._fast_info = yfcm.ReadCacheDatum(self._ticker, "fast_info")
             except Exception:
                 pass
             else:
                 return self._fast_info
 
-        # self._fast_info = self.dat.fast_info
+        # self._fast_info = self._dat.fast_info
         self._fast_info = {}
-        for k in self.dat.fast_info.keys():
+        for k in self._dat.fast_info.keys():
             try:
-                self._fast_info[k] = self.dat.fast_info[k]
+                self._fast_info[k] = self._dat.fast_info[k]
             except Exception as e:
                 if "decrypt" in str(e):
                     pass
                 else:
-                    print(f"TICKER = {self.ticker}")
+                    print(f"TICKER = {self._ticker}")
                     raise
-        yfcm.StoreCacheDatum(self.ticker, "fast_info", self._fast_info)
+        yfcm.StoreCacheDatum(self._ticker, "fast_info", self._fast_info)
 
         yfct.SetExchangeTzName(self._fast_info["exchange"], self._fast_info["timezone"])
 
@@ -620,12 +685,12 @@ class Ticker:
         if self._splits is not None:
             return self._splits
 
-        if yfcm.IsDatumCached(self.ticker, "splits"):
-            self._splits = yfcm.ReadCacheDatum(self.ticker, "splits")
+        if yfcm.IsDatumCached(self._ticker, "splits"):
+            self._splits = yfcm.ReadCacheDatum(self._ticker, "splits")
             return self._splits
 
-        self._splits = self.dat.splits
-        yfcm.StoreCacheDatum(self.ticker, "splits", self._splits)
+        self._splits = self._dat.splits
+        yfcm.StoreCacheDatum(self._ticker, "splits", self._splits)
         return self._splits
 
     def get_shares(self, start=None, end=None, max_age='30d'):
@@ -655,19 +720,19 @@ class Ticker:
             print("- start =", start, " end =", end)
 
         if self._shares is None:
-            if yfcm.IsDatumCached(self.ticker, "shares"):
+            if yfcm.IsDatumCached(self._ticker, "shares"):
                 if debug:
                     print("- init shares from cache")
-                self._shares = yfcm.ReadCacheDatum(self.ticker, "shares")
+                self._shares = yfcm.ReadCacheDatum(self._ticker, "shares")
         if self._shares is None or self._shares.empty:
             # Loaded from cache. Either re-fetch or return None
-            lastFetchDt = yfcm.ReadCacheMetadata(self.ticker, "shares", 'LastFetch')
+            lastFetchDt = yfcm.ReadCacheMetadata(self._ticker, "shares", 'LastFetch')
             do_fetch = (lastFetchDt is None) or ((dt_now - lastFetchDt) > max_age)
             if do_fetch:
                 self._shares = self._fetch_shares(start, end)
                 if self._shares is None:
                     self._shares = pd.DataFrame()
-                yfcm.StoreCacheDatum(self.ticker, "shares", self._shares, metadata={'LastFetch':pd.Timestamp.utcnow().tz_convert(tz)})
+                yfcm.StoreCacheDatum(self._ticker, "shares", self._shares, metadata={'LastFetch':pd.Timestamp.utcnow().tz_convert(tz)})
                 if self._shares.empty:
                     return None
             else:
@@ -691,18 +756,18 @@ class Ticker:
 
         if start < self._shares.index[0].date():
             df_pre = self._fetch_shares(start, self._shares.index[0])
-            yfcm.WriteCacheMetadata(self.ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
+            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
         if (end-td_1d) > self._shares.index[-1].date() and \
             (end - self._shares.index[-1].date()) > max_age:
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
-            yfcm.WriteCacheMetadata(self.ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
+            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_post is not None:
                 self._shares = pd.concat([self._shares, df_post])
 
         self._shares = self._shares
-        yfcm.StoreCacheDatum(self.ticker, "shares", self._shares)
+        yfcm.StoreCacheDatum(self._ticker, "shares", self._shares)
 
         f_na = self._shares['Shares'].isna()
         shares = self._shares[~f_na]
@@ -741,7 +806,7 @@ class Ticker:
 
         end_d = min(end_d, datetime.date.today() + td_1d)
 
-        df = self.dat.get_shares_full(start_d, end_d)
+        df = self._dat.get_shares_full(start_d, end_d)
         if df is None:
             return df
         if df.empty:
@@ -771,29 +836,27 @@ class Ticker:
 
     @property
     def major_holders(self):
-        if self._major_holders is not None:
-            return self._major_holders
-
-        if yfcm.IsDatumCached(self.ticker, "major_holders"):
-            self._major_holders = yfcm.ReadCacheDatum(self.ticker, "major_holders")
-            return self._major_holders
-
-        self._major_holders = self.dat.major_holders
-        yfcm.StoreCacheDatum(self.ticker, "major_holders", self._major_holders)
-        return self._major_holders
+        return self.get_attribute("major_holders", yfcm._option_manager.max_ages.holdings)
 
     @property
     def institutional_holders(self):
-        if self._institutional_holders is not None:
-            return self._institutional_holders
+        return self.get_attribute("institutional_holders", yfcm._option_manager.max_ages.holdings)
 
-        if yfcm.IsDatumCached(self.ticker, "institutional_holders"):
-            self._institutional_holders = yfcm.ReadCacheDatum(self.ticker, "institutional_holders")
-            return self._institutional_holders
+    @property
+    def mutualfund_holders(self):
+        return self.get_attribute("mutualfund_holders", yfcm._option_manager.max_ages.holdings)
 
-        self._institutional_holders = self.dat.institutional_holders
-        yfcm.StoreCacheDatum(self.ticker, "institutional_holders", self._institutional_holders)
-        return self._institutional_holders
+    @property
+    def insider_purchases(self) -> pd.DataFrame:
+        return self.get_attribute("insider_purchases", yfcm._option_manager.max_ages.holdings)
+
+    @property
+    def insider_transactions(self) -> pd.DataFrame:
+        return self.get_attribute("insider_transactions", yfcm._option_manager.max_ages.holdings)
+
+    @property
+    def insider_roster_holders(self) -> pd.DataFrame:
+        return self.get_attribute("insider_roster_holders", yfcm._option_manager.max_ages.holdings)
 
     @property
     def earnings(self):
@@ -876,46 +939,55 @@ class Ticker:
 
     @property
     def sustainability(self):
-        if self._sustainability is not None:
-            return self._sustainability
-
-        if yfcm.IsDatumCached(self.ticker, "sustainability"):
-            self._sustainability = yfcm.ReadCacheDatum(self.ticker, "sustainability")
-            return self._sustainability
-
-        self._sustainability = self.dat.sustainability
-        yfcm.StoreCacheDatum(self.ticker, "sustainability", self._sustainability)
-        return self._sustainability
+        return self.get_attribute("sustainability", yfcm._option_manager.max_ages.analysis)
 
     @property
     def recommendations(self):
-        if self._recommendations is not None:
-            return self._recommendations
+        return self.get_attribute("recommendations", yfcm._option_manager.max_ages.analysis)
 
-        if yfcm.IsDatumCached(self.ticker, "recommendations"):
-            self._recommendations = yfcm.ReadCacheDatum(self.ticker, "recommendations")
-            return self._recommendations
+    @property
+    def recommendations_summary(self):
+        return self.get_attribute("recommendations_summary", yfcm._option_manager.max_ages.analysis)
 
-        self._recommendations = self.dat.recommendations
-        yfcm.StoreCacheDatum(self.ticker, "recommendations", self._recommendations)
-        return self._recommendations
+    @property
+    def upgrades_downgrades(self):
+        return self.get_attribute("upgrades_downgrades", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def analyst_price_targets(self) -> dict:
+        return self.get_attribute("analyst_price_targets", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def earnings_estimate(self) -> pd.DataFrame:
+        return self.get_attribute("earnings_estimate", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def revenue_estimate(self) -> pd.DataFrame:
+        return self.get_attribute("revenue_estimate", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def earnings_history(self) -> pd.DataFrame:
+        return self.get_attribute("earnings_history", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def eps_trend(self) -> pd.DataFrame:
+        return self.get_attribute("eps_trend", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def eps_revisions(self) -> pd.DataFrame:
+        return self.get_attribute("eps_revisions", yfcm._option_manager.max_ages.analysis)
+
+    @property
+    def growth_estimates(self) -> pd.DataFrame:
+        return self.get_attribute("growth_estimates", yfcm._option_manager.max_ages.analysis)
 
     @property
     def calendar(self):
         return self._financials_manager.get_calendar()
 
     @property
-    def inin(self):
-        if self._inin is not None:
-            return self._inin
-
-        if yfcm.IsDatumCached(self.ticker, "inin"):
-            self._inin = yfcm.ReadCacheDatum(self.ticker, "inin")
-            return self._inin
-
-        self._inin = self.dat.inin
-        yfcm.StoreCacheDatum(self.ticker, "inin", self._inin)
-        return self._inin
+    def isin(self):
+        return self.get_attribute("isin", yfcm._option_manager.max_ages.info)
 
     @property
     def options(self):
@@ -936,10 +1008,10 @@ class Ticker:
             return self._options
 
         md = None
-        if yfcm.IsDatumCached(self.ticker, "options"):
-            self._options, md = yfcm.ReadCacheDatum(self.ticker, "options", True)
+        if yfcm.IsDatumCached(self._ticker, "options"):
+            self._options, md = yfcm.ReadCacheDatum(self._ticker, "options", True)
             if 'FetchDate' not in md.keys():
-                raise Exception(f'{self.ticker}: why YFC options[] still missing FetchDate?!')
+                raise Exception(f'{self._ticker}: why YFC options[] still missing FetchDate?!')
 
             if self._options is not None:
                 if md is None:
@@ -948,7 +1020,7 @@ class Ticker:
                 if self._options_age < max_age:
                     return self._options
 
-        o = self.dat.options
+        o = self._dat.options
         if md is None:
             md = {}
         md['FetchDate'] = pd.Timestamp.now()
@@ -962,7 +1034,7 @@ class Ticker:
 
         if md is None:
             md = {}
-        yfcm.StoreCacheDatum(self.ticker, "options", self._options, metadata=md)
+        yfcm.StoreCacheDatum(self._ticker, "options", self._options, metadata=md)
 
         self._options_age = pd.Timestamp.now() - md['FetchDate']
 
@@ -980,8 +1052,8 @@ class Ticker:
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
         if self._option_chain is None:
-            if yfcm.IsDatumCached(self.ticker, "option_chain"):
-                self._option_chain = yfcm.ReadCacheDatum(self.ticker, "option_chain", False)
+            if yfcm.IsDatumCached(self._ticker, "option_chain"):
+                self._option_chain = yfcm.ReadCacheDatum(self._ticker, "option_chain", False)
             else:
                 self._option_chain = {}
 
@@ -996,7 +1068,7 @@ class Ticker:
                     "underlying": self._option_chain[expiry_date]['underlying']
                 })
 
-        oc = self.dat.option_chain(expiry_date)
+        oc = self._dat.option_chain(expiry_date)
         md = {'FetchDate': pd.Timestamp.now()}
         self._option_chain[expiry_date] = {
             'calls': oc.calls,
@@ -1004,7 +1076,7 @@ class Ticker:
             'underlying': oc.underlying,
             'metadata': md
         }
-        yfcm.StoreCacheDatum(self.ticker, "option_chain", self._option_chain)
+        yfcm.StoreCacheDatum(self._ticker, "option_chain", self._option_chain)
         return oc
         
 
@@ -1013,12 +1085,12 @@ class Ticker:
         if self._news is not None:
             return self._news
 
-        if yfcm.IsDatumCached(self.ticker, "news"):
-            self._news = yfcm.ReadCacheDatum(self.ticker, "news")
+        if yfcm.IsDatumCached(self._ticker, "news"):
+            self._news = yfcm.ReadCacheDatum(self._ticker, "news")
             return self._news
 
-        self._news = self.dat.news
-        yfcm.StoreCacheDatum(self.ticker, "news", self._news)
+        self._news = self._dat.news
+        yfcm.StoreCacheDatum(self._ticker, "news", self._news)
         return self._news
 
     @property

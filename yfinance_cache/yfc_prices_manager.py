@@ -2194,7 +2194,6 @@ class PriceHistory:
 
         # Remove any out-of-range data:
         if n > 0:
-            # NOTE: YF has a bug-fix pending merge: https://github.com/ranaroussi/yfinance/pull/1012
             if end is not None:
                 df = df.loc[:fetch_end_dt-timedelta(milliseconds=1)]
                 n = df.shape[0]

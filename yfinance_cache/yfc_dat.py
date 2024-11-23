@@ -104,6 +104,7 @@ exchangeToXcalExchange["CXI"] = "XCBF"  # CBOE Futures
 exchangeToXcalExchange["TOR"] = "XTSE"  # Toronto
 exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"]  # TSX Venture
 exchangeToXcalExchange["CNQ"] = exchangeToXcalExchange["TOR"]  # CSE. TSX competitor, but has same hours
+exchangeToXcalExchange["NEO"] = exchangeToXcalExchange["TOR"]  # Canada Cboe. VERY similar to Toronto, I'm too lazy to add NEO to exchange_calendars
 # Europe:
 exchangeToXcalExchange["LSE"] = "XLON"  # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
@@ -140,6 +141,7 @@ exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["TWO"] = "XTAI"  # Taipai OTC, Taiwan. Closes 5 minutes before TWSE, otherwise same.
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
+exchangeToXcalExchange["KOE"] = exchangeToXcalExchange["KSC"]
 exchangeToXcalExchange["SES"] = "XSES"  # Singapore
 exchangeToXcalExchange["HKG"] = "XHKG"  # Hong Kong
 exchangeToXcalExchange["ASX"] = "ASX"   # Australia
@@ -175,6 +177,7 @@ exchangeToYfLag["CXI"] = timedelta(minutes=15)
 exchangeToYfLag["TOR"] = timedelta(seconds=0)
 exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
 exchangeToYfLag["CNQ"] = exchangeToYfLag["TOR"]
+exchangeToYfLag["NEO"] = timedelta(seconds=0)
 # Europe:
 exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
@@ -211,6 +214,7 @@ exchangeToYfLag["SHZ"] = timedelta(minutes=30)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
 exchangeToYfLag["TWO"] = timedelta(minutes=20)
 exchangeToYfLag["KSC"] = timedelta(minutes=20)
+exchangeToYfLag["KOE"] = timedelta(minutes=20)
 exchangeToYfLag["SES"] = timedelta(minutes=20)
 exchangeToYfLag["HKG"] = timedelta(minutes=15)
 exchangeToYfLag["ASX"] = timedelta(minutes=20)

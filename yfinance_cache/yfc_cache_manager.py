@@ -14,6 +14,8 @@ from . import yfc_utils as yfcu
 packed_data_cats = {}
 packed_data_cats["quarterlys"] = ["quarterly_balance_sheet", "quarterly_cashflow", "quarterly_earnings", "quarterly_financials", "quarterly_income_stmt"]
 packed_data_cats["annuals"]    = ["balance_sheet", "cashflow", "earnings", "financials", "income_stmt"]
+packed_data_cats["holders"]    = ['major_holders', 'institutional_holders', 'mutualfund_holders', 'insider_purchases', 'insider_transactions', 'insider_roster_holders']
+packed_data_cats["analysis"]   = ['sustainability', 'recommendations', 'recommendations_summary', 'upgrades_downgrades', 'analyst_price_targets', 'earnings_estimate', 'revenue_estimate', 'earnings_history', 'eps_trend', 'eps_revisions', 'growth_estimates']
 
 quarterly_objects = packed_data_cats["quarterlys"]
 annual_objects    = packed_data_cats["annuals"]
