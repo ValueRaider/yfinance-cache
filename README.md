@@ -2,15 +2,6 @@
 
 Persistent caching wrapper for `yfinance` module. Intelligent caching, not dumb caching of web requests - only update cache where missing/outdated and new data expected. Idea is to minimise fetch frequency and quantity - Yahoo API officially only cares about frequency, but I'm guessing they also care about server load from scrapers.
 
-Cache auto-update implemented for most properties:
-- prices & options
-- financials
-- calendar & earnings_dates
-- shares
-- info
-- holders stuff
-- analyst stuff
-
 Persistent cache stored in your user cache folder:
 - Windows = C:/Users/\<USER\>/AppData/Local/py-yfinance-cache
 - Linux = /home/\<USER\>/.cache/py-yfinance-cache
@@ -32,9 +23,19 @@ dat.calendar
 # etc
 ```
 
-Many properties supported, for full list run:
-```python
-print( [p for p in dir(dat) if not p.startswith('_')] )
+Supported properties and functions on `Ticker` class:
+```
+isin                income_stmt                analyst_price_targets      insider_purchases         
+history()           balance_sheet              earnings_estimate          insider_roster_holders    
+history_metadata    cashflow                   earnings_history           insider_transactions      
+info                quarterly_income_stmt      eps_revisions              institutional_holders     
+options             quarterly_balance_sheet    eps_trend                  major_holders             
+option_chain()      quarterly_cashflow         growth_estimates           mutualfund_holders        
+news                calendar                   recommendations                                      
+                    get_earnings_dates()       recommendations_summary                              
+                    get_release_dates()        revenue_estimate                                     
+                                               sustainability                                       
+                                               upgrades_downgrades
 ```
 
 ### Price data differences
@@ -150,17 +151,3 @@ sometimes weeks later!
 If you see big differences in the OHLC price of recent intervals (last few days), probably Yahoo is wrong.
 Since fetching that price data on day / day after, Yahoo has messed up their data - at least this is my experience.
 Cross-check against TradingView or stock exchange website.
-
-## Performance
-
-For each ticker, YFC basically performs 2 tasks:
-
-1 - check if fetch needed
-
-2 - fetch data and integrate into cache
-
-Throughput on 1 thread decent CPU: task 1 @ ~60/sec, task 2 @ ~5/sec.
-
-## Limitations
-
-- intraday pre/post price data not available
