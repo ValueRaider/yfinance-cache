@@ -267,6 +267,7 @@ class EventsHistory:
         divs_df = divs_df.copy()
         if not divs_df.empty:
             expected_cols = ["Dividends", "FetchDate", "Close before"]
+            expected_cols.append('Close repaired?')
             for c in expected_cols:
                 if c not in divs_df.columns:
                     print(divs_df)
@@ -294,7 +295,7 @@ class EventsHistory:
                     if np.isnan(adj):  # todo: remove once confirm YFC bug-free
                         print(f"- divs_df.loc[{dt}]:")
                         print(divs_df.loc[dt])
-                        raise Exception("Back Adj. is NaN")
+                        raise Exception(f"Back Adj. is NaN (new_div={new_div} close_before={close_before})")
                 except:
                     print("dt=", dt)
                     print("T=", self.ticker)
@@ -306,12 +307,25 @@ class EventsHistory:
                     yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                 divs_df.loc[dt, "Back Adj."] = adj
 
-                if self.divs is not None and dt in self.divs.index:
+                div_already_in_cache = False
+                if self.divs is not None:
+                    if dt in self.divs.index:
+                        div_already_in_cache = True
+                        cached_div_dt = dt
+                    else:
+                        # Update: maybe Yahoo has shifted the day slighty.
+                        for dt2 in self.divs.index:
+                            if (abs(dt2-dt).days < 7) and (new_div == self.divs['Dividends'].loc[dt2]):
+                                div_already_in_cache = True
+                                cached_div_dt = dt2
+                                break
+
+                if self.divs is not None and div_already_in_cache:
                     # Replaced cached dividend event if (i) dividend different or (ii) adj different.
-                    cached_div = self.divs.loc[dt, "Dividends"]
-                    cached_adj = self.divs.loc[dt, "Back Adj."]
+                    cached_div = self.divs.loc[cached_div_dt, "Dividends"]
+                    cached_adj = self.divs.loc[cached_div_dt, "Back Adj."]
                     if debug:
-                        msg = f"- pre-existing dividend @ {dt}: {cached_div} vs {new_div}"
+                        msg = f"- pre-existing dividend @ {cached_div_dt}: {cached_div} vs {new_div}"
                         yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                     if cached_div == 0.0:
                         diff_pct = 1.0
@@ -321,7 +335,8 @@ class EventsHistory:
                         diff_pct = max(diff_pct, diff_pct2)
                     supersede = diff_pct >= 0.01
                     # Update: and (iii) fetched in past
-                    supersede = supersede and (self.divs.loc[dt, "FetchDate"] < divs_df.loc[dt, "FetchDate"])
+                    supersede = supersede and (self.divs.loc[cached_div_dt, "FetchDate"] < divs_df.loc[dt, "FetchDate"])
+                    supersede = supersede or (cached_div_dt != dt)
                     if not supersede:
                         # tiny difference, easier to just keep old value
                         divs_df = divs_df.drop(dt)
@@ -329,10 +344,10 @@ class EventsHistory:
                             msg = "ignoring new div"
                             yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
                     else:
-                        divs_df.loc[dt, "Superseded div"] = self.divs.loc[dt, "Dividends"]
-                        divs_df.loc[dt, "Superseded back adj."] = self.divs.loc[dt, "Back Adj."]
-                        divs_df.loc[dt, "Superseded div FetchDate"] = self.divs.loc[dt, "FetchDate"]
-                        self.divs = self.divs.drop(dt)
+                        divs_df.loc[dt, "Superseded div"] = self.divs.loc[cached_div_dt, "Dividends"]
+                        divs_df.loc[dt, "Superseded back adj."] = self.divs.loc[cached_div_dt, "Back Adj."]
+                        divs_df.loc[dt, "Superseded div FetchDate"] = self.divs.loc[cached_div_dt, "FetchDate"]
+                        self.divs = self.divs.drop(cached_div_dt)
                         self_divs_modified = True
                         if debug:
                             msg = "- replacing old div"
@@ -342,6 +357,7 @@ class EventsHistory:
                 #     divs_df = divs_df.drop(dt)
 
             cols = ["Dividends", "Back Adj.", "FetchDate", "Superseded div", "Superseded back adj.", "Superseded div FetchDate"]
+            cols.append('Close repaired?')
             if not divs_df.empty:
                 divs_pretty = divs_df[["Dividends", "Back Adj.", "Close before"]].copy()
                 divs_pretty = divs_pretty.rename(columns={'Dividends':'Div', 'Back Adj.':'Adj', 'Close before':'Close'})
@@ -351,7 +367,10 @@ class EventsHistory:
                 n = divs_pretty.shape[0]
                 n_sup = np.sum((divs_df['Superseded div']>0.0).to_numpy())
                 n_new = n - n_sup
-                self.manager.LogEvent("info", "DividendManager", f"stored {n} dividends ({n_new} new, {n_sup} superseded): {divs_pretty.to_dict(orient='index')}")
+                msg = f"stored {n} dividends ({n_new} new, {n_sup} superseded): {divs_pretty.to_dict(orient='index')}"
+                self.manager.LogEvent("info", "DividendManager", msg)
+                if yfcl.IsTracingEnabled():
+                    yfcl.TracePrint(msg)
 
                 if self.divs is None:
                     self.divs = divs_df[cols].copy()
@@ -779,7 +798,14 @@ class PriceHistory:
                         rangePre_to_fetch = rangePre_to_fetch[0]
                     #
                     rangePost_to_fetch = None
-                    if self.h["Final?"].iloc[-1] and (min(yfct.CalcIntervalLastDataDt(self.exchange, dt_end, self.interval), self.h["FetchDate"].iloc[-1])+max_age <= dt_now):
+                    dt_end_lastDataDt = yfct.CalcIntervalLastDataDt(self.exchange, dt_end, self.interval)
+                    fetchDt = self.h["FetchDate"].iloc[-1]
+                    if dt_end_lastDataDt is None:
+                        # hacky fix but should be fine
+                        dt_end_lastDataDt = fetchDt
+                    more_rows_possible = self.h["Final?"].iloc[-1] and (min(dt_end_lastDataDt, fetchDt)+max_age <= dt_now)
+                    if more_rows_possible:
+                        # Possible for Yahoo to have new data.
                         # Note: if self.h["Final?"].iloc[-1] == False, then that means above expiry check didn't remove it so don't fetch anything
                         if debug_yfc:
                             msg = "checking for rangePost_to_fetch"
@@ -949,6 +975,7 @@ class PriceHistory:
                     f = (self.h['Dividends']>0).to_numpy()
                     if f.any():
                         df_divs = self.h[f][['Dividends', 'FetchDate']].copy()
+                        df_divs['Close repaired?'] = self.h['Repaired?'].ffill().shift(1).loc[df_divs.index]
                         df_divs['Desplitted?'] = False
                         cached_new_divs = yfcm.ReadCacheDatum(self.ticker, "new_divs")
                         if cached_new_divs is not None:
@@ -1140,23 +1167,6 @@ class PriceHistory:
 
         # Fetch ranges
         h2_pre = None ; h2_post = None
-        if range_pre is not None:
-            r = range_pre
-            try:
-                h2_pre = self._fetchYfHistory(r[0], r[1], prepost, debug, quiet=quiet)
-            except yfcd.NoPriceDataInRangeException:
-                if self.interval == yfcd.Interval.Days1 and r[1] - r[0] == td_1d:
-                    # If only trying to fetch 1 day of 1d data, then print warning instead of exception.
-                    # Could add additional condition of dividend previous day (seems to mess up table).
-                    if not quiet:
-                        print(f"WARNING: {self.ticker}: No {yfcd.intervalToString[self.interval]}-price data fetched for {r[0]} -> {r[1]}")
-                    h2_pre = None
-                elif (range_post is None) and (r[1]-r[0] < td_1d*7) and (r[1]-r[0] > td_1d*3):
-                    # Small date range, potentially trying to fetch before listing data
-                    h2_pre = None
-                else:
-                    raise
-
         if range_post is not None:
             r = range_post
             try:
@@ -1220,6 +1230,24 @@ class PriceHistory:
 
             self.h = pd.concat([self.h, h2_post[self.h.columns]])
             self.h.index = pd.to_datetime(self.h.index, utc=True).tz_convert(tz_exchange)
+
+        # Update: fetch pre AFTER post, to add any new divs to div cache
+        if range_pre is not None:
+            r = range_pre
+            try:
+                h2_pre = self._fetchYfHistory(r[0], r[1], prepost, debug, quiet=quiet)
+            except yfcd.NoPriceDataInRangeException:
+                if self.interval == yfcd.Interval.Days1 and r[1] - r[0] == td_1d:
+                    # If only trying to fetch 1 day of 1d data, then print warning instead of exception.
+                    # Could add additional condition of dividend previous day (seems to mess up table).
+                    if not quiet:
+                        print(f"WARNING: {self.ticker}: No {yfcd.intervalToString[self.interval]}-price data fetched for {r[0]} -> {r[1]}")
+                    h2_pre = None
+                elif (range_post is None) and (r[1]-r[0] < td_1d*7) and (r[1]-r[0] > td_1d*3):
+                    # Small date range, potentially trying to fetch before listing data
+                    h2_pre = None
+                else:
+                    raise
 
         if h2_pre is not None:
             if debug_yfc:
@@ -1703,8 +1731,13 @@ class PriceHistory:
 
         n = h.shape[0]
         f = h['Final?'].to_numpy()
-        error_pct_final = np.sum(f_diff_all.to_numpy()) / np.sum(f)
-        if n > 10 and error_pct_final > 0.95:
+        n_diff = np.sum(f_diff_all.to_numpy())
+        n_final = np.sum(f)
+        if n_final == 0:
+            error_pct_final = 0.0
+        else:
+            error_pct_final = n_diff / n_final
+        if n > 10 and n_final > 0 and error_pct_final > 0.95:
             # If almost-all final data is marked as bad, then treat entire table as bad.
             f_diff_all.loc[~f_diff_all.to_numpy()] = True
         elif self.multiday and f_diff_all.name is not None and 'Dividends' in f_diff_all.name:
@@ -2004,7 +2037,8 @@ class PriceHistory:
                 # pass
                 msg = "- YF returned table:"
                 yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
-                print(df[[c for c in ["Open", "Low", "High", "Close", "Dividends", "Volume"] if c in df.columns]])
+                df_pretty = df[[c for c in ["Open", "Low", "High", "Close", "Dividends", "Volume", 'Repaired?'] if c in df.columns]]
+                print(df_pretty)
 
         # Detect listing day
         hist_md = yfcm.ReadCacheDatum(self.ticker, "history_metadata")
@@ -2153,14 +2187,24 @@ class PriceHistory:
             # Update: move checking for new dividends to here, before discarding out-of-range data
             df_divs = df[df["Dividends"] != 0][["Dividends"]].copy()
             if not df_divs.empty:
-                df_divs['Close before'] = df['Close'].shift(1).loc[df_divs.index]
-                if np.isnan(df_divs['Close before'].iloc[0]):
-                    # Shouldn't be a problem because this row should already be in cache, can be dropped.
+                df_divs['Close before'] = df['Close'].ffill().shift(1).loc[df_divs.index]
+                df_divs['Close repaired?'] = df['Repaired?'].ffill().shift(1).loc[df_divs.index]
+                close_before_na = df_divs['Close before'].isna().to_numpy()
+                if close_before_na[0]:
+                    # Shouldn't be a problem because this row should already be in cache, 
+                    # or is outside fetch range. So can be dropped.
                     if len(df_divs) == 1:
                         df_divs = pd.DataFrame()
                     else:
                         df_divs = df_divs.iloc[1:]
                 if not df_divs.empty:
+                    close_before_na = df_divs['Close before'].isna().to_numpy()
+                    if close_before_na.any():
+                        # actual close before was NaN, so look back a little more
+                        for i in np.where(close_before_na)[0]:
+                            dt = df_divs.index[i]
+                            df_divs.loc[dt, 'Close before'] = df['Close'].dropna().shift(1).loc[dt-timedelta(days=4):dt].iloc[-1]
+                        
                     df_divs['FetchDate'] = fetch_dt_utc
                     df_divs['Desplitted?'] = False
                     if debug_yfc:
@@ -2172,6 +2216,8 @@ class PriceHistory:
                             cached_new_divs['Desplitted?'] = False
                         if 'Close before' not in cached_new_divs.columns:
                             cached_new_divs['Close before'] = np.nan
+                        if 'Close repaired?' not in cached_new_divs.columns:
+                            cached_new_divs['Close repaired?'] = False
                         df_divs = df_divs[~df_divs.index.isin(cached_new_divs.index)]
                         if not df_divs.empty:
                             # Send these out so at least can de-adjust h_pre.
@@ -3868,7 +3914,7 @@ class PriceHistory:
             # Copy over CSF and CDF too from daily
             df = pd.merge(df, df_daily_raw_during_d[["CDF", "CSF"]], how="left", on="_date", validate="many_to_one")
             df.index = df["_indexBackup"] ; df.index.name = None ; df = df.drop(["_indexBackup", "_date"], axis=1)
-            cdf = df["CDF"]
+            cdf = df["CDF"].to_numpy()
             df["Adj Close"] = df["Close"] * cdf
             csf = df["CSF"]
 
@@ -3904,32 +3950,41 @@ class PriceHistory:
                 cdf = pd.Series(cdf).bfill().ffill().to_numpy()
 
         # In rare cases, Yahoo is not calculating 'Adj Close' correctly
-        if self.interday:
-            divs_since = self.manager.GetHistory("Events").GetDivs(start=df.index[-1].date()+self.itd)
-            if divs_since is not None and not divs_since.empty:
-                # Check that 'Adj Close' reflects all future dividends
-                expected_adj = divs_since['Back Adj.'].prod()
-                if self.interday and self.interval != yfcd.Interval.Days1:
-                    if df['Dividends'].iloc[-1] != 0.0:
-                        dt = df.index[-1]
-                        # Note: df hasn't been de-splitted yet
-                        hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=True, adjust_divs=False)
-                        close = hist_before['Close'].iloc[-1]
-                        adj_adj = 1 - df['Dividends'].iloc[-1] / close
-                        if adj_adj < 1.0:
-                            msg = f"Adjusting expected_adj={expected_adj:.3f} by last-row div={df['Dividends'].iloc[-1]} adj={adj_adj:.3f} @ {dt.date()}"
-                            self.manager.LogEvent("info", '_reverseYahooAdjust', msg)
-                            expected_adj *= adj_adj
-                actual_adj = cdf[-1]
-                if not np.isnan(actual_adj):
-                    diff_pct = abs(actual_adj / expected_adj - 1.0)
-                    if diff_pct > 0.005:
-                        msg = f'expected_adj={expected_adj:.4f} != actual_adj={actual_adj:.4f} @ {df.index[-1].date()}, correcting'
+        search_start_dt = df.index[-1].date() + max(timedelta(days=1), self.itd)
+        divs_since = self.manager.GetHistory("Events").GetDivs(start=search_start_dt)
+        if divs_since is not None and not divs_since.empty:
+            # Check that 'Adj Close' reflects all future dividends
+            expected_adj = divs_since['Back Adj.'].prod()
+            if self.interday and self.interval != yfcd.Interval.Days1:
+                if df['Dividends'].iloc[-1] != 0.0:
+                    dt = df.index[-1]
+                    # Note: df hasn't been de-splitted yet
+                    hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=True, adjust_divs=False)
+                    close = hist_before['Close'].iloc[-1]
+                    adj_adj = 1 - df['Dividends'].iloc[-1] / close
+                    if adj_adj < 1.0:
+                        msg = f"Adjusting expected_adj={expected_adj:.3f} by last-row div={df['Dividends'].iloc[-1]} adj={adj_adj:.3f} @ {dt.date()}"
                         self.manager.LogEvent("info", '_reverseYahooAdjust', msg)
-                        divs_since.index = divs_since.index.date
-                        # Bad. Dividends have occurred after this price data, but 'Adj Close' is missing adjustment(s).
-                        # Fix
-                        cdf *= expected_adj / actual_adj
+                        if yfcl.IsTracingEnabled():
+                            yfcl.TracePrint(msg)
+                        expected_adj *= adj_adj
+            actual_adj = cdf[-1]
+            if not np.isnan(actual_adj):
+                if actual_adj == 1.0:
+                    if expected_adj == actual_adj:
+                        ratio = 1.0
+                    else:
+                        ratio = np.inf
+                else:
+                    ratio = (1-expected_adj)/(1-actual_adj)
+                diff_pct = abs(ratio -1.0)
+                if diff_pct > 0.005:
+                    msg = f'expected_adj={expected_adj:.4f} != actual_adj={actual_adj:.4f} @ {df.index[-1].date()}, correcting'
+                    self.manager.LogEvent("info", '_reverseYahooAdjust', msg)
+                    divs_since.index = divs_since.index.date
+                    # Bad. Dividends have occurred after this price data, but 'Adj Close' is missing adjustment(s).
+                    # Fix
+                    cdf *= expected_adj / actual_adj
 
         # Cumulative stock-split factor
         if csf is None:
@@ -3990,9 +4045,6 @@ class PriceHistory:
         if self.h is None or self.h.empty:
             return
 
-        # debug = False
-        # debug = True
-
         h_modified = False
 
         log_msg = f"PM::_applyNewEvents()-{self.istr}"
@@ -4034,6 +4086,8 @@ class PriceHistory:
                         h_lastRow = self.h.loc[self.h.index[indices[-1]]]
                         log_msg += f". Last CSF = {h_lastRow['CSF']:.5f} @ {h_lastRow['LastSplitAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
                         self.manager.LogEvent("info", "PriceManager", log_msg)
+                        if yfcl.IsTracingEnabled():
+                            yfcl.TracePrint(log_msg)
 
                         self.h.loc[f, "CSF"] *= split["Stock Splits"]
                         LastSplitAdjustDt_new[f] = np.maximum(split['FetchDate'], LastSplitAdjustDt_new[f])
@@ -4043,13 +4097,14 @@ class PriceHistory:
                 if split["Stock Splits"] == 1.0:
                     continue
                 f1 = self.h.index < dt
-                f2 = self.h["LastSplitAdjustDt"] < split["FetchDate"]
+                f2 = self.h["LastSplitAdjustDt"] < (split["FetchDate"] - timedelta(minutes=2))
                 f = f1 & f2
-                # Update: handle scenario where prices fetched day before split - usually already adjusted
-                if split['Superseded split'] == 0.0:
-                    window = timedelta(hours=12)
-                    f3 = (self.h['FetchDate'] + window) < dt
-                    f = f & f3
+                # # Update: handle scenario where prices fetched day before split - usually already adjusted
+                # if split['Superseded split'] == 0.0:
+                #     window = timedelta(hours=12)
+                #     f3 = (self.h['FetchDate'] + window) < dt
+                #     f = f & f3
+                # Update 2: disable above, it was causing new splits to not be applied
                 if f.any():
                     log_msg = f"{self.istr}: Applying split [dt={dt.date()} {split['Stock Splits']} fetch={split['FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
                     indices = np.where(f)[0]
@@ -4061,6 +4116,8 @@ class PriceHistory:
                     h_lastRow = self.h.loc[self.h.index[indices[-1]]]
                     log_msg += f". Last CSF = {h_lastRow['CSF']:.5f} @ {h_lastRow['LastSplitAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
                     self.manager.LogEvent("info", "PriceManager", log_msg)
+                    if yfcl.IsTracingEnabled():
+                        yfcl.TracePrint(log_msg)
 
                     if isinstance(self.h["CSF"].iloc[0], (int, np.int64)):
                         self.h["CSF"] = self.h["CSF"].astype(float)
@@ -4125,6 +4182,8 @@ class PriceHistory:
                         h_lastRow = self.h.loc[self.h.index[indices[-1]]]
                         log_msg += f". Last CDF = {h_lastRow['CDF']:.5f} @ {h_lastRow['LastDivAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
                         self.manager.LogEvent("info", "PriceManager", log_msg)
+                        if yfcl.IsTracingEnabled():
+                            yfcl.TracePrint(log_msg)
 
                         self.h.loc[f, "CDF"] /= div["Superseded back adj."]
                         LastDivAdjustDt_new[f] = np.maximum(div['FetchDate'], LastDivAdjustDt_new[f])
@@ -4142,16 +4201,16 @@ class PriceHistory:
                 f = f1 & f2
                 # Update: handle scenario where prices fetched day before div - usually already adjusted.
                 # But only if this div does not supersede. If it does supersede, then must apply this div.
-                if div['Superseded div'] == 0.0:
-                    window = timedelta(hours=12)
-                    f_inWindow = ((self.h['FetchDate'] + window) >= dt).to_numpy()
-                    if f_inWindow.any():
-                        # Only reverse div if CDF < 1.0
-                        f_hasCdf = (self.h['CDF'] < 1.0).to_numpy()
-                        f_inWindowAndAdjusted = f_inWindow & f_hasCdf
-                        if f_inWindowAndAdjusted.any():
-                            # Exclude these
-                            f = f & (~f_inWindowAndAdjusted)
+                # if div['Superseded div'] == 0.0:
+                #     window = timedelta(hours=12)
+                #     f_inWindow = ((self.h['FetchDate'] + window) >= dt).to_numpy()
+                #     if f_inWindow.any():
+                #         # Only reverse div if CDF < 1.0
+                #         f_hasCdf = (self.h['CDF'] < 1.0).to_numpy()
+                #         f_inWindowAndAdjusted = f_inWindow & f_hasCdf
+                #         if f_inWindowAndAdjusted.any():
+                #             # Exclude these
+                #             f = f & (~f_inWindowAndAdjusted)
 
                 if f.any():
                     log_msg = f"{self.istr}: Applying div [dt={dt.date()} {div['Dividends']} adj={div['Back Adj.']:.5f} fetch={div['FetchDate'].strftime('%Y-%m-%d %H:%M:%S%z')}]"
@@ -4164,6 +4223,8 @@ class PriceHistory:
                     h_lastRow = self.h.loc[self.h.index[indices[-1]]]
                     log_msg += f". Last CDF = {h_lastRow['CDF']:.5f} @ {h_lastRow['LastDivAdjustDt'].strftime('%Y-%m-%d %H:%M:%S%z')}"
                     self.manager.LogEvent("info", "PriceManager", log_msg)
+                    if yfcl.IsTracingEnabled():
+                        yfcl.TracePrint(log_msg)
 
                     self.h.loc[f, "CDF"] *= div["Back Adj."]
                     if div["Back Adj."] == 1.0:

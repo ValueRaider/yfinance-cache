@@ -439,6 +439,8 @@ def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_e
             if not quiet:
                 df_diffs = h_divs[f_diff].join(yf_divs[f_diff], lsuffix="_cache", rsuffix="_yf")
                 df_diffs.index = df_diffs.index.tz_convert(h_divs.index.tz)
+                df_diffs = df_diffs.join(h['Close'].rename('Close_yfc'))
+                df_diffs = df_diffs.join(df_yf['Close'].rename('Close_yf'))
                 if interday:
                     df_diffs.index = df_diffs.index.tz_convert(df_yf.index.tz).date
                 df_diffs["error"] = df_diffs[c+"_cache"] - df_diffs[c+"_yf"]

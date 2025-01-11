@@ -49,11 +49,11 @@ class Test_Yfc_Interface(Test_Base):
     def setUp(self):
         self.tempCacheDir = tempfile.TemporaryDirectory()
         yfcm.SetCacheDirpath(self.tempCacheDir.name)
+        yfcm._option_manager.calendar.accept_unexpected_Yahoo_intervals = True
 
         self.session = session_gbl
 
         self.tkrs = ["MEL.NZ", "BHG.JO", "INTC"]
-        self.tkrs.append("HLTH") # Listed recently
         self.tkrs.append("GME") # Stock split recently
         self.tkrs.append("BHP.AX") # ASX market has auction
         # self.tkrs.append("ICL.TA") # TLV market has auction and odd times  # disabling until I restore 'yahooWeeklyDef'
@@ -491,6 +491,7 @@ class Test_Yfc_Interface(Test_Base):
             for p in periods:
                 self.tempCacheDir.cleanup() ; self.tempCacheDir = tempfile.TemporaryDirectory()
                 yfcm.SetCacheDirpath(self.tempCacheDir.name)
+                yfcm._option_manager.calendar.accept_unexpected_Yahoo_intervals = True
                 dat_yfc = yfc.Ticker(tkr, session=self.session)
                 try:
                     df_yf = dat_yf.history(period=yfcd.periodToString[p], auto_adjust=False, repair=True)
@@ -610,7 +611,6 @@ class Test_Yfc_Interface(Test_Base):
         interval = yfcd.Interval.Days1
 
         # Exclude low-volume tickers
-        del tkr_candidates[tkr_candidates.index("HLTH")]
         del tkr_candidates[tkr_candidates.index("MEL.NZ")]
 
         dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))

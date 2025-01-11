@@ -153,7 +153,8 @@ exchangeToXcalExchange['PHS'] = 'XPHS'  # Philippines
 exchangeToXcalExchange['IST'] = 'XIST'  # Istanbul, Turkey
 exchangeToXcalExchange['JKT'] = 'XIDX'  # Jakarta, Indonesia
 # FX
-exchangeToXcalExchange["CCY"] = "IEPA"  # ICE Data Services
+exchangeToXcalExchange["CCY"] = "24/5"  # Didn't stop trading on Jimmy Carter's federal holiday
+exchangeToXcalExchange["CCC"] = "24/7"  # Crypto 24/7
 
 exchangesWithBreaks = {"HKG"}
 
@@ -936,12 +937,12 @@ class TimedeltaRange():
 
     def __abs__(self):
         if self.td2 <= timedelta(0):
-            tdr = TimedeltaRange(-self.td1, -self.td2)
-            return tdr
+            return TimedeltaRange(-self.td1, -self.td2)
         elif self.td1 >= timedelta(0):
             return self
         else:
-            raise AmbiguousComparisonException(self, None, "abs")
+            # Straddles zero
+            return TimedeltaRange(timedelta(0), self.td2)
 
     def __add__(self, other):
         if isinstance(other, date):

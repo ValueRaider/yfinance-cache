@@ -32,6 +32,8 @@ class TestYfAssumptions(unittest.TestCase):
 		self.exchangeLastHrInt = time(hour=15, minute=30)
 		self.exchangeCloseTime = time(hour=16, minute=0)
 
+		yfct.SetExchangeTzName(self.exchange, 'US/Eastern')
+
 	def tearDown(self):
 		self.session.close()
 

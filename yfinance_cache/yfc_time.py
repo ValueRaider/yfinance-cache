@@ -2,6 +2,7 @@ from pprint import pprint
 import sqlite3 as sql
 from copy import deepcopy
 from functools import lru_cache
+import functools
 
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
@@ -119,6 +120,8 @@ def JoinTwoXcals(cal1, cal2):
         else:
             return a2
     #
+    cal12.schedule = pd.concat([cal1.schedule, cal2.schedule])
+    #
     cal12._opens = _safeAppend(cal1._opens, cal2._opens)
     cal12._break_starts = _safeAppend(cal1._break_starts, cal2._break_starts)
     cal12._break_ends = _safeAppend(cal1._break_ends, cal2._break_ends)
@@ -131,8 +134,13 @@ def JoinTwoXcals(cal1, cal2):
     #
     cal12._late_opens = _safeAppend(cal1._late_opens, cal2._late_opens)
     cal12._early_closes = _safeAppend(cal1._early_closes, cal2._early_closes)
-    #
-    cal12.schedule = pd.concat([cal1.schedule, cal2.schedule])
+
+    # Clear cached attributes e.g. sessions_nanos
+    parent_class = cal12.__class__.__bases__[0]
+    for name, value in parent_class.__dict__.items():
+        if isinstance(value, functools.cached_property):
+            if name in cal12.__dict__:
+                delattr(cal12, name)
 
     return cal12
 
@@ -649,7 +657,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
             # Implemented by flooring then applying offset calculated from floored market open.
             intervals_grp = intervals_df.groupby(intervals_df["interval_open"].dt.date)
             # 1 - calculate offset
-            res = 'h' if istr.endswith('h') else istr.replace('m', 'T')
+            res = 'h' if istr.endswith('h') else istr.replace('m', 'min')
             market_opens = intervals_grp.min()["interval_open"]
             if len(market_opens.dt.time.unique()) == 1:
                 open0 = market_opens.iloc[0]
@@ -1392,8 +1400,12 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
             if debug:
                 print("- idx:")
                 print(idx)
+            f_na = (idx==-1)
             weekSchedStart = week_sched.left[idx]
             weekSchedEnd = week_sched.right[idx]
+            if f_na.any():
+                weekSchedStart[f_na] = pd.NaT
+                weekSchedEnd[f_na] = pd.NaT
 
         intervals = pd.DataFrame(data={"interval_open": weekSchedStart, "interval_close": weekSchedEnd}, index=ts)
 
@@ -1419,8 +1431,12 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
             if (~f).any():
                 idx_next = open_as_index.get_indexer(ts, method="bfill")
                 idx[~f] = idx_next[~f]
+            f_na = (idx==-1)
             intervals["interval_open"] = sched["open"].iloc[idx].to_numpy()
             intervals["interval_close"] = sched["close"].iloc[idx].to_numpy()
+            if f_na.any():
+                intervals.loc[f_na, "interval_open"] = pd.NaT
+                intervals.loc[f_na, "interval_close"] = pd.NaT
         else:
             idx = sched.index.get_indexer(ts_day)
             f = idx != -1
@@ -1430,12 +1446,16 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
             if (~f).any():
                 idx_next = sched.index.get_indexer(ts_day, method="bfill")
                 idx[~f] = idx_next[~f]
+            f_na = (idx==-1)
             if discardTimes:
                 intervals["interval_open"] = sched.index[idx].date
                 intervals["interval_close"] = intervals["interval_open"] + timedelta(days=1)
             else:
                 intervals["interval_open"] = sched["open"].iloc[idx].to_numpy()
                 intervals["interval_close"] = sched["close"].iloc[idx].to_numpy()
+            if f_na.any():
+                intervals.loc[f_na, "interval_open"] = pd.NaT
+                intervals.loc[f_na, "interval_close"] = pd.NaT
 
     else:
         itd = yfcd.intervalToTimedelta[interval]
@@ -1456,11 +1476,15 @@ def GetTimestampNextInterval_batch(exchange, ts, interval, discardTimes=None, we
         if (~f).any():
             idx_next = tis.left.get_indexer(ts, method="bfill")
             idx[~f] = idx_next[~f]
+        f_na = (idx==-1)
         # Now everything mapped
 
         intervals = pd.DataFrame(index=ts)
         intervals["interval_open"] = tis.left[idx].tz_convert(tz)
         intervals["interval_close"] = tis.right[idx].tz_convert(tz)
+        if f_na.any():
+            intervals.loc[f_na, "interval_open"] = pd.NaT
+            intervals.loc[f_na, "interval_close"] = pd.NaT
 
     if debug:
         print("intervals (next):") ; print(intervals)
@@ -1512,11 +1536,11 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
     i_td = yfcd.intervalToTimedelta[interval]
     intraday = i_td < timedelta(days=1)
     irange = GetTimestampCurrentInterval(exchange, intervalStart, interval, ignore_breaks=ignore_breaks)
-    if irange is None:
-        return None
     if debug:
         print("- irange:")
         pprint(irange)
+    if irange is None:
+        return None
 
     tz = ZoneInfo(GetExchangeTzName(exchange))
 
@@ -1574,7 +1598,7 @@ def CalcIntervalLastDataDt(exchange, intervalStart, interval, ignore_breaks=Fals
     return lastDataDt
 
 
-def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_breaks=False, yf_lag=None):
+def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_breaks=False, yf_lag=None, bfill=True):
     # When does Yahoo stop receiving data for this interval?
     yfcu.TypeCheckStr(exchange, "exchange")
     if isinstance(intervalStart, list):
@@ -1583,6 +1607,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     yfcu.TypeCheckIntervalDt(intervalStart[0], interval, "intervalStart", strict=False)
     yfcu.TypeCheckInterval(interval, "interval")
     yfcu.TypeCheckBool(ignore_breaks, "ignore_breaks")
+    yfcu.TypeCheckBool(bfill, "bfill")
 
     debug = False
     # debug = True
@@ -1680,10 +1705,16 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
         # Get next trading day after next
         next_intervals = GetTimestampNextInterval_batch(exchange, (next_intervals['interval_close']-pd.Timedelta('1m')).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
 
-        lastDataDt = next_intervals["interval_open"].to_numpy() + yf_lag
+        f_na = next_intervals['interval_open'].isna()
         if f_na.any():
-            lastDataDt[f_na] = pd.NaT
+            next_intervals['interval_open'] = next_intervals['interval_open'].bfill()
 
+        lastDataDt = next_intervals["interval_open"] + yf_lag
+        if bfill:
+            lastDataDt = lastDataDt.bfill()
+        lastDataDt = lastDataDt.to_numpy()
+        if f_na.any() and not bfill:
+            lastDataDt[f_na] = pd.NaT
         lastDataDt += timedelta(hours=4)
 
         if debug:
@@ -1695,7 +1726,10 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     if debug:
         print("- next_intervals:")
         print(next_intervals)
-    lastDataDt = next_intervals["interval_open"].to_numpy() + yf_lag
+    lastDataDt = next_intervals["interval_open"] + yf_lag
+    if bfill:
+        lastDataDt = lastDataDt.bfill()
+    lastDataDt = lastDataDt.to_numpy()
 
     if debug:
         print("CalcIntervalLastDataDt_batch() returning")

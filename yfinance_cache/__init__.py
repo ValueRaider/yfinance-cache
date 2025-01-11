@@ -28,3 +28,8 @@ _add_options_max_age_to_options()
 from .yfc_upgrade import _upgrade_calendar_to_df, _add_holdings_analysis_to_options
 _upgrade_calendar_to_df()
 _add_holdings_analysis_to_options()
+
+from .yfc_upgrade import _fix_prices_final_again, _reset_cached_cals_again, _reset_CCY_cal
+_fix_prices_final_again()
+_reset_cached_cals_again()
+_reset_CCY_cal()

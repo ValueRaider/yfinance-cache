@@ -54,7 +54,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
     def test_CalcIntervalLastDataDt_USA_daily_datetime(self):
         interval = yfcd.Interval.Days1
 
-        # Is next working day open
+        # Is next-next working day afternoon
         lag = timedelta(0)
         days = []
         dts = []
@@ -64,10 +64,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             days.append(day)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
             dts.append(dt)
-            if d == 11:
-                answers.append(datetime.combine(day + 3*self.td1d, self.market_open, self.market_tz) + self.td4h)
+            if d >= 10:
+                answers.append(datetime.combine(day + 4*self.td1d, self.market_open, self.market_tz) + self.td4h)
             else:
-                answers.append(datetime.combine(day + self.td1d, self.market_open, self.market_tz) + self.td4h)
+                answers.append(datetime.combine(day + 2*self.td1d, self.market_open, self.market_tz) + self.td4h)
         for i in range(len(days)):
             response = yfct.CalcIntervalLastDataDt(self.exchange, days[i], interval, yf_lag=lag)
             try:
@@ -87,7 +87,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
                 print("answer = {}".format(answers[i]))
                 raise
 
-        # Is next working day open
+        # Is next-next working day afternoon
         lag = timedelta(minutes=15)
         days = []
         dts = []
@@ -97,10 +97,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             days.append(day)
             dt = datetime.combine(day, time(14, 30), self.market_tz)
             dts.append(dt)
-            if d == 11:
-                answers.append(datetime.combine(day + 3*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
+            if d >= 10:
+                answers.append(datetime.combine(day + 4*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
             else:
-                answers.append(datetime.combine(day + self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
+                answers.append(datetime.combine(day + 2*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
         for i in range(len(days)):
             response = yfct.CalcIntervalLastDataDt(self.exchange, days[i], interval, yf_lag=lag)
             try:
@@ -121,7 +121,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
                 raise
 
         # Is next Tuesday open, after Monday holiday
-        day = date(2022, 2, 18)
+        day = date(2022, 2, 17)
         dt = datetime.combine(day, time(12), self.market_tz)
         lag = timedelta(0)
         answer = datetime.combine(date(2022, 2, 22), self.market_open, self.market_tz) + self.td4h + lag
@@ -151,10 +151,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         for d in range(7, 12):
             day = date(2022, 2, d)
             days.append(day)
-            if d == 11:
-                answers.append(datetime.combine(day + 3*self.td1d, self.market_open, self.market_tz) + self.td4h)
+            if d >= 10:
+                answers.append(datetime.combine(day + 4*self.td1d, self.market_open, self.market_tz) + self.td4h)
             else:
-                answers.append(datetime.combine(day + self.td1d, self.market_open, self.market_tz) + self.td4h)
+                answers.append(datetime.combine(day + 2*self.td1d, self.market_open, self.market_tz) + self.td4h)
         for i in range(len(days)):
             response = yfct.CalcIntervalLastDataDt(self.exchange, days[i], interval, yf_lag=lag)
             try:
@@ -171,10 +171,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         for d in range(7, 12):
             day = date(2022, 2, d)
             days.append(day)
-            if d == 11:
-                answers.append(datetime.combine(day + 3*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
+            if d >= 10:
+                answers.append(datetime.combine(day + 4*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
             else:
-                answers.append(datetime.combine(day + self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
+                answers.append(datetime.combine(day + 2*self.td1d, self.market_open, self.market_tz) + self.td4h + lag)
         for i in range(len(days)):
             response = yfct.CalcIntervalLastDataDt(self.exchange, days[i], interval, yf_lag=lag)
             try:
@@ -253,10 +253,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, time(10), tz) + self.td4h)
+            if d >= 7:
+                answers.append(datetime.combine(day+4*self.td1d, time(10), tz) + self.td4h)
             else:
-                answers.append(datetime.combine(day+self.td1d, time(10), tz) + self.td4h)
+                answers.append(datetime.combine(day+2*self.td1d, time(10), tz) + self.td4h)
         response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -282,10 +282,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, time(10), tz) + self.td4h + lag)
+            if d >= 7:
+                answers.append(datetime.combine(day+4*self.td1d, time(10), tz) + self.td4h + lag)
             else:
-                answers.append(datetime.combine(day+self.td1d, time(10), tz) + self.td4h + lag)
+                answers.append(datetime.combine(day+2*self.td1d, time(10), tz) + self.td4h + lag)
         response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -318,10 +318,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, self.uk_market_open_time, tz) + self.td4h)
+            if d >= 7:
+                answers.append(datetime.combine(day+4*self.td1d, self.uk_market_open_time, tz) + self.td4h)
             else:
-                answers.append(datetime.combine(day+self.td1d, self.uk_market_open_time, tz) + self.td4h)
+                answers.append(datetime.combine(day+2*self.td1d, self.uk_market_open_time, tz) + self.td4h)
         response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -347,10 +347,10 @@ class Test_PriceDataAging_1D(unittest.TestCase):
             day = date(2022, 4, d)
             dt = datetime.combine(day, time(14), tz)
             dts.append(dt)
-            if d == 8:
-                answers.append(datetime.combine(day+3*self.td1d, self.uk_market_open_time, tz) + self.td4h + lag)
+            if d >= 7:
+                answers.append(datetime.combine(day+4*self.td1d, self.uk_market_open_time, tz) + self.td4h + lag)
             else:
-                answers.append(datetime.combine(day+self.td1d, self.uk_market_open_time, tz) + self.td4h + lag)
+                answers.append(datetime.combine(day+2*self.td1d, self.uk_market_open_time, tz) + self.td4h + lag)
         response_batch = yfct.CalcIntervalLastDataDt_batch(exchange, dts, interval, yf_lag=lag)
         for i in range(len(dts)):
             response = yfct.CalcIntervalLastDataDt(exchange, dts[i], interval, yf_lag=lag)
@@ -506,7 +506,7 @@ class Test_PriceDataAging_1D(unittest.TestCase):
         max_ages.append(timedelta(minutes=120))
         dt_nows.append(  datetime.combine(self.tuesday, time(13, 30),  self.market_tz))
         expire_on_candle_closes.append(True) ; yf_lags.append(timedelta(minutes=0))
-        answers.append(True)
+        answers.append(False)
 
         for i in range(len(fetch_dts)):
             fetch_dt = fetch_dts[i]

@@ -110,7 +110,11 @@ class EarningsRelease():
         r_is_end_of_year = False
         rpe = self.period_end
         diff = (rpe - self.full_year_end)
-        diff += timedelta(days=365)  # just in case is negative
+        try:
+            while diff < timedelta(0):
+                diff += timedelta(days=365)
+        except yfcd.AmbiguousComparisonException:
+            diff += timedelta(days=365)
         diff = diff % timedelta(days=365)
         tol = 35
         try:
@@ -575,10 +579,13 @@ class FinancialsManager:
                     if r_is_history:
                         prev_r = r0
                         next_r = r1
+
+                do_calc = hasattr(prev_r, 'confidence')
                 try:
-                    do_calc = next_r.release_date < d_exchange
+                    next_r_is_past = next_r.release_date < d_exchange
                 except yfcd.AmbiguousComparisonException:
-                    do_calc = next_r.release_date.prob_lt(d_exchange) > 0.9
+                    next_r_is_past = next_r.release_date.prob_lt(d_exchange) > 0.9
+                do_calc = do_calc or next_r_is_past
 
         if not refresh:
             do_calc = False
@@ -715,6 +722,8 @@ class FinancialsManager:
                 if t is not None and not t.empty:
                     tbl = t
                     break
+        if tbl is None:
+            return None
         if not tbl.empty:
             year_end = tbl.columns.max().date()
         else:
@@ -862,7 +871,7 @@ class FinancialsManager:
             ct += 1
             if ct > 100:
                 raise Exception("Infinite loop detected while adding release objects")
-            prev_period_end = releases[-1].period_end - interval_td
+            prev_period_end = releases[0].period_end - interval_td
             conf = yfcd.Confidence.High
             if isinstance(prev_period_end, date):
                 prev_period_end = yfcd.DateEstimate(prev_period_end, conf)
@@ -1133,6 +1142,17 @@ class FinancialsManager:
                         longest_i = i
                         longest_delay = m
                 interim_cluster = interim_clusters[longest_i]
+        if interim_cluster is not None and len(interim_cluster) > 0 and len(fy_cluster) > 0:
+            # Discard interim_cluster if its delay is roughly 6 month longer than 
+            # FY delay, because that's a conflict - likely to 
+            # map an interim release to same date as an annual release.
+            interim_avg = mean(interim_cluster)
+            fy_avg = mean(fy_cluster)
+            diff = abs(fy_avg - interim_avg)
+            if abs(diff - 182) < 10:
+                if debug:
+                    print("- discarding interim cluster because too close to FY +-6mo")
+                interim_cluster = None
         for i in range(len(pes)):
             for j in range(len(rdts)):
                 if pulp.value(x[i,j]) == 1:
@@ -1314,7 +1334,7 @@ class FinancialsManager:
                             problem = True
                     if problem:
                         print(r)
-                        raise Exception("A release that could be last is missing release date")
+                        raise Exception(f"{self.ticker}: A release that could be last is missing release date")
 
         if check:
             self._check_release_dates(releases, finType, period, refresh)
@@ -1740,7 +1760,7 @@ class FinancialsManager:
                 self._earnings_dates['Date confirmed?'] = False
                 df_modified = True
             cal = self.get_calendar(refresh)
-            if cal is not None and len(cal['Earnings Date']) == 1:
+            if cal is not None and 'Earnings Date' in cal and len(cal['Earnings Date']) == 1:
                 x = cal['Earnings Date'][0]
                 if x is not None:
                     for dt in self._earnings_dates.index:
@@ -1960,7 +1980,7 @@ class FinancialsManager:
                     edf = edf.drop(edf.index[i])
                 else:
                     cal = self.get_calendar(refresh)
-                    if cal is None:
+                    if cal is None or 'Earnings Date' not in cal:
                         # print(edf.iloc[i:i+2])
                         # raise Exception('Review how to handle 2x almost-equal earnings dates.')
                         # pass  # Can't do anything with certainty
@@ -2039,7 +2059,7 @@ class FinancialsManager:
 
         cal = self.get_calendar(refresh)
         df['Date confirmed?'] = False
-        if cal is not None and len(cal['Earnings Date']) == 1:
+        if cal is not None and 'Earnings Date' in cal and len(cal['Earnings Date']) == 1:
             x = cal['Earnings Date'][0]
             for dt in df.index:
                 if abs(dt.date() - x) < timedelta(days=7):
@@ -2061,11 +2081,15 @@ class FinancialsManager:
                 self._calendars = yfcm.ReadCacheDatum(self.ticker, "calendars")
                 self._calendar = self._calendars.iloc[-1].to_dict()
                 self._calendar_clean = dict(self._calendar)
-                self._calendar_clean['Earnings Date'] = [self._calendar_clean['Earnings Date1']]
-                if self._calendar_clean['Earnings Date2'] is not None:
-                    self._calendar_clean['Earnings Date'].append(self._calendar_clean['Earnings Date2'])
-                del self._calendar_clean['Earnings Date1']
-                del self._calendar_clean['Earnings Date2']
+                for k in list(self._calendar_clean.keys()):
+                    if self._calendar_clean[k] is None:
+                        del self._calendar_clean[k]
+                for k in ['Earnings Date1', 'Earnings Date2']:
+                    if k in self._calendar_clean:
+                        if not 'Earnings Date' in self._calendar_clean:
+                            self._calendar_clean['Earnings Date'] = []
+                        self._calendar_clean['Earnings Date'].append(self._calendar_clean[k])
+                        del self._calendar_clean[k]
                 for c in ['FetchDate', 'LastCheck']:
                     if c in self._calendar_clean:
                         del self._calendar_clean[c]
@@ -2083,7 +2107,7 @@ class FinancialsManager:
 
         if print_fetches:
             msg = f"{self.ticker}: Fetching calendar"
-            if self._calendar is None:
+            if self._calendar is not None:
                 msg += f" (last fetch = {self._calendar['FetchDate'].date()})"
             print(msg)
 
@@ -2096,6 +2120,8 @@ class FinancialsManager:
 
             # Convert c to my format
             c2 = dict(c)
+            if 'Earnings Date' not in c2:
+                c2['Earnings Date'] = []
             if len(c2['Earnings Date']) > 0:
                 c2['Earnings Date1'] = c2['Earnings Date'][0]
             else:
@@ -2131,6 +2157,7 @@ class FinancialsManager:
             n_losses = len(losses)
             n_diffs = len(diffs)
             n_changes = n_losses + n_diffs
+            n_diff_dates = len([k for k in diffs if 'Date' in k])
 
             # if n_changes == 0:
             if n_diffs == 0:
@@ -2153,21 +2180,40 @@ class FinancialsManager:
                     raise Exception(f'New fields in fetched calendar: {new_columns}')
 
                 calendars_backup = self._calendars.copy()
-                # If dates are roughly the same, then overwrite, otherwise append.
-                if (c2['Earnings Date1'] is not None) and (self._calendar['Earnings Date1'] is not None):
-                    eps_dt_diff = c2['Earnings Date1'] - self._calendar['Earnings Date1']
-                else:
-                    eps_dt_diff = timedelta(1)
-                if (c2['Ex-Dividend Date'] is not None) and (self._calendar['Ex-Dividend Date'] is not None):
-                    div_dt_diff = c2['Ex-Dividend Date'] - self._calendar['Ex-Dividend Date']
-                else:
-                    div_dt_diff = timedelta(1)
-                if abs(eps_dt_diff.days) < 30 and abs(div_dt_diff.days) < 30:
-                    self._calendars.iloc[-1] = c2
-                else:
-                    self._calendars = pd.concat([self._calendars, c2_df], ignore_index=True)
+                date_cols = ['Earnings Date1', 'Ex-Dividend Date', 'Dividend Date']
+                cal_needs_append = True
+                for i in range(len(self._calendars)):
+                    c = self._calendars.iloc[i].to_dict()
+                    overwrite_safe = True
+                    for k in c:
+                        if k in ['FetchDate', 'LastCheck']:
+                            continue
+                        if k == 'Earnings Date2':
+                            # Ignore, because analysing 'Earnings Date1' is sufficient.
+                            continue
+                        if c2[k] is None and (c[k] is not None):
+                            overwrite_safe = False
+                            break
+                        elif (c2[k] is not None) and (c[k] is not None):
+                            if k in date_cols:
+                                diff = abs(c2[k] - c[k]).days
+                                if diff > 20:
+                                    overwrite_safe = False
+                                    break
+                            else:
+                                if c2[k] != c[k]:
+                                    overwrite_safe = False
+                                    break
+                    if overwrite_safe:
+                        self._calendars.iloc[i] = c2
+                        cal_needs_append = False
+                        break
+                if cal_needs_append:
+                    top = self._calendars
+                    bottom = c2_df
+                    self._calendars = pd.concat([top, bottom], ignore_index=True).sort_values('Earnings Date1').reset_index(drop=True)
 
-                self._calendar = self._calendars.iloc[-1]
+                self._calendar = self._calendars.iloc[-1].to_dict()
         else:
             if c is None:
                 self._calendar_clean = {}
@@ -2196,7 +2242,28 @@ class FinancialsManager:
             if dt2 is not None:
                 d = yfcd.DateRange(d, dt2)
             if len(cal_release_dates) > 0:
-                if abs(d - cal_release_dates[-1]) < timedelta(days=30):
+                lastd = cal_release_dates[-1]
+                diff = d - lastd
+                if abs(diff) < timedelta(days=30):
+                    if diff == timedelta(0):
+                        # duplicate, fine
+                        pass
+                    else:
+                        if isinstance(d, yfcd.DateRange) and not isinstance(lastd, yfcd.DateRange):
+                            # Keep the one that isn't a range - lastd
+                            pass
+                        elif isinstance(lastd, yfcd.DateRange) and not isinstance(d, yfcd.DateRange):
+                            # Keep the one that isn't a range - d
+                            cal_release_dates[-1] = d
+                        else:
+                            # Keep the one fetched most recently
+                            if self._calendars['FetchDate'].iloc[i-1] < self._calendars['FetchDate'].iloc[i]:
+                                # Keep d
+                                cal_release_dates[-1] = d
+                            else:
+                                # Keep lastd
+                                pass
+
                     continue
             cal_release_dates.append(d)
 

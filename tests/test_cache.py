@@ -29,7 +29,7 @@ class Test_Yfc_Cache(unittest.TestCase):
 
 
     def testGetFilepath(self):
-        expected = os.path.join(self.tempCacheDir.name, self.ticker, "info.pkl")
+        expected = os.path.join(self.tempCacheDir.name, self.ticker, "info.json")
         fp = yfcm.GetFilepath(self.ticker, "info", {})
         self.assertEqual(fp, expected)
 
@@ -150,10 +150,10 @@ class Test_Yfc_Cache(unittest.TestCase):
         json_values.append([1, 3])
         json_values.append(pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")))
         json_values.append(timedelta(seconds=2.01))
+        json_values.append({'a':1, 'b':2})
 
         pkl_values = []
         pkl_values.append(set([1, 3]))
-        pkl_values.append({'a':1, 'b':2})
 
         for value in json_values+pkl_values:
             ext = "json" if value in json_values else "pkl"

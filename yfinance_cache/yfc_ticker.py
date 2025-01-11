@@ -680,19 +680,6 @@ class Ticker:
 
         return self._fast_info
 
-    @property
-    def splits(self):
-        if self._splits is not None:
-            return self._splits
-
-        if yfcm.IsDatumCached(self._ticker, "splits"):
-            self._splits = yfcm.ReadCacheDatum(self._ticker, "splits")
-            return self._splits
-
-        self._splits = self._dat.splits
-        yfcm.StoreCacheDatum(self._ticker, "splits", self._splits)
-        return self._splits
-
     def get_shares(self, start=None, end=None, max_age='30d'):
         debug = False
         # debug = True
