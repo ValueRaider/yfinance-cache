@@ -25,7 +25,8 @@ def _tidy_upgrade_history():
                 "have-added-repaired-to-cached-divs",
                 "have-fixed-prices-final-again",
                 "have-reset-xcals-again",
-                "have-reset-ccy-cal"
+                "have-reset-ccy-cal",
+                "have-fixed-24h-prices-final"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -659,6 +660,59 @@ def _reset_CCY_cal():
     d = 'exchange-CCY'
     if os.path.isdir(os.path.join(dp, d)):
         shutil.rmtree(os.path.join(dp, d))
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _fix_24_hour_prices_final():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-fixed-24h-prices-final")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    dp = yfcm.GetCacheDirpath()
+
+    for d in os.listdir(dp):
+        if d.startswith("exchange-") or d.endswith('.json') or d.startswith('_'):
+            pass
+        else:
+            info_fp = os.path.join(dp, d, f'info.json')
+            info = yfcm._ReadData(d, 'info')['data']
+            if 'exchange' not in info:
+                # not listed probably, skip for now
+                continue
+            exchange = info['exchange']
+            if exchange not in ['CCC', 'CCY']:
+                continue
+
+            for i in yfcd.Interval:
+                istr = yfcd.intervalToString[i]
+                prices_fp = os.path.join(dp, d, f'history-{istr}.pkl')
+                if os.path.isfile(prices_fp):
+                    with open(prices_fp, 'rb') as F:
+                        data = pkl.load(F)
+                    h = data['data']
+                    if h is None or h.empty:
+                        continue
+
+                    info = yfcm.ReadCacheDatum(d, 'info')
+                    lastDataDts = yfct.CalcIntervalLastDataDt_batch(info['exchange'], h.index.to_numpy(), i)#, bfill=True)
+                    data_final = h['FetchDate'] >= lastDataDts
+                    if (h["Final?"] != data_final).any():
+                        h["Final?"] = data_final
+                        with open(prices_fp, 'wb') as F:
+                            data['data'] = h
+                            pkl.dump(data, F, 4)
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)

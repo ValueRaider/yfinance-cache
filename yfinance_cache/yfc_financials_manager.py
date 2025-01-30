@@ -1264,20 +1264,22 @@ class FinancialsManager:
 
                             if i > 0 and (releases[i-1].release_date is not None):
                                 too_close_to_previous = False
-                                try:
-                                    if isinstance(releases[i-1].release_date, yfcd.DateEstimate):
-                                        too_close_to_previous = releases[i-1].release_date.isclose(dt)
+                                if isinstance(releases[i-1].release_date, yfcd.DateEstimate):
+                                    too_close_to_previous = releases[i-1].release_date.isclose(dt)
+                                elif isinstance(dt, yfcd.DateEstimate):
+                                    too_close_to_previous = dt.isclose(releases[i-1].release_date)
+                                else:
+                                    if releases[i-1].is_end_of_year():
+                                        threshold = timedelta(days=5)
                                     else:
-                                        if releases[i-1].is_end_of_year():
-                                            threshold = timedelta(days=1)
-                                        else:
-                                            threshold = timedelta(days=30)
-                                        if debug:
-                                            diff = dt-releases[i-1].release_date
-                                        too_close_to_previous = (dt-releases[i-1].release_date) < threshold
-                                except yfcd.AmbiguousComparisonException:
-                                    p = (dt-releases[i-1].release_date).prob_lt(threshold)
-                                    too_close_to_previous = p > 0.9
+                                        threshold = timedelta(days=30)
+                                    diff = dt - releases[i-1].release_date
+                                    diff = abs(diff)
+                                    try:
+                                        too_close_to_previous = diff < threshold
+                                    except yfcd.AmbiguousComparisonException:
+                                        p = diff.prob_lt(threshold)
+                                        too_close_to_previous = p > 0.5
                                 if too_close_to_previous:
                                     if debug:
                                         print(f"  - dt '{dt}' would be too close to previous release date '{releases[i-1]}'")
@@ -1286,15 +1288,20 @@ class FinancialsManager:
                             # Update: also check against next.
                             if i < (len(releases)-1) and (releases[i+1].release_date is not None):
                                 too_close_to_next = False
-                                try:
+                                if isinstance(releases[i+1].release_date, yfcd.DateEstimate):
+                                    too_close_to_next = releases[i+1].release_date.isclose(dt)
+                                elif isinstance(dt, yfcd.DateEstimate):
+                                    too_close_to_next = dt.isclose(releases[i+1].release_date)
+                                else:
                                     if releases[i+1].is_end_of_year():
-                                        threshold = timedelta(days=1)
+                                        threshold = timedelta(days=5)
                                     else:
                                         threshold = timedelta(days=30)
                                     diff = releases[i+1].release_date - dt
-                                    too_close_to_next = diff < threshold
-                                except yfcd.AmbiguousComparisonException:
-                                    too_close_to_next = diff.prob_lt(threshold) > 0.9
+                                    try:
+                                        too_close_to_next = diff < threshold
+                                    except yfcd.AmbiguousComparisonException:
+                                        too_close_to_next = diff.prob_lt(threshold) > 0.5
                                 if too_close_to_next:
                                     if debug:
                                         print(f"  - dt '{dt}' would be too close to next release date '{releases[i+1]}'")

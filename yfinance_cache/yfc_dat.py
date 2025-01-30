@@ -111,6 +111,7 @@ exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
 exchangeToXcalExchange["AMS"] = "XAMS"  # Amsterdam
 exchangeToXcalExchange["ATH"] = "ASEX"  # Athens
 exchangeToXcalExchange["BRU"] = "XBRU"  # Brussels
+exchangeToXcalExchange["BUD"] = "XBUD"  # Budapest
 exchangeToXcalExchange["BVB"] = "XBSE"  # Bucharest
 exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
@@ -135,6 +136,7 @@ exchangeToXcalExchange["JNB"] = "XJSE"  # Johannesburg, South Africa
 exchangeToXcalExchange["SAO"] = "BVMF"  # Sao Paulo, Brazil
 exchangeToXcalExchange["SGO"] = "XSGO"  # Santiago, Chile
 exchangeToXcalExchange["BVC"] = "XBOG"  # Bogota, Colombia
+exchangeToXcalExchange["BUE"] = "XBUE"  # Buenos Aires, Argentina
 exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
@@ -185,6 +187,7 @@ exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
 exchangeToYfLag["ATH"] = timedelta(minutes=15)
 exchangeToYfLag["BRU"] = timedelta(minutes=15)
+exchangeToYfLag["BUD"] = timedelta(minutes=15)
 exchangeToYfLag["BVB"] = timedelta(minutes=15)
 exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
@@ -209,6 +212,7 @@ exchangeToYfLag["JNB"] = timedelta(minutes=15)
 exchangeToYfLag["SAO"] = timedelta(minutes=15)
 exchangeToYfLag["SGO"] = timedelta(minutes=15)
 exchangeToYfLag["BVC"] = timedelta(minutes=15)  # Guess because Yahoo don't specify
+exchangeToYfLag["BUE"] = timedelta(minutes=30)
 exchangeToYfLag["MEX"] = timedelta(minutes=20)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["SHZ"] = timedelta(minutes=30)
@@ -1366,6 +1370,8 @@ class DateEstimate():
     def isclose(self, other):
         if isinstance(other, DateEstimate):
             return abs(self.date - other.date) <= min(self.uncertainty, other.uncertainty)
+        elif isinstance(other, DateRangeEstimate):
+            return other.isclose(self)
         else:
             return abs(self.date - other) <= self.uncertainty
         raise NotImplementedError(f'Not implemented {self} is-close-to {type(other)}={other}')

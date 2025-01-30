@@ -28,6 +28,8 @@ class HistoriesManager:
     # - different History() objects and communicate
 
     def __init__(self, ticker, exchange, tzName, listingDay, session, proxy):
+        self.logger = None
+
         yfcu.TypeCheckStr(ticker, "ticker")
         yfcu.TypeCheckStr(exchange, "exchange")
         yfcu.TypeCheckStr(tzName, "tzName")
@@ -40,8 +42,6 @@ class HistoriesManager:
         self.histories = {}
         self.session = session
         self.proxy = proxy
-
-        self.logger = None
 
     def __del__(self):
         if self.logger is not None:
@@ -238,7 +238,10 @@ class EventsHistory:
             if not splits_df.empty:
                 splits_pretty = splits_df["Stock Splits"]
                 splits_pretty.index = splits_pretty.index.date.astype(str)
-                self.manager.LogEvent("info", "SplitManager", f"{splits_pretty.shape[0]} new splits: {splits_pretty.to_dict()}")
+                log_msg = f"{splits_pretty.shape[0]} new splits: {splits_pretty.to_dict()}"
+                self.manager.LogEvent("info", "SplitManager", log_msg)
+                if debug:
+                    print(log_msg)
 
                 if self.splits is None:
                     self.splits = splits_df[cols].copy()
@@ -271,7 +274,7 @@ class EventsHistory:
             for c in expected_cols:
                 if c not in divs_df.columns:
                     print(divs_df)
-                    raise ValueError(f"AddDividends() 'divs_df' is missing column: '{c}'")
+                    raise ValueError(f"{self.ticker}: AddDividends() 'divs_df' is missing column: '{c}'")
 
             # Prepare 'divs_df' for append
             divs_df["Back Adj."] = np.nan

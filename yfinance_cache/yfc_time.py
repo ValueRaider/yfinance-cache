@@ -170,13 +170,9 @@ def GetCalendarViaCache(exchange, start, end=None):
         end = date.today().year
 
     cache_key = "exchange-"+exchange
-    if exchange == 'CCC':
-        # Binance, 24/7
-        cal_name = exchange
-    else:
-        if exchange not in yfcd.exchangeToXcalExchange:
-            raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
-        cal_name = yfcd.exchangeToXcalExchange[exchange]
+    if exchange not in yfcd.exchangeToXcalExchange:
+        raise Exception("Need to add mapping of exchange {} to xcal".format(exchange))
+    cal_name = yfcd.exchangeToXcalExchange[exchange]
 
     cal = None
 
@@ -249,11 +245,12 @@ def GetCalendarViaCache(exchange, start, end=None):
                 post_cal = Simple247xcal(opens, ends)
             else:
                 post_cal = xcal.get_calendar(cal_name, start=start, end=end)
-            post_cal = _customModSchedule(post_cal)
-            if cal is None:
-                cal = post_cal
-            else:
-                cal = JoinTwoXcals(cal, post_cal)
+            if post_cal is not None:
+                post_cal = _customModSchedule(post_cal)
+                if cal is None:
+                    cal = post_cal
+                else:
+                    cal = JoinTwoXcals(cal, post_cal)
 
         # Write to cache
         calCache[cal_name] = cal
@@ -1694,8 +1691,10 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
     i_td = yfcd.intervalToTimedelta[interval]
     if i_td >= timedelta(days=1):
+        td1m = pd.Timedelta('1m')
+        
         # lastDataDt = start of next interval, even if next day (or later)
-        next_intervals = GetTimestampNextInterval_batch(exchange, mcloses.to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
+        next_intervals = GetTimestampNextInterval_batch(exchange, (mcloses-td1m).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
         if debug:
             print("- next_intervals:")
             print(next_intervals)
@@ -1703,7 +1702,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
         # Handle Yahoo changing weekly interval data after the last market update.
         # Also happens with daily but less often.
         # Get next trading day after next
-        next_intervals = GetTimestampNextInterval_batch(exchange, (next_intervals['interval_close']-pd.Timedelta('1m')).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
+        next_intervals = GetTimestampNextInterval_batch(exchange, (next_intervals['interval_close']-td1m).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)
 
         f_na = next_intervals['interval_open'].isna()
         if f_na.any():

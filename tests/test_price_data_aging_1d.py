@@ -239,6 +239,62 @@ class Test_PriceDataAging_1D(unittest.TestCase):
                     print("answer = {}".format(answer))
                     raise
 
+    def test_CalcIntervalLastDataDt_FX_daily_batch(self):
+        fx_exchange = 'CCY'
+
+        interval = yfcd.Interval.Days1
+
+        lags = [timedelta(0), timedelta(minutes=15)]
+
+        start_d = date.today()
+        week_start_d = start_d - self.td1d*start_d.weekday()
+        week2_start_d = week_start_d -7*self.td1d
+        week1_start_d = week2_start_d -7*self.td1d
+        days = []
+        for d in [week1_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]:
+            if yfct.ExchangeOpenOnDay(self.exchange, d):
+                days.append(d)
+        # for d in [week2_start_d+x*self.td1d for x in [0, 1, 2, 3, 4]]:
+        #     if yfct.ExchangeOpenOnDay(self.exchange, d):
+        #         days.append(d)
+
+        for lag in lags:
+            responses = yfct.CalcIntervalLastDataDt_batch(fx_exchange, days, interval, yf_lag=lag)
+            for i in range(len(days)):
+                answer = yfct.CalcIntervalLastDataDt(fx_exchange, days[i], interval, yf_lag=lag)
+                try:
+                    if answer is None:
+                        self.assertTrue(pd.isna(responses[i]))
+                    else:
+                        self.assertEqual(responses[i], answer)
+                except:
+                    print(f"day={days[i]} lag={lag}")
+                    print("response = {}".format(responses[i]))
+                    print("answer = {}".format(answer))
+                    raise
+
+
+        times = [time(10), time(15)]
+        dts = []
+        for d in days:
+            if yfct.ExchangeOpenOnDay(fx_exchange, d):
+                for t in times:
+                    dts.append(datetime.combine(d, t, self.market_tz))
+        for lag in lags:
+            responses = yfct.CalcIntervalLastDataDt_batch(fx_exchange, dts, interval, yf_lag=lag)
+            for i in range(len(dts)):
+                answer = yfct.CalcIntervalLastDataDt(fx_exchange, dts[i], interval, yf_lag=lag)
+                try:
+                    if answer is None:
+                        self.assertTrue(pd.isna(responses[i]))
+                    else:
+                        self.assertEqual(responses[i], answer)
+                except:
+                    print(f"dt={dts[i]} lag={lag}")
+                    print("response = {}".format(responses[i]))
+                    print("answer = {}".format(answer))
+                    raise
+
     def test_CalcIntervalLastDataDt_NZE_daily(self):
         interval = yfcd.Interval.Days1
 
