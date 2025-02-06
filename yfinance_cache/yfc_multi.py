@@ -1,10 +1,9 @@
 import multiprocessing
 from functools import partial
-import time
 import traceback, sys
 
 import pandas as pd
-from scipy.stats import mode
+import numpy as np
 
 from . import yfc_ticker
 from . import yfc_utils as yfcu
@@ -134,11 +133,15 @@ def reindex_dfs(dfs, ignore_tz):
                 dfs[tkr].index = dfs[tkr].index.tz_localize(None)
     else:
         # Align each df to most common timezone
-        tzs = [df.index.tz for df in dfs.values() if df is not None and not df.empty]
-        tz_mode = mode(tzs, keepdims=False).mode
-        for tkr in dfs.keys():
-            if (dfs[tkr] is not None) and (not dfs[tkr].empty):
-                dfs[tkr].index = dfs[tkr].index.tz_convert(tz_mode)
+        # compare strings since np.unique can't handle tz objects
+        tzs = [str(df.index.tz) for df in dfs.values() if df is not None and not df.empty]
+        if tzs:
+            # Find most common timezone
+            unique_tzs, counts = np.unique(tzs, return_counts=True)
+            tz_mode = unique_tzs[counts.argmax()]
+            for tkr in dfs.keys():
+                if (dfs[tkr] is not None) and (not dfs[tkr].empty):
+                    dfs[tkr].index = dfs[tkr].index.tz_convert(tz_mode)
 
     all_indices = set()
     for df in dfs.values():
