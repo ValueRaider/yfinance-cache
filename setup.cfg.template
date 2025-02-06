@@ -25,7 +25,7 @@ install_requires =
     pandas >= 1.5
     exchange_calendars >= 4.7
     scipy >= 1.6.3
-    appdirs
+    platformdirs
     pulp
 
 [options.packages.find]

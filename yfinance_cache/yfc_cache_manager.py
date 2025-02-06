@@ -1,7 +1,7 @@
 import os
 import pickle
 import json
-import appdirs
+import platformdirs
 import pandas as pd
 
 from datetime import datetime, date, timedelta
@@ -35,7 +35,7 @@ def GetCacheDirpath():
 
 def ResetCacheDirpath():
     global cacheDirpath
-    cacheDirpath = os.path.join(appdirs.user_cache_dir(), "py-yfinance-cache")
+    cacheDirpath = os.path.join(platformdirs.user_cache_dir(), "py-yfinance-cache")
 
 
 def SetCacheDirpath(dp):
