@@ -90,7 +90,7 @@ exchangeToXcalExchange = {}
 # USA:
 exchangeToXcalExchange["NYQ"] = "XNYS"
 exchangeToXcalExchange["ASE"] = exchangeToXcalExchange["NYQ"]
-exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # NYSE Arca
+exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # ARCA follows NYSE calendar
 exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC pink
 exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
