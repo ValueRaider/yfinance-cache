@@ -90,11 +90,14 @@ exchangeToXcalExchange = {}
 # USA:
 exchangeToXcalExchange["NYQ"] = "XNYS"
 exchangeToXcalExchange["ASE"] = exchangeToXcalExchange["NYQ"]
-exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # NYSE Arca
+exchangeToXcalExchange["PCX"] = exchangeToXcalExchange["NYQ"]  # ARCA follows NYSE calendar
 exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC pink
 exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
 exchangeToXcalExchange["OQB"] = exchangeToXcalExchange["NYQ"]  # OTCQB
+exchangeToXcalExchange["DJI"] = exchangeToXcalExchange["NYQ"]  # Dow Jones follows NYSE calendar
+exchangeToXcalExchange["SNP"] = exchangeToXcalExchange["NYQ"]  # S&P 500 follows NYSE calendar
+exchangeToXcalExchange["NIM"] = "NASDAQ"  # NASDAQ Index Market follows NASDAQ calendar
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
@@ -167,11 +170,14 @@ exchangeToYfLag = {}
 exchangeToYfLag["NYQ"] = timedelta(seconds=0)
 exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PCX"] = exchangeToYfLag["NYQ"]
+exchangeToYfLag["DJI"] = exchangeToYfLag["NYQ"]  # Dow Jones has same lag as NYSE
+exchangeToYfLag["SNP"] = exchangeToYfLag["NYQ"]  # S&P 500 has same lag as NYSE
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["OQX"] = timedelta(minutes=15)
 exchangeToYfLag["OEM"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["OQB"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["NIM"] = exchangeToYfLag["NCM"]  # NASDAQ Index Market has same lag as NASDAQ
 exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["BTS"] = exchangeToYfLag["NYQ"]
@@ -283,13 +289,35 @@ listing_date_check_tols[Interval.Week] = timedelta(days=14)
 # listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
-from multiprocessing import Lock, Manager, current_process
+from multiprocessing import Manager, current_process, Lock
+import threading
+
+_manager = None
+_manager_lock = threading.Lock()
+
+def get_manager():
+    global _manager
+    with _manager_lock:
+        if _manager is None:
+            if current_process().name == 'MainProcess':
+                _manager = Manager()
+            else:
+                # For non-main processes, use threading locks instead
+                return None
+        return _manager
+
+# Initialize exchange_locks with thread locks by default
+exchange_locks = {e:Lock() for e in exchangeToXcalExchange.keys()}
+
+# Only use Manager locks in main process
 if current_process().name == 'MainProcess':
-    # Ensure only main (parent) processes creates a manager
-    manager = Manager()
-    exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
-else:
-    exchange_locks = {}
+    try:
+        manager = get_manager()
+        if manager is not None:
+            exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
+    except Exception as e:
+        # Fallback to thread locks if Manager fails
+        print(f"Warning: Failed to initialize Manager locks: {e}")
 
     
 class Financials(Enum):
