@@ -95,6 +95,9 @@ exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC pink
 exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
 exchangeToXcalExchange["OQB"] = exchangeToXcalExchange["NYQ"]  # OTCQB
+exchangeToXcalExchange["DJI"] = exchangeToXcalExchange["NYQ"]  # Dow Jones follows NYSE calendar
+exchangeToXcalExchange["SNP"] = exchangeToXcalExchange["NYQ"]  # S&P 500 follows NYSE calendar
+exchangeToXcalExchange["NIM"] = "NASDAQ"  # NASDAQ Index Market follows NASDAQ calendar
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
@@ -167,11 +170,14 @@ exchangeToYfLag = {}
 exchangeToYfLag["NYQ"] = timedelta(seconds=0)
 exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PCX"] = exchangeToYfLag["NYQ"]
+exchangeToYfLag["DJI"] = exchangeToYfLag["NYQ"]  # Dow Jones has same lag as NYSE
+exchangeToYfLag["SNP"] = exchangeToYfLag["NYQ"]  # S&P 500 has same lag as NYSE
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["OQX"] = timedelta(minutes=15)
 exchangeToYfLag["OEM"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["OQB"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["NIM"] = exchangeToYfLag["NCM"]  # NASDAQ Index Market has same lag as NASDAQ
 exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
 exchangeToYfLag["BTS"] = exchangeToYfLag["NYQ"]
