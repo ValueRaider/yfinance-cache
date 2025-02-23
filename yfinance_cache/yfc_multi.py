@@ -27,7 +27,7 @@ def download(tickers,
 
     if ignore_tz is None:
         # Set default value depending on interval
-        ignore_tz = interval[1:] not in ['m', 'h']
+        ignore_tz = interval[-1] not in ['m', 'h']
 
     # create ticker list
     tickers = tickers if isinstance(tickers, (list, set, tuple)) else tickers.replace(',', ' ').split()
