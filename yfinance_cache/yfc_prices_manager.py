@@ -33,7 +33,8 @@ class HistoriesManager:
         yfcu.TypeCheckStr(ticker, "ticker")
         yfcu.TypeCheckStr(exchange, "exchange")
         yfcu.TypeCheckStr(tzName, "tzName")
-        yfcu.TypeCheckDateStrict(listingDay, 'listingDay')
+        if listingDay is not None:
+            yfcu.TypeCheckDateStrict(listingDay, 'listingDay')
 
         self.ticker = ticker
         self.exchange = exchange
@@ -399,6 +400,8 @@ class PriceHistory:
         yfcu.TypeCheckStr(ticker, "ticker")
         yfcu.TypeCheckStr(exchange, "exchange")
         yfcu.TypeCheckStr(tzName, "tzName")
+        if listingDay is not None:
+            yfcu.TypeCheckDateStrict(listingDay, 'listingDay')
         yfcu.TypeCheckBool(repair, "repair")
         yfcu.TypeCheckBool(contiguous, "contiguous")
 
@@ -544,6 +547,7 @@ class PriceHistory:
                     return None
 
         debug_yf = False
+
         debug_yfc = self._debug
         # debug_yfc = True
 

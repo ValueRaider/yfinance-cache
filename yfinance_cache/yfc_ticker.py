@@ -366,8 +366,13 @@ class Ticker:
                 tz_name = i["exchangeTimezoneName"]
             else:
                 tz_name = i["timeZoneFullName"]
-            if 'firstTradeDateEpochUtc' in i and tz_name is not None:
-                lday = pd.Timestamp(i['firstTradeDateEpochUtc'], unit='s').tz_localize("UTC").tz_convert(tz_name).date()
+            if tz_name is not None:
+                if 'firstTradeDateEpochUtc' in i:
+                    lday = pd.Timestamp(i['firstTradeDateEpochUtc'], unit='s').tz_localize("UTC")
+                elif 'firstTradeDateMilliseconds' in i:
+                    lday = pd.Timestamp(i['firstTradeDateMilliseconds'], unit='ms').tz_localize("UTC")
+                if lday is not None:
+                    lday = lday.tz_convert(tz_name).date()
         except Exception:
             md = yf.Ticker(self._ticker, session=self._session).history_metadata
             if 'exchangeName' in md:
