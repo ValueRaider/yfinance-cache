@@ -44,7 +44,7 @@ def download(tickers,
         if threads is True:
             threads = multiprocessing.cpu_count()
         if progress:
-            queue = multiprocessing.Manager().Queue()
+            queue = yfcd.get_manager().Queue()
             partial_func = partial(download_one_parallel, queue=queue, 
                                     period=period, interval=interval,
                                     max_age=max_age,

@@ -283,13 +283,35 @@ listing_date_check_tols[Interval.Week] = timedelta(days=14)
 # listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
-from multiprocessing import Lock, Manager, current_process
+from multiprocessing import Manager, current_process, Lock
+import threading
+
+_manager = None
+_manager_lock = threading.Lock()
+
+def get_manager():
+    global _manager
+    with _manager_lock:
+        if _manager is None:
+            if current_process().name == 'MainProcess':
+                _manager = Manager()
+            else:
+                # For non-main processes, use threading locks instead
+                return None
+        return _manager
+
+# Initialize exchange_locks with thread locks by default
+exchange_locks = {e:Lock() for e in exchangeToXcalExchange.keys()}
+
+# Only use Manager locks in main process
 if current_process().name == 'MainProcess':
-    # Ensure only main (parent) processes creates a manager
-    manager = Manager()
-    exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
-else:
-    exchange_locks = {}
+    try:
+        manager = get_manager()
+        if manager is not None:
+            exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
+    except Exception as e:
+        # Fallback to thread locks if Manager fails
+        print(f"Warning: Failed to initialize Manager locks: {e}")
 
     
 class Financials(Enum):
