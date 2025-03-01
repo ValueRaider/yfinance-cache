@@ -63,10 +63,11 @@ def TypeCheckDateEasy(var, varName):
         elif not isinstance(var.tzinfo, ZoneInfo):
             raise TypeError(f"'{varName}' tzinfo must be ZoneInfo not {type(var.tzinfo)}")
 def TypeCheckDateStrict(var, varName):
-    if var is None:
-        return  # Allow None values
-    if not isinstance(var, (date, datetime)):
-        raise TypeError(f"'{varName}' must be date or datetime not {type(var)}")
+    if isinstance(var, pd.Timestamp):
+        # While Pandas missing support for 'zoneinfo' must deny
+        raise TypeError(f"'{varName}' must be date not {type(var)}")
+    if not (isinstance(var, date) and not isinstance(var, datetime)):
+        raise TypeError(f"'{varName}' must be date not {type(var)}")
 def TypeCheckDatetime(var, varName):
     if not isinstance(var, datetime):
         raise TypeError(f"'{varName}' must be datetime not {type(var)}")
