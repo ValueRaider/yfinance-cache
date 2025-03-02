@@ -96,10 +96,16 @@ exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
 exchangeToXcalExchange["OQB"] = exchangeToXcalExchange["NYQ"]  # OTCQB
 exchangeToXcalExchange["NCM"] = "NASDAQ"
+exchangeToXcalExchange["NAS"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NMS"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["BTS"] = exchangeToXcalExchange["NYQ"]  # Cboe BZX formerly known as BATS
 exchangeToXcalExchange["CXI"] = "XCBF"  # CBOE Futures
+exchangeToXcalExchange['NYM'] = "CMES"  # NY Mercantile aka NYMEX, CME group. But xcal not perfect match to YF (3 days diff over 2 years)
+exchangeToXcalExchange['CMX'] = "CMES"  # COMEX, CME group. But xcal not perfect match to YF (1 day diff over 2 years)
+exchangeToXcalExchange['CBT'] = "CMES"  # CBOT, CME group. But xcal not perfect match to YF (1 day diff over 2 years)
+exchangeToXcalExchange['NYB'] = 'IEPA'  # ICE Futures. But xcal not perfect match to YF (1 day diff over 2 years)
+exchangeToXcalExchange['CME'] = 'CMES'  # Chicago Mercantile aka CME
 # Canada:
 exchangeToXcalExchange["TOR"] = "XTSE"  # Toronto
 exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"]  # TSX Venture
@@ -127,6 +133,7 @@ exchangeToXcalExchange["MCE"] = "XMAD"  # Madrid
 exchangeToXcalExchange["MIL"] = "XMIL"  # Milan
 exchangeToXcalExchange["OSL"] = "XOSL"  # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR"  # Paris
+exchangeToXcalExchange["PRA"] = "XPRA"  # Prague
 exchangeToXcalExchange["STO"] = "XSTO"  # Stockholm
 exchangeToXcalExchange["VIE"] = "XWBO"  # Vienna
 exchangeToXcalExchange["WSE"] = "XWAR"  # Warsaw
@@ -139,6 +146,7 @@ exchangeToXcalExchange["BVC"] = "XBOG"  # Bogota, Colombia
 exchangeToXcalExchange["BUE"] = "XBUE"  # Buenos Aires, Argentina
 exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
+exchangeToXcalExchange['OSA'] = exchangeToXcalExchange["JPX"]  # Osaka. Not in xcal so assume
 exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["TWO"] = "XTAI"  # Taipai OTC, Taiwan. Closes 5 minutes before TWSE, otherwise same.
@@ -164,23 +172,29 @@ exchangesWithBreaks = {"HKG"}
 # https://help.yahoo.com/kb/SLN2310.html?guccounter=1
 exchangeToYfLag = {}
 # USA:
-exchangeToYfLag["NYQ"] = timedelta(seconds=0)
+exchangeToYfLag["NYQ"] = timedelta(0)
 exchangeToYfLag["ASE"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["PCX"] = exchangeToYfLag["NYQ"]
+exchangeToYfLag['NYM'] = timedelta(minutes=10)
 exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["OQX"] = timedelta(minutes=15)
 exchangeToYfLag["OEM"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["OQB"] = exchangeToYfLag["OQX"]
-exchangeToYfLag["NCM"] = exchangeToYfLag["ASE"]
-exchangeToYfLag["NGM"] = exchangeToYfLag["ASE"]
-exchangeToYfLag["NMS"] = exchangeToYfLag["ASE"]
+exchangeToYfLag["NCM"] = exchangeToYfLag["NYQ"]
+exchangeToYfLag["NAS"] = exchangeToYfLag["NCM"]
+exchangeToYfLag["NGM"] = exchangeToYfLag["NCM"]
+exchangeToYfLag["NMS"] = exchangeToYfLag["NCM"]
 exchangeToYfLag["BTS"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["CXI"] = timedelta(minutes=15)
+exchangeToYfLag['CMX'] = timedelta(minutes=30)
+exchangeToYfLag["CBT"] = timedelta(minutes=10)
+exchangeToYfLag["NYB"] = timedelta(minutes=30)
+exchangeToYfLag['CME'] = timedelta(minutes=10)
 # Canada:
-exchangeToYfLag["TOR"] = timedelta(seconds=0)
+exchangeToYfLag["TOR"] = timedelta(0)
 exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
 exchangeToYfLag["CNQ"] = exchangeToYfLag["TOR"]
-exchangeToYfLag["NEO"] = timedelta(seconds=0)
+exchangeToYfLag["NEO"] = timedelta(0)
 # Europe:
 exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
@@ -203,6 +217,7 @@ exchangeToYfLag["MCE"] = timedelta(minutes=15)
 exchangeToYfLag["MIL"] = timedelta(minutes=20)
 exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
+exchangeToYfLag["PRA"] = timedelta(minutes=20)
 exchangeToYfLag["STO"] = timedelta(0)
 exchangeToYfLag["VIE"] = timedelta(minutes=15)
 exchangeToYfLag["WSE"] = timedelta(minutes=15)
@@ -215,6 +230,7 @@ exchangeToYfLag["BVC"] = timedelta(minutes=15)  # Guess because Yahoo don't spec
 exchangeToYfLag["BUE"] = timedelta(minutes=30)
 exchangeToYfLag["MEX"] = timedelta(minutes=20)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
+exchangeToYfLag["OSA"] = timedelta(minutes=30)
 exchangeToYfLag["SHZ"] = timedelta(minutes=30)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
 exchangeToYfLag["TWO"] = timedelta(minutes=20)
@@ -233,6 +249,22 @@ exchangeToYfLag['JKT'] = timedelta(minutes=10)
 # FX:
 exchangeToYfLag["CCY"] = timedelta(0)
 exchangeToYfLag["CCC"] = timedelta(0)
+
+# Indices, not real exchanges
+exchangeToXcalExchange['DJI'] = exchangeToXcalExchange["NYQ"]  # Dow Jones
+exchangeToXcalExchange['SNP'] = exchangeToXcalExchange["NYQ"]  # SNP
+exchangeToXcalExchange['NYS'] = exchangeToXcalExchange["NYQ"]  # NYSE
+exchangeToXcalExchange['NIM'] = exchangeToXcalExchange['NCM']  # Nasdaq GIDS
+exchangeToXcalExchange["CGI"] = exchangeToXcalExchange['CXI']  # Cboe Indices
+exchangeToXcalExchange['WCB'] = exchangeToXcalExchange["CXI"]  # Chicago Options
+exchangeToXcalExchange['FGI'] = exchangeToXcalExchange['LSE']  # FTSE Index
+exchangeToYfLag['DJI'] = timedelta(0)
+exchangeToYfLag['SNP'] = timedelta(0)
+exchangeToYfLag['NYS'] = exchangeToYfLag['NYQ']  # guess
+exchangeToYfLag['NIM'] = timedelta(0)  # guess
+exchangeToYfLag["CGI"] = timedelta(minutes=15)
+exchangeToYfLag["WCB"] = exchangeToYfLag["CGI"]  # guess
+exchangeToYfLag['FGI'] = timedelta(minutes=15)
 
 # After-market auctions:
 exchangesWithAuction = set()
