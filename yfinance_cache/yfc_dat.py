@@ -116,6 +116,7 @@ exchangeToXcalExchange["LSE"] = "XLON"  # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
 exchangeToXcalExchange["AMS"] = "XAMS"  # Amsterdam
 exchangeToXcalExchange["ATH"] = "ASEX"  # Athens
+exchangeToXcalExchange["BER"] = "XHAM"  # Berlin. not in xcal but looks like Hamburg
 exchangeToXcalExchange["BRU"] = "XBRU"  # Brussels
 exchangeToXcalExchange["BUD"] = "XBUD"  # Budapest
 exchangeToXcalExchange["BVB"] = "XBSE"  # Bucharest
@@ -123,7 +124,7 @@ exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
 exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
 exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
-exchangeToXcalExchange["DUS"] = "XDUS"  # Duesseldorf
+exchangeToXcalExchange["DUS"] = "XDUS"  # Dusseldorf
 exchangeToXcalExchange["HAM"] = "XHAM"  # Hamburg
 exchangeToXcalExchange["HEL"] = "XHEL"  # Helsinki
 exchangeToXcalExchange["ICE"] = "XICE"  # Iceland
@@ -135,6 +136,7 @@ exchangeToXcalExchange["OSL"] = "XOSL"  # Oslo
 exchangeToXcalExchange["PAR"] = "XPAR"  # Paris
 exchangeToXcalExchange["PRA"] = "XPRA"  # Prague
 exchangeToXcalExchange["STO"] = "XSTO"  # Stockholm
+exchangeToXcalExchange['STU'] = 'XHAM'  # Stuttgart. not in xcal but looks like Hamburg
 exchangeToXcalExchange["VIE"] = "XWBO"  # Vienna
 exchangeToXcalExchange["WSE"] = "XWAR"  # Warsaw
 # Other:
@@ -200,6 +202,7 @@ exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
 exchangeToYfLag["AMS"] = timedelta(minutes=15)
 exchangeToYfLag["ATH"] = timedelta(minutes=15)
+exchangeToYfLag["BER"] = timedelta(minutes=15)
 exchangeToYfLag["BRU"] = timedelta(minutes=15)
 exchangeToYfLag["BUD"] = timedelta(minutes=15)
 exchangeToYfLag["BVB"] = timedelta(minutes=15)
@@ -219,6 +222,7 @@ exchangeToYfLag["OSL"] = timedelta(minutes=15)
 exchangeToYfLag["PAR"] = timedelta(minutes=15)
 exchangeToYfLag["PRA"] = timedelta(minutes=20)
 exchangeToYfLag["STO"] = timedelta(0)
+exchangeToYfLag["STU"] = timedelta(minutes=15)
 exchangeToYfLag["VIE"] = timedelta(minutes=15)
 exchangeToYfLag["WSE"] = timedelta(minutes=15)
 # Other:
