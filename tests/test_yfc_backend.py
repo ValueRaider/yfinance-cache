@@ -179,6 +179,7 @@ class Test_Yfc_Backend(Test_Base):
         fetch_dt = pd.Timestamp(datetime(2023, 6, 1, 14, 1)).tz_localize(tz_name)
         divs_df = pd.DataFrame(index=[div_date], data={'Close before':[div_close_before], 'Dividends':[div], "FetchDate":[fetch_dt]})
         divs_df.index = pd.to_datetime(divs_df.index).tz_localize(tz_name)
+        divs_df['Close repaired?'] = False
         hm.GetHistory("Events").UpdateDividends(divs_df)
 
         # Step 2: test _reverseYahooAdjust()
