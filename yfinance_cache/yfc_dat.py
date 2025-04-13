@@ -1140,14 +1140,21 @@ class DateRangeEstimate():
         raise NotImplementedError(f'Not implemented {self} += {type(other)}={other}')
 
     def __add__(self, other):
-        if isinstance(other, timedelta):
+        if isinstance(other, (timedelta, ComparableRelativedelta)):
             return DateRangeEstimate(self.start + other, self.end + other, self.confidence)
+        elif isinstance(other, TimedeltaEstimate):
+            conf = min(self.confidence, other.confidence)
+            return DateRangeEstimate(self.start + other.td, self.end + other.td, self.confidence)
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __isub__(self, other):
+        if isinstance(other, timedelta):
+            self.start -= other
+            self.end -= other
+            return self
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
 
     def __sub__(self, other):
@@ -1244,6 +1251,8 @@ class DateRange():
     def __eq__(self, other):
         if isinstance(other, DateRange):
             return self.start == other.start and self.end == other.end
+        elif isinstance(other, (date, DateEstimate)):
+            return False
         raise NotImplementedError(f'Not implemented {self} == {type(other)}={other}')
 
     def isclose(self, other):

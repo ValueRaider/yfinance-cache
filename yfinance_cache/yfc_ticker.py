@@ -901,7 +901,7 @@ class Ticker:
         else:
             period = yfcd.ReportingPeriod.Interim
 
-        releases = self._financials_manager.get_release_dates(period, as_df, refresh=True, check=check)
+        releases = self._financials_manager.get_release_dates(period, as_df=as_df, refresh=True, check=check)
         if releases is None:
             return releases
 

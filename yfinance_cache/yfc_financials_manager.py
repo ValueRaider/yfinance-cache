@@ -59,22 +59,138 @@ def sort_estimates(lst):
 
 
 class EarningsRelease():
-    def __init__(self, interval, period_end, release_date, full_year_end):
+    def __init__(self, interval, period_end, release_date, full_year_end, interim_itd):
         if not isinstance(period_end, (date, yfcd.DateEstimate)):
             raise Exception("'period_end' must be a 'yfcd.DateEstimate' or date object or None, not {0}".format(type(period_end)))
-        if (release_date is not None):
-            if not isinstance(release_date, (date, yfcd.DateEstimate)):
-                raise Exception("'release_date' must be a 'yfcd.DateEstimate' or date object or None, not {0}".format(type(release_date)))
-            if release_date < period_end:
-                raise Exception("release_date={0} cannot occur before period_end={1}".format(release_date, period_end))
-            if release_date > (period_end + timedelta(days=90)):
-                raise Exception("release_date={0} shouldn't occur 90 days after period_end={1}".format(release_date, period_end))
+        if release_date is not None:
+            if not isinstance(release_date, (date, yfcd.DateRange, yfcd.DateEstimate, yfcd.DateRangeEstimate)):
+                raise Exception("'release_date' must be a 'yfcd.DateRange|DateEstimate|DateRangeEstimate' or date object or None, not {0}".format(type(release_date)))
+            try:
+                if release_date < period_end:
+                    raise Exception("release_date={0} cannot occur before period_end={1}".format(release_date, period_end))
+            except yfcd.AmbiguousComparisonException:
+                pass
         if not isinstance(full_year_end, date):
             raise Exception("'full_year_end' must be a date object or None, not {0}".format(type(full_year_end)))
-        self.interval = interval
-        self.period_end = period_end
-        self.release_date = release_date
-        self.full_year_end = full_year_end
+        self._interval = interval
+        self._period_end = period_end
+        self._release_date = release_date
+        self._full_year_end = full_year_end
+        self._interim_itd = interim_itd
+
+        if release_date is not None:
+            if self.is_end_of_year():
+                max_delay = timedelta(days=130)
+            else:
+                max_delay = timedelta(days=92)
+            if interim_itd > timedelta(days=110):
+                # half-yearly so allow longer delay
+                max_delay += timedelta(days=90)
+                # and these are less prompt
+                max_delay += timedelta(days=5)
+            try:
+                if release_date > (period_end + max_delay):
+                    raise Exception(f"release_date={release_date} shouldn't occur {release_date-period_end} after period_end={period_end}")
+            except yfcd.AmbiguousComparisonException:
+                pass
+
+    def __setstate__(self, state):
+        # Migration from old attribute structure to new
+        for old_attr, new_attr in [
+            ('interval', '_interval'),
+            ('period_end', '_period_end'),
+            ('release_date', '_release_date'),
+            ('full_year_end', '_full_year_end')
+        ]:
+            # Check if the old attribute exists in state
+            if old_attr in state and new_attr not in state:
+                # Migrate to new naming convention
+                state[new_attr] = state.pop(old_attr)
+
+        if '_interim_itd' not in state:
+            state['_interim_itd'] = timedelta(days=90)
+        
+        # Update instance with migrated state
+        self.__dict__.update(state)
+
+    @property
+    def interval(self):
+        return self._interval
+    @interval.setter
+    def interval(self, value):
+        self._interval = value
+
+    @property
+    def period_end(self):
+        return self._period_end
+    @period_end.setter
+    def period_end(self, value):
+        if self._release_date is not None:
+            try:
+                if self._release_date < value:
+                    raise Exception("release_date={0} cannot occur before period_end={1}".format(self._release_date, value))
+            except yfcd.AmbiguousComparisonException:
+                pass
+
+            if self.is_end_of_year():
+                max_delay = timedelta(days=130)
+            else:
+                max_delay = timedelta(days=90)
+            if self.interim_itd > timedelta(days=110):
+                # half-yearly so allow longer delay
+                max_delay += timedelta(days=90)
+                # and these are less prompt
+                max_delay += timedelta(days=5)
+            try:
+                if self._release_date > (value + max_delay):
+                    raise Exception(f"release_date={self._release_date} shouldn't occur {max_delay} after period_end={value}")
+            except yfcd.AmbiguousComparisonException:
+                pass
+
+        self._period_end = value
+
+    @property
+    def release_date(self):
+        return self._release_date
+    @release_date.setter
+    def release_date(self, value):
+        if value is not None:
+            try:
+                if value < self._period_end:
+                    raise Exception("release_date={0} cannot occur before period_end={1}".format(value, self._period_end))
+            except yfcd.AmbiguousComparisonException:
+                pass
+
+            if self.is_end_of_year():
+                max_delay = timedelta(days=135)
+            else:
+                max_delay = timedelta(days=92)
+            if self.interim_itd > timedelta(days=110):
+                # half-yearly so allow longer delay
+                max_delay += timedelta(days=90)
+                # and these are less prompt
+                max_delay += timedelta(days=5)
+            try:
+                if value > (self._period_end + max_delay):
+                    raise Exception(f"release_date={value} shouldn't occur {value-self._period_end} after period_end={self._period_end} (threshold = {max_delay.days}D, interim_itd = {self.interim_itd}, FY_end = {self._full_year_end})")
+            except yfcd.AmbiguousComparisonException:
+                pass
+
+        self._release_date = value
+    
+    @property
+    def full_year_end(self):
+        return self._full_year_end
+    @full_year_end.setter
+    def full_year_end(self, value):
+        self._full_year_end = value
+
+    @property
+    def interim_itd(self):
+        return self._interim_itd
+    @interim_itd.setter
+    def interim_itd(self, value):
+        self._interim_itd = value
 
     def __str__(self):
         s = f'{self.interval} earnings'
@@ -108,8 +224,8 @@ class EarningsRelease():
 
     def is_end_of_year(self):
         r_is_end_of_year = False
-        rpe = self.period_end
-        diff = (rpe - self.full_year_end)
+        rpe = self._period_end
+        diff = (rpe - self._full_year_end)
         try:
             while diff < timedelta(0):
                 diff += timedelta(days=365)
@@ -130,8 +246,8 @@ class EarningsRelease():
         if self.is_end_of_year():
             return 1.0
         else:
-            rpe = self.period_end
-            diff = (rpe - self.full_year_end)
+            rpe = self._period_end
+            diff = (rpe - self._full_year_end)
             diff += timedelta(days=365)  # just in case is negative
             diff = diff % timedelta(days=365)
             tol = 35
@@ -171,14 +287,14 @@ class FinancialsManager:
         self.session = session
         self.dat = yf.Ticker(self.ticker, session=self.session)
 
-        # self._earnings = None
-        # self._quarterly_earnings = None
         self._income_stmt = None
         self._quarterly_income_stmt = None
         self._balance_sheet = None
         self._quarterly_balance_sheet = None
         self._cashflow = None
         self._quarterly_cashflow = None
+        self._release_dates_refreshed = False
+        self._release_dates_refreshed_qtr = False
 
         self._earnings_dates = None
         self._calendars = None
@@ -192,38 +308,75 @@ class FinancialsManager:
     def get_income_stmt(self, refresh=True):
         if self._income_stmt is not None:
             return self._income_stmt
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Full, yfcd.Financials.IncomeStmt)
         self._income_stmt = self._get_fin_table(yfcd.Financials.IncomeStmt, yfcd.ReportingPeriod.Full, refresh)
         return self._income_stmt
 
     def get_quarterly_income_stmt(self, refresh=True):
         if self._quarterly_income_stmt is not None:
             return self._quarterly_income_stmt
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Interim, yfcd.Financials.IncomeStmt)
         self._quarterly_income_stmt = self._get_fin_table(yfcd.Financials.IncomeStmt, yfcd.ReportingPeriod.Interim, refresh)
         return self._quarterly_income_stmt
 
     def get_balance_sheet(self, refresh=True):
         if self._balance_sheet is not None:
             return self._balance_sheet
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Full, yfcd.Financials.BalanceSheet)
         self._balance_sheet = self._get_fin_table(yfcd.Financials.BalanceSheet, yfcd.ReportingPeriod.Full, refresh)
         return self._balance_sheet
 
     def get_quarterly_balance_sheet(self, refresh=True):
         if self._quarterly_balance_sheet is not None:
             return self._quarterly_balance_sheet
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Interim, yfcd.Financials.BalanceSheet)
         self._quarterly_balance_sheet = self._get_fin_table(yfcd.Financials.BalanceSheet, yfcd.ReportingPeriod.Interim, refresh)
         return self._quarterly_balance_sheet
 
     def get_cashflow(self, refresh=True):
         if self._cashflow is not None:
             return self._cashflow
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Full, yfcd.Financials.CashFlow)
         self._cashflow = self._get_fin_table(yfcd.Financials.CashFlow, yfcd.ReportingPeriod.Full, refresh)
         return self._cashflow
 
     def get_quarterly_cashflow(self, refresh=True):
         if self._quarterly_cashflow is not None:
             return self._quarterly_cashflow
+        if refresh:
+            self._safe_refresh_release_dates(yfcd.ReportingPeriod.Interim, yfcd.Financials.CashFlow)
         self._quarterly_cashflow = self._get_fin_table(yfcd.Financials.CashFlow, yfcd.ReportingPeriod.Interim, refresh)
         return self._quarterly_cashflow
+
+    def _safe_refresh_release_dates(self, period, finType):
+        # trigger release dates refresh here, the only safe place to avoid infinite loop
+        if period == yfcd.ReportingPeriod.Full:
+            if self._release_dates_refreshed:
+                return
+        else:
+            if self._release_dates_refreshed_qtr:
+                return
+
+        self.get_release_dates(period, preferred_fin=finType, refresh=True)
+        if period == yfcd.ReportingPeriod.Full:
+            self._release_dates_refreshed = True
+        else:
+            self._release_dates_refreshed_qtr = True
+
+        # remove financials from memory cache, because
+        # they may have not used release dates
+        periods = [period, yfcd.ReportingPeriod.Interim] if period == yfcd.ReportingPeriod.Full else [yfcd.ReportingPeriod.Interim]
+        for f in [finType]:
+            for p in periods:
+                for refresh in [False, True]:
+                    cache_key = (f, p, refresh)
+                    if cache_key in self._fin_tbl_cache:
+                        del self._fin_tbl_cache[cache_key]
 
     def _get_fin_table(self, finType, period, refresh=True):
         debug = False
@@ -304,7 +457,7 @@ class FinancialsManager:
                     do_fetch = True
             else:
                 td_1d = pd.Timedelta(1, unit='D')
-                releases = self.get_release_dates(period, refresh=False)
+                releases = self.get_release_dates(period, preferred_fin=finType, refresh=False)
                 next_release = None
                 if releases is None:
                     # Use crude logic to estimate when to re-fetch
@@ -318,19 +471,31 @@ class FinancialsManager:
                     # Update: analyse pruned dates:
                     last_d = self._prune_yf_financial_df(df).columns.max().date()
                     # Find next release after last fetch:
+                    next_release = None
                     for r in releases:
+                        # First, find next release after cached financials
                         try:
                             if r.period_end <= last_d:
                                 continue
                         except yfcd.AmbiguousComparisonException:
                             # Treat as match
                             continue
+                        if next_release is None:
+                            next_release = r
+
+                        # Then keep searching for most-recent
+                        try:
+                            if r.release_date > dt_now.date():
+                                break
+                        except yfcd.AmbiguousComparisonException:
+                            # Treat as future
+                            break
                         next_release = r
-                        break
                     if next_release is None:
+                        print("- releases:")
                         pprint(releases)
                         print("- last_d =", last_d)
-                        raise Exception('Failed to determine next release after cached financials')
+                        raise Exception(f'{self.ticker}: Failed to determine next release after cached financials')
                     if debug:
                         print("- last_d =", last_d, ", last_fetch =", md['LastFetch'].date())
                         print("- next_release:", next_release)
@@ -393,8 +558,18 @@ class FinancialsManager:
             if df is None or df.empty:
                 df = df_new
             elif df_new is not None and not df_new.empty:
-                df_pruned = df.drop([c for c in df.columns if c in df_new], axis=1)
-                df_new_pruned = df_new.drop([c for c in df_new.columns if c in df], axis=1)
+                df_new_clean = self._prune_yf_financial_df(df_new)
+                df_new_bad_dts = [dt for dt in df_new.columns if dt not in df_new_clean.columns]
+                if len(df_new_bad_dts) > 0:
+                    # fetched df has bad columns, avoid overwriting good columns in cache
+                    df_clean = self._prune_yf_financial_df(df)
+                    for dt in df_new_bad_dts:
+                        if dt in df_clean.columns:
+                            # confirmed have good cached column
+                            # drop from fetched
+                            df_new = df_new.drop(dt, axis=1)
+                df_pruned = df.drop(df_new.columns, axis=1, errors='ignore')
+                df_new_pruned = df_new.drop(df.columns, axis=1, errors='ignore')
                 if df_pruned.empty and df_new_pruned.empty:
                     if next_release is not None and hasattr(next_release.release_date, 'confidence') and next_release.release_date.confidence == yfcd.Confidence.Low:
                         # Probably not released yet
@@ -539,7 +714,14 @@ class FinancialsManager:
 
         return self._get_interval_from_table(tbl)
 
-    def get_release_dates(self, period, as_df=False, refresh=True, check=False):
+    def get_release_dates(self, period, preferred_fin=yfcd.Financials.IncomeStmt, as_df=False, refresh=True, check=False):
+        debug = False
+        # debug = True
+
+        if debug:
+            print("")
+            print(f"{self.ticker}: get_release_dates(period={period} refresh={refresh} check={check})")
+
         # First, check cache:
         if period == yfcd.ReportingPeriod.Full:
             cache_key = "full"
@@ -552,6 +734,35 @@ class FinancialsManager:
         if yfcm.IsDatumCached(self.ticker, cache_key):
             releases, md = yfcm.ReadCacheDatum(self.ticker, cache_key, True)
             if len(releases) == 0:
+                releases = None
+        if debug:
+            print("- md:") ; pprint(md)
+
+        if period == yfcd.ReportingPeriod.Full:
+            itd = interval_str_to_days['ANNUAL']
+            interim_itd = self._get_interval(preferred_fin, refresh)
+        else:
+            for f in [preferred_fin]+list(yfcd.Financials):
+                itd = self._get_interval(f, refresh)
+                if itd:
+                    interim_itd = itd
+                    break
+
+        if releases is not None:
+            # Check if releases contains invalid period->date mappings.
+            # Going to take a long time to slowly clean cache of invalid release dates.
+            releases_bad = False
+            for r in releases:
+                try:
+                    EarningsRelease(itd, r.period_end, r.release_date, r.full_year_end, r.interim_itd)
+                except Exception as e:
+                    if "shouldn't occur" in str(e):
+                        releases_bad = True
+                    else:
+                        raise
+                if releases_bad:
+                    break
+            if releases_bad:
                 releases = None
 
         max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
@@ -591,7 +802,7 @@ class FinancialsManager:
             do_calc = False
 
         if do_calc:
-            releases = self._calc_release_dates(period, refresh, check)
+            releases = self._calc_release_dates(period, preferred_fin, refresh, check)
             md = {'CalcDate':pd.Timestamp.now()}
             if releases is None:
                 yfcm.StoreCacheDatum(self.ticker, cache_key, [], metadata=md)
@@ -599,6 +810,36 @@ class FinancialsManager:
                 yfcm.StoreCacheDatum(self.ticker, cache_key, releases, metadata=md)
         if releases is None:
             return None
+
+        if not do_calc:
+            # If last release is in past, or almost in past, 
+            # then append a crude estimation
+            releases = sorted(releases)
+            lastr = releases[-1]
+
+            try:
+                lastr_is_past = lastr.period_end < d_today
+            except yfcd.AmbiguousComparisonException:
+                lastr_is_past = True
+            while lastr_is_past:
+                next_pe = lastr.period_end + itd
+                if hasattr(lastr.period_end, 'confidence'):
+                    if lastr.period_end.confidence == yfcd.Confidence.High:
+                        next_pe.confidence = yfcd.Confidence.Medium
+                    else:
+                        next_pe.confidence = yfcd.Confidence.Low
+                else:
+                    next_pe = yfcd.DateEstimate(next_pe, yfcd.Confidence.High)
+                next_rd = lastr.release_date + itd
+                newr = EarningsRelease(itd, next_pe, next_rd, lastr.full_year_end, interim_itd)
+
+                releases.append(newr)
+
+                lastr = releases[-1]
+                try:
+                    lastr_is_past = lastr.period_end < d_today
+                except yfcd.AmbiguousComparisonException:
+                    lastr_is_past = True
 
         if not as_df:
             return releases
@@ -654,7 +895,7 @@ class FinancialsManager:
 
         return df
 
-    def _calc_release_dates(self, period, refresh=True, check=False):
+    def _calc_release_dates(self, period, preferred_fin=None, refresh=True, check=False):
         debug = False
         # debug = True
 
@@ -669,7 +910,7 @@ class FinancialsManager:
         # Get period ends
         tbl = None
         finType = None
-        for f in yfcd.Financials:
+        for f in [preferred_fin]+list(yfcd.Financials):
             t = self._get_fin_table(f, period, refresh)
             t = self._prune_yf_financial_df(t)
             if tbl is None:
@@ -709,14 +950,14 @@ class FinancialsManager:
 
         # Get full year end date
         tbl = None
-        for f in yfcd.Financials:
+        for f in [preferred_fin]+list(yfcd.Financials):
             t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh=False)  # minimise fetches
             t = self._prune_yf_financial_df(t)
             if t is not None and not t.empty:
                 tbl = t
                 break
         if tbl is None and refresh:
-            for f in yfcd.Financials:
+            for f in [preferred_fin]+list(yfcd.Financials):
                 t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh)
                 t = self._prune_yf_financial_df(t)
                 if t is not None and not t.empty:
@@ -757,20 +998,16 @@ class FinancialsManager:
 
             release_dates = cal_release_dates
 
+            # Protect against duplicating entries in calendar
             for i in range(edf.shape[0]):
                 dt = edf.index[i].date()
                 r = edf.iloc[i]
-                td = None
-                if td is None:
-                    if pd.isnull(r["Reported EPS"]) and pd.isnull(r["Surprise(%)"]) and not r['Date confirmed?']:
-                        td = yfcd.DateEstimate(dt, yfcd.Confidence.Medium)
-                    else:
-                        td = dt
+                if pd.isnull(r["Reported EPS"]) and pd.isnull(r["Surprise(%)"]) and not r['Date confirmed?']:
+                    dt = yfcd.DateEstimate(dt, yfcd.Confidence.Medium)
 
-                # Protect against duplicating entries in calendar
                 duplicate = False
                 for c in release_dates:
-                    diff = c - td
+                    diff = c - dt
                     try:
                         duplicate = diff > timedelta(days=-20) and diff < timedelta(days=20)
                     except yfcd.AmbiguousComparisonException:
@@ -778,9 +1015,24 @@ class FinancialsManager:
                         p2 = diff.prob_lt(timedelta(days=20))
                         duplicate = p1 > 0.9 and p2 > 0.9
                     if duplicate:
-                        break
+                        # Update: keep which is more specific
+                        c_best = False
+                        if isinstance(c, date):
+                            c_best = True
+                        elif isinstance(dt, date):
+                            c_best = False
+                        else:
+                            if hasattr(dt, 'confidence') and not hasattr(c, 'confidence'):
+                                c_best = True
+                            elif isinstance(dt, type(c)) and dt.confidence < c.confidence:
+                                c_best = True
+                        if c_best:
+                            break
+                        else:
+                            release_dates.remove(c)
+                            duplicate = False
                 if not duplicate:
-                    release_dates.append(td)
+                    release_dates.append(dt)
         if debug:
             print("- edf:")
             print(edf)
@@ -791,17 +1043,20 @@ class FinancialsManager:
         # Deduce interval
         if period == yfcd.ReportingPeriod.Full:
             interval_td = interval_str_to_days['ANNUAL']
+            interim_itd = self._get_interval(finType, refresh)
         else:
             interval_td = self._get_interval(finType, refresh)
+            interim_itd = interval_td
         if debug:
             print(f"- interval_td = {interval_td}")
+            print(f"- interim_itd = {interim_itd}")
 
         # Now combine known dates into 'Earnings Releases':
         if debug:
             print("# Now combine known dates into 'Earnings Releases':")
         releases = []
         for d in period_ends:
-            r = EarningsRelease(interval_td, d, None, year_end)
+            r = EarningsRelease(interval_td, d, None, year_end, interim_itd)
             releases.append(r)
         if debug:
             releases.sort()
@@ -826,7 +1081,7 @@ class FinancialsManager:
 
             next_period_end = yfcd.DateEstimate(interval_td + last_release.period_end, yfcd.Confidence.High)
 
-            r = EarningsRelease(interval_td, next_period_end, None, year_end)
+            r = EarningsRelease(interval_td, next_period_end, None, year_end, interim_itd)
 
             releases.insert(0, r)
             last_release = r
@@ -878,7 +1133,7 @@ class FinancialsManager:
             else:
                 prev_period_end = yfcd.DateEstimate(prev_period_end.date, min(prev_period_end.confidence, conf))
 
-            r = EarningsRelease(interval_td, prev_period_end, None, year_end)
+            r = EarningsRelease(interval_td, prev_period_end, None, year_end, interim_itd)
 
             releases.insert(0, r)
             if debug:
@@ -902,7 +1157,7 @@ class FinancialsManager:
             else:
                 next_period_end = yfcd.DateEstimate(next_period_end.date, min(next_period_end.confidence, yfcd.Confidence.Medium))
 
-            r = EarningsRelease(interval_td, next_period_end, None, year_end)
+            r = EarningsRelease(interval_td, next_period_end, None, year_end, interim_itd)
             releases.append(r)
             if debug:
                 print("Appending:", r)
@@ -917,7 +1172,7 @@ class FinancialsManager:
                 except yfcd.AmbiguousComparisonException:
                     gap_too_large = False
                 if gap_too_large:
-                    new_r = EarningsRelease(interval_td, r1.period_end - interval_td, None, year_end)
+                    new_r = EarningsRelease(interval_td, r1.period_end - interval_td, None, year_end, interim_itd)
                     if debug:
                         print(f"Inserting release estimate into gap: {new_r} (diff={diff}, interval_td={interval_td}, {type(interval_td)})")
                     releases.insert(i+1, new_r)
@@ -1020,6 +1275,16 @@ class FinancialsManager:
         delays = []
         for i in range(len(pes)):
             for j in range(len(rdts)):
+                if pulp.value(x[i,j]) == 1:
+                    # Discard delay if impossible
+                    try:
+                        EarningsRelease(interval_td, releases[i].period_end, release_dates[j], year_end, interim_itd)
+                    except Exception as e:
+                        if "shouldn't occur" in str(e):
+                            x[i,j] = 0
+                        else:
+                            raise
+
                 if pulp.value(x[i,j]) == 1:
                     delay = rdts[j] - pes[i]
                     if debug:
@@ -1138,7 +1403,8 @@ class FinancialsManager:
                 longest_delay = mean(interim_clusters[0])
                 for i in range(1, len(interim_clusters)):
                     m = mean(interim_clusters[i])
-                    if m > longest_delay:
+                    # Only keep longer cluster if has similar #elements
+                    if m > longest_delay and len(interim_clusters[i]) > 0.8*len(interim_clusters[longest_i]):
                         longest_i = i
                         longest_delay = m
                 interim_cluster = interim_clusters[longest_i]
@@ -1172,7 +1438,14 @@ class FinancialsManager:
         for i in range(len(pes)):
             for j in range(len(rdts)):
                 if pulp.value(x[i,j]) == 1:
-                    releases[i].release_date = release_dates[j]
+                    try:
+                        releases[i].release_date = release_dates[j]
+                    except Exception as e:
+                        if "shouldn't occur" in str(e):
+                            pass
+                        else:
+                            print("- ticker =", self.ticker, ", period =", period)
+                            raise
 
         if debug:
             releases.sort()
@@ -1236,9 +1509,12 @@ class FinancialsManager:
                             dt = delay + releases[i].period_end
 
                             r_is_end_of_year = releases[i].is_end_of_year()
-                            if r_is_end_of_year and try_interval != 365:
-                                # Annual reports take longer than interims, so add on some more days
-                                dt += timedelta(days=28)
+                            if try_interval != 365:
+                                # Annual reports take longer than interims
+                                if r_is_end_of_year:
+                                    dt += timedelta(days=28)
+                                elif closest_r.is_end_of_year():
+                                    dt -= timedelta(days=28)
 
                             if not hasattr(dt, 'confidence'):
                                 if r_is_end_of_year and try_interval != 365:
@@ -1311,7 +1587,7 @@ class FinancialsManager:
                             date_set = True
 
                         if date_set and (report_delay is not None):
-                            releases[i].release_date.date += report_delay
+                            releases[i].release_date += report_delay
         if debug:
             print("> releases after estimating release dates:")
             for r in releases:
@@ -1344,11 +1620,11 @@ class FinancialsManager:
                         raise Exception(f"{self.ticker}: A release that could be last is missing release date")
 
         if check:
-            self._check_release_dates(releases, finType, period, refresh)
+            self._check_release_dates(releases, finType, period, preferred_fin, refresh)
 
         return releases
 
-    def _check_release_dates(self, releases, finType, period, refresh):
+    def _check_release_dates(self, releases, finType, period, preferred_fin, refresh):
         # if period == yfcd.ReportingPeriod.Full:
         #     interval_td = interval_str_to_days['ANNUAL']
         # else:
@@ -2030,7 +2306,7 @@ class FinancialsManager:
 
         repeat_fetch = False
         try:
-            df = self.dat.get_earnings_dates(limit)
+            df = self.dat.get_earnings_dates(int(limit))
             if df is None or not isinstance(df.index, pd.DatetimeIndex):
                 repeat_fetch = True
         except KeyError as e:
@@ -2044,7 +2320,7 @@ class FinancialsManager:
             sleep(2)
             # Avoid cache this time, but add sleeps to maintain rate-limiting
             try:
-                df = yf.Ticker(self.ticker).get_earnings_dates(limit)
+                df = yf.Ticker(self.ticker).get_earnings_dates(int(limit))
                 if df is not None and not isinstance(df.index, pd.DatetimeIndex):
                     df = None
             except KeyError as e:
@@ -2093,7 +2369,7 @@ class FinancialsManager:
                         del self._calendar_clean[k]
                 for k in ['Earnings Date1', 'Earnings Date2']:
                     if k in self._calendar_clean:
-                        if not 'Earnings Date' in self._calendar_clean:
+                        if 'Earnings Date' not in self._calendar_clean:
                             self._calendar_clean['Earnings Date'] = []
                         self._calendar_clean['Earnings Date'].append(self._calendar_clean[k])
                         del self._calendar_clean[k]
@@ -2161,12 +2437,8 @@ class FinancialsManager:
                     losses.add(k)
                 elif c2[k] != self._calendar[k]:
                     diffs.add(k)
-            n_losses = len(losses)
             n_diffs = len(diffs)
-            n_changes = n_losses + n_diffs
-            n_diff_dates = len([k for k in diffs if 'Date' in k])
 
-            # if n_changes == 0:
             if n_diffs == 0:
                 self._calendar['LastCheck'] = fetchDate
                 self._calendars.iloc[-1, self._calendars.columns.get_loc('LastCheck')] = fetchDate
@@ -2186,7 +2458,6 @@ class FinancialsManager:
                     print("- ticker =", self.ticker)
                     raise Exception(f'New fields in fetched calendar: {new_columns}')
 
-                calendars_backup = self._calendars.copy()
                 date_cols = ['Earnings Date1', 'Ex-Dividend Date', 'Dividend Date']
                 cal_needs_append = True
                 for i in range(len(self._calendars)):
