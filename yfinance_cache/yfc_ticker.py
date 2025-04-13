@@ -573,21 +573,7 @@ class Ticker:
                 diff = len(newd) - len(d)
                 diff_pct = float(diff) / float(len(d))
                 if diff_pct < -0.1 and diff < -10:
-                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
-                    missing_keys = [k for k in d.keys() if k not in data.keys()]
-                    new_keys = [k for k in data.keys() if k not in d.keys()]
-                    msg += "- missing: "
-                    msg += str({k:d[k] for k in missing_keys}) + '\n'
-                    msg += "- new: "
-                    msg += str({k:newd[k] for k in new_keys}) + '\n'
-                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
-                    msg += f"\nDiscarding fetched '{name}'."
-                    print(f'{self._ticker}: {msg}')
-                    print("- cached:")
-                    pprint(d)
-                    print("- fetched:")
-                    pprint(newd)
-                    raise Exception('review info diffs')
+                    # Discard fetch
                     yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
                     if metadata:
                         return d, a['md']
@@ -596,12 +582,7 @@ class Ticker:
                 diff = len(newd) - len(d)
                 diff_pct = float(diff) / float(len(d))
                 if diff_pct < -0.1 and diff < -10:
-                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
-                    msg += f"- cache had {len(d)} rows\n"
-                    msg += f"- fetched has {len(newd)} rows\n"
-                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
-                    msg += f"\nDiscarding fetched '{name}'."
-                    print(f'{self._ticker}: {msg}')
+                    # Discard fetch
                     yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
                     if metadata:
                         return d, a['md']
@@ -610,14 +591,7 @@ class Ticker:
                 diff = len(newd) - len(d)
                 diff_pct = float(diff) / float(len(d))
                 if diff_pct < -0.1 and diff < -10:
-                    msg = f"When fetching new '{name}', significant amount of data has disappeared\n"
-                    msg += "- cached: "
-                    msg += f"{d}\n"
-                    msg += "- new: "
-                    msg += f"{newd}\n"
-                    msg += f"- diff={diff} diff_pct={diff_pct:.2f}"
-                    msg += f"\nDiscarding fetched '{name}'."
-                    print(f'{self._ticker}: {msg}')
+                    # Discard fetch
                     yfcm.WriteCacheMetadata(self._ticker, name, 'LastCheck', md['FetchDate'])
                     if metadata:
                         return d, a['md']
