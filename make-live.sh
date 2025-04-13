@@ -21,6 +21,8 @@ _make() (
 
 	if [ -d "$_outdir" ]; then rm -r "$_outdir" ; fi
 	mkdir -p "$_outdir"
+
+	python -m pip install --upgrade pip setuptools wheel build twine
 	python -m build --outdir "$_outdir"
 
 	python -m twine upload "$_outdir"/*
