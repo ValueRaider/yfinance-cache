@@ -149,6 +149,18 @@ def JoinTwoXcals(cal1, cal2):
 def GetCalendarViaCache(exchange, start, end=None):
     global calCache
 
+    debug = False
+    # debug = True
+
+    if debug:
+        log_msg = f"GetCalendarViaCache(exchange={exchange}, start={start}, end={end})"
+        # yfc_logger = yfcl.GetLogger("exchange-"+exchange)
+        # yfc_logger.debug(log_msg)
+        if yfcl.IsTracingEnabled():
+            yfcl.TraceEnter(log_msg)
+        elif debug_yfc:
+            print(log_msg)
+
     if isinstance(start, date):
         if start.month == 1 and start.day < 5:
             if end is None:
@@ -257,6 +269,13 @@ def GetCalendarViaCache(exchange, start, end=None):
         if pre_range is not None or post_range is not None:
             yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__, 'np version': np.__version__})
 
+    if debug:
+        log_msg = f"Returning schedule {cal.schedule.index[0].date()} -> {cal.schedule.index[-1].date()}"
+        if yfcl.IsTracingEnabled():
+            yfcl.TraceExit(log_msg)
+        else:
+            print(log_msg)
+
     return cal
 
 
@@ -282,6 +301,7 @@ def GetExchangeSchedule(exchange, start_d, end_d):
 
     if debug:
         print("GetExchangeSchedule(exchange={}, start_d={}, end_d={}".format(exchange, start_d, end_d))
+        print("- xcal name =", yfcd.exchangeToXcalExchange[exchange])
 
     end_d_sub1 = end_d - timedelta(days=1)
 
@@ -318,7 +338,10 @@ def GetExchangeSchedule(exchange, start_d, end_d):
         df = sched[cols]
 
     if debug:
-        print("GetExchangeSchedule() returning")
+        if df is None or df.empty:
+            print("GetExchangeSchedule() returning nothing")
+        else:
+            print(f"GetExchangeSchedule() returning {len(df)} rows")
 
     return df
 
@@ -1091,30 +1114,38 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, discardTimes=None,
         t0 = ts_day[0]
         tl = ts_day[len(ts_day)-1]
         sched = GetExchangeSchedule(exchange, t0, tl+timedelta(days=1))
-        if "auction" in sched.columns:
-            sched["close"] = sched["auction"] + yfcd.exchangeAuctionDuration[exchange]
-
-        ts_df = pd.DataFrame(data={"day": ts_day}, index=ts)
-        sched["day"] = sched.index.date
-        ts_df = pd.merge(ts_df, sched, how="left", on="day")
-        ts_df.index = ts
-        if debug:
-            print("- ts_df:")
-            print(ts_df)
-
-        intervals = ts_df
-        if discardTimes:
-            intervals["interval_open"] = intervals["open"].dt.date.replace({pd.NaT: pd.NA})
-            intervals["interval_close"] = intervals["interval_open"] + td_1d
-            intervals = intervals.drop(["day", "open", "close"], axis=1)
+        if sched is None:
+            # Means that NONE of the rows times in `ts` correlate to
+            # known trading days in schedule. I've only seen this when
+            # fetching FX 'GEL=X'.
+            intervals = pd.DataFrame(index=ts)
+            intervals["interval_open"] = pd.NaT
+            intervals["interval_close"] = pd.NaT
         else:
-            intervals["interval_open"] = intervals["open"]
-            intervals["interval_close"] = intervals["close"]
-            f_out = (intervals.index < intervals["interval_open"]) | (intervals.index >= intervals["interval_close"])
-            if f_out.any():
-                intervals.loc[f_out, "interval_open"] = pd.NaT
-                intervals.loc[f_out, "interval_close"] = pd.NaT
-            intervals = intervals.drop(["day", "open", "close"], axis=1)
+            if "auction" in sched.columns:
+                sched["close"] = sched["auction"] + yfcd.exchangeAuctionDuration[exchange]
+
+            ts_df = pd.DataFrame(data={"day": ts_day}, index=ts)
+            sched["day"] = sched.index.date
+            ts_df = pd.merge(ts_df, sched, how="left", on="day")
+            ts_df.index = ts
+            if debug:
+                print("- ts_df:")
+                print(ts_df)
+
+            intervals = ts_df
+            if discardTimes:
+                intervals["interval_open"] = intervals["open"].dt.date.replace({pd.NaT: pd.NA})
+                intervals["interval_close"] = intervals["interval_open"] + td_1d
+                intervals = intervals.drop(["day", "open", "close"], axis=1)
+            else:
+                intervals["interval_open"] = intervals["open"]
+                intervals["interval_close"] = intervals["close"]
+                f_out = (intervals.index < intervals["interval_open"]) | (intervals.index >= intervals["interval_close"])
+                if f_out.any():
+                    intervals.loc[f_out, "interval_open"] = pd.NaT
+                    intervals.loc[f_out, "interval_close"] = pd.NaT
+                intervals = intervals.drop(["day", "open", "close"], axis=1)
         if debug:
             print("- intervals:")
             print(intervals)
@@ -1941,7 +1972,7 @@ def IdentifyMissingIntervalRanges(exchange, start, end, interval, knownIntervalS
     # debug = True
 
     if debug:
-        print("IdentifyMissingIntervalRanges()")
+        print(f"IdentifyMissingIntervalRanges(exchange={exchange})")
         print(f"- start={start}, end={end}, interval={interval}")
         print("- knownIntervalStarts:")
         pprint(knownIntervalStarts)

@@ -741,7 +741,7 @@ class PriceHistory:
             else:
                 h = self._fetchYfHistory(start, end, prepost, debug_yf)
             if h is None:
-                raise Exception(f"{self.ticker}: Failed to fetch date range {start}->{end}")
+                raise yfcd.NoPriceDataInRangeException(self.ticker, self.istr, start, end)
 
             # Adjust
             h = self._reverseYahooAdjust(h)
@@ -777,7 +777,10 @@ class PriceHistory:
                     if start_interval is None:
                         # Possible if Yahoo returned price data when 'exchange_calendars' thinks exchange was closed
                         for i in range(1, 5):
-                            start_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_end + td_1d*i, self.interval, ignore_breaks=True)
+                            start_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_start + td_1d*i, self.interval, ignore_breaks=True)
+                            if start_interval is not None:
+                                break
+                            start_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_start - td_1d*i, self.interval, ignore_breaks=True)
                             if start_interval is not None:
                                 break
                     h_start = start_interval["interval_open"]
@@ -786,6 +789,9 @@ class PriceHistory:
                         # Possible if Yahoo returned price data when 'exchange_calendars' thinks exchange was closed
                         for i in range(1, 5):
                             last_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_end - td_1d*i, self.interval, ignore_breaks=True)
+                            if last_interval is not None:
+                                break
+                            last_interval = yfct.GetTimestampCurrentInterval(self.exchange, dt_end + td_1d*i, self.interval, ignore_breaks=True)
                             if last_interval is not None:
                                 break
                     h_end = last_interval["interval_close"]
@@ -1732,81 +1738,93 @@ class PriceHistory:
             yfcl.TraceExit(f"PM::_verifyCachedPrices-{self.istr}() returning True")
             return True
 
-        # Update: adding "buffer rows", so that when fetching discarded data, there is
-        # enough for YF to detect & repair 100x dividend errors.
-        f_diff_all = f_diff_all | np.roll(f_diff_all, -1) | np.roll(f_diff_all, 1)
-
-        n = h.shape[0]
-        f = h['Final?'].to_numpy()
-        n_diff = np.sum(f_diff_all.to_numpy())
-        n_final = np.sum(f)
-        if n_final == 0:
-            error_pct_final = 0.0
-        else:
-            error_pct_final = n_diff / n_final
-        if n > 10 and n_final > 0 and error_pct_final > 0.95:
-            # If almost-all final data is marked as bad, then treat entire table as bad.
-            f_diff_all.loc[~f_diff_all.to_numpy()] = True
-        elif self.multiday and f_diff_all.name is not None and 'Dividends' in f_diff_all.name:
-            # Correction needs a total refetch
-            f_diff_all.loc[~f_diff_all.to_numpy()] = True
-
-        h = h_new
-        if correct in ['one', 'all']:
-            drop_dts = f_diff_all.index[f_diff_all]
-            drop_dts_not_recent = drop_dts
-            msg = f"{self.ticker}: {self.istr}-prices problems"
-            if f_diff_all.name == ";Dividends":
-                # Need to discard at least 1-year of data, so the refetch can repair reliably.
-                # And one week before, just-in-case div @ first drop dt.
-                drop_from_date = min(drop_dts_not_recent[0]-timedelta(days=7), dt_now-timedelta(days=375))
-                msg += f": dropping all rows from {drop_from_date.date()} for reliable div-repair"
+        # If the diff_rows were all fetched very recently, and it or YF contains repair,
+        # then means the repair depends on quantity of data. Clear cache.
+        if correct:
+            diffs_fetched_just_now = (h['FetchDate'][f_diff_all] > (dt_now-timedelta(minutes=5))).all()
+            if diffs_fetched_just_now:
+                msg = f"{self.ticker}: {self.istr}-prices problems"
+                msg += f": dropping entire cached prices because recent minimal refetch didn't match YF"
                 yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
-                h = h[h.index < drop_from_date]
-                h_modified = True
-            elif self.contiguous:
-                # Daily must always be contiguous, so drop everything from first diff
-                if len(drop_dts_not_recent) > 0:
-                    if len(drop_dts_not_recent) == 1:
-                        msg += f": dropping {drop_dts_not_recent[0].date()}"
-                    else:
-                        if self.interday:
-                            msg += f": dropping all rows from {drop_dts_not_recent[0].date()}"
-                        else:
-                            msg += f": dropping all rows from {drop_dts_not_recent[0]}"
-                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
-                    h = h[h.index < drop_dts_not_recent[0]]
-                    h_modified = True
-            else:
-                n = self.h.shape[0]
-                n_drop = np.sum(f_diff_all)
-                if len(drop_dts_not_recent) > 0:
-                    if len(drop_dts_not_recent) < 10:
-                        if self.interday:
-                            msg += f": dropping {drop_dts_not_recent.date.astype(str)}"
-                        else:
-                            msg += f": dropping {drop_dts_not_recent.tz_localize(None)}"
-                    else:
-                        msg += f": dropping {n_drop}/{n} rows"
-                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
-                    h = h.drop(drop_dts_not_recent)
-                    h_modified = True
-            if h is not None and h.empty:
                 h = None
                 h_modified = True
 
-        else:
-            if debug:
-                n = np.sum(f_diff_all)
-                if n < 5:
-                    msg = "differences found but not correcting: "
-                    if self.interday:
-                        msg += f"{f_diff_all.index[f_diff_all].date.astype(str)}"
-                    else:
-                        msg += f"{f_diff_all.index[f_diff_all]}"
+        if h is not None:
+            # Update: adding "buffer rows", so that when fetching discarded data, there is
+            # enough for YF to detect & repair 100x dividend errors.
+            f_diff_all = f_diff_all | np.roll(f_diff_all, -1) | np.roll(f_diff_all, 1)
+
+            n = h.shape[0]
+            f = h['Final?'].to_numpy()
+            n_diff = np.sum(f_diff_all.to_numpy())
+            n_final = np.sum(f)
+            if n_final == 0:
+                error_pct_final = 0.0
+            else:
+                error_pct_final = n_diff / n_final
+            if n > 10 and n_final > 0 and error_pct_final > 0.95:
+                # If almost-all final data is marked as bad, then treat entire table as bad.
+                f_diff_all.loc[~f_diff_all.to_numpy()] = True
+            elif self.multiday and f_diff_all.name is not None and 'Dividends' in f_diff_all.name:
+                # Correction needs a total refetch
+                f_diff_all.loc[~f_diff_all.to_numpy()] = True
+
+            h = h_new
+            if correct in ['one', 'all']:
+                drop_dts = f_diff_all.index[f_diff_all]
+                drop_dts_not_recent = drop_dts
+                msg = f"{self.ticker}: {self.istr}-prices problems"
+                if f_diff_all.name == ";Dividends":
+                    # Need to discard at least 1-year of data, so the refetch can repair reliably.
+                    # And one week before, just-in-case div @ first drop dt.
+                    drop_from_date = min(drop_dts_not_recent[0]-timedelta(days=7), dt_now-timedelta(days=375))
+                    msg += f": dropping all rows from {drop_from_date.date()} for reliable div-repair"
+                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
+                    h = h[h.index < drop_from_date]
+                    h_modified = True
+                elif self.contiguous:
+                    # Daily must always be contiguous, so drop everything from first diff
+                    if len(drop_dts_not_recent) > 0:
+                        if len(drop_dts_not_recent) == 1:
+                            msg += f": dropping {drop_dts_not_recent[0].date()}"
+                        else:
+                            if self.interday:
+                                msg += f": dropping all rows from {drop_dts_not_recent[0].date()}"
+                            else:
+                                msg += f": dropping all rows from {drop_dts_not_recent[0]}"
+                        yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
+                        h = h[h.index < drop_dts_not_recent[0]]
+                        h_modified = True
                 else:
-                    msg = f"{np.sum(f_diff_all)} differences found but not correcting"
-                yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
+                    n = self.h.shape[0]
+                    n_drop = np.sum(f_diff_all)
+                    if len(drop_dts_not_recent) > 0:
+                        if len(drop_dts_not_recent) < 10:
+                            if self.interday:
+                                msg += f": dropping {drop_dts_not_recent.date.astype(str)}"
+                            else:
+                                msg += f": dropping {drop_dts_not_recent.tz_localize(None)}"
+                        else:
+                            msg += f": dropping {n_drop}/{n} rows"
+                        yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
+                        h = h.drop(drop_dts_not_recent)
+                        h_modified = True
+                if h is not None and h.empty:
+                    h = None
+                    h_modified = True
+
+            else:
+                if debug:
+                    n = np.sum(f_diff_all)
+                    if n < 5:
+                        msg = "differences found but not correcting: "
+                        if self.interday:
+                            msg += f"{f_diff_all.index[f_diff_all].date.astype(str)}"
+                        else:
+                            msg += f"{f_diff_all.index[f_diff_all]}"
+                    else:
+                        msg = f"{np.sum(f_diff_all)} differences found but not correcting"
+                    yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(f"{self.ticker}: " + msg)
 
         if correct in ['one', 'all'] and f_diff_all.name == ";Dividends" and self.interval != yfcd.Interval.Days1:
             # All differences caused by bad dividend data.
