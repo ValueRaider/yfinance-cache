@@ -20,10 +20,10 @@ package_dir =
 packages = find:
 python_requires = >=3.9
 install_requires = 
-    yfinance >= 0.2.44
+    yfinance >= 0.2.55
+    exchange_calendars >= 4.10
     numpy >= 1.26
     pandas >= 1.5
-    exchange_calendars >= 4.7
     scipy >= 1.6.3
     platformdirs
     pulp

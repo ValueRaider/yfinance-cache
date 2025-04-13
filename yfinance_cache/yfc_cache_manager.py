@@ -491,8 +491,12 @@ class OptionsManager:
         except (FileNotFoundError, json.JSONDecodeError):
             self.options = {}
             # Initialise
-            self.__getattr__('max_ages').calendar = '7d'
-            self.__getattr__('max_ages').info = '45d'
+            a = self.__getattr__('max_ages')
+            a.calendar = '7d'
+            a.info = '45d'
+            a.options = '1d'
+            a.holdings = '91d'
+            a.analysis = '91d'
 
     def _save_option(self):
         with open(self.option_file, 'w') as file:
