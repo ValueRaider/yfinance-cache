@@ -25,6 +25,8 @@ def _tidy_upgrade_history():
 
     d = yfcm.GetCacheDirpath()
     yfc_dp = os.path.join(d, "_YFC_")
+    if not os.path.isdir(yfc_dp):
+        return
     for f in os.listdir(yfc_dp):
         if f not in actions:
             os.remove(os.path.join(yfc_dp, f))
