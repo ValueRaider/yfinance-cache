@@ -1049,9 +1049,13 @@ class PriceHistory:
                 for dt in divs_df.index:
                     if dt == self.h.index[0]:
                         hist_before = self.manager.GetHistory(yfcd.Interval.Days1).get(start=dt.date()-timedelta(days=7), end=dt.date(), adjust_splits=False, adjust_divs=False)
-                        close_before = hist_before["Close"].iloc[-1]
-                        if np.isnan(close_before):
-                            raise Exception("'close_before' is NaN")
+                        if hist_before is None or hist_before.empty:
+                            # Awkward. Dividend on same day that stock listed
+                            close_before = self.h['Open'].iloc[0]
+                            if close_before == 0.0 or np.isnan(close_before):
+                                close_before = self.h['Close'].iloc[0]
+                        else:
+                            close_before = hist_before["Close"].iloc[-1]
                     else:
                         if dt not in self.h.index:
                             continue
