@@ -51,8 +51,20 @@ def _upgrade_calendar_to_df():
     date_cols = [c for c in columns if 'Date' in c]
     num_cols = [c for c in columns if ('Revenue' in c or 'Earnings' in c) and c not in date_cols]
     columns += ['FetchDate', 'LastCheck']
+
     dp = yfcm.GetCacheDirpath()
-    for d in os.listdir(dp):
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    for d in contents:
         if d.startswith("exchange-"):
             pass
         else:
@@ -152,7 +164,18 @@ def _add_repaired_to_cached_divs():
         return
 
     dp = yfcm.GetCacheDirpath()
-    for d in os.listdir(dp):
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    for d in contents:
         if d.startswith("exchange-"):
             pass
         else:
@@ -233,6 +256,7 @@ def _fix_prices_final_again():
 
     dp = yfcm.GetCacheDirpath()
     contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
 
     n = len(contents)
     if n == 0:
@@ -302,6 +326,7 @@ def _reset_cached_cals_again():
 
     dp = yfcm.GetCacheDirpath()
     contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
 
     n = len(contents)
     if n == 0:
@@ -336,6 +361,7 @@ def _reset_CCY_cal():
 
     dp = yfcm.GetCacheDirpath()
     contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
 
     n = len(contents)
     if n == 0:
@@ -369,6 +395,16 @@ def _fix_24_hour_prices_final():
         return
 
     dp = yfcm.GetCacheDirpath()
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
 
     for d in os.listdir(dp):
         if d.startswith("exchange-") or d.endswith('.json') or d.startswith('_'):
@@ -423,6 +459,7 @@ def _fix_prices_final_again_x2():
 
     dp = yfcm.GetCacheDirpath()
     contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
 
     n = len(contents)
     if n == 0:
