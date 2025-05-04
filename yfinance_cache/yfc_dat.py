@@ -1465,6 +1465,8 @@ class DateEstimate():
         if isinstance(other, (timedelta, relativedelta, ComparableRelativedelta)):
             self.date -= other
             return self
+        elif isinstance(other, TimedeltaEstimate):
+            return DateEstimate(self.date-other.td, min(self.confidence, other.confidence))
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
 
     def __sub__(self, other):

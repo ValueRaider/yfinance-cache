@@ -194,11 +194,11 @@ class EarningsRelease():
 
     def __str__(self):
         s = f'{self.interval} earnings'
-        s += f" ending {self.period_end}"
+        s += f" ending {self._period_end}"
         s += " released"
-        s += " ?" if self.release_date is None else f" {self.release_date}"
-        if self.release_date is not None:
-            delay = self.release_date - self.period_end
+        s += " ?" if self._release_date is None else f" {self._release_date}"
+        if self._release_date is not None:
+            delay = self._release_date - self._period_end
             if isinstance(delay, (timedelta, pd.Timedelta)):
                 delay = f"{delay.days} days"
             s += f" (delay = {delay})"
@@ -208,16 +208,16 @@ class EarningsRelease():
         return self.__str__()
 
     def __lt__(self, other):
-        return self.period_end < other.period_end or (self.period_end == other.period_end and self.release_date < other.release_date)
+        return self._period_end < other._period_end or (self._period_end == other._period_end and self._release_date < other._release_date)
 
     def __le__(self, other):
         return (self == other) or (self < other)
 
     def __eq__(self, other):
-        return self.period_end == other.period_end and self.release_date == other.release_date
+        return self._period_end == other._period_end and self._release_date == other._release_date
 
     def __gt__(self, other):
-        return self.period_end > other.period_end or (self.period_end == other.period_end and self.release_date > other.release_date)
+        return self._period_end > other._period_end or (self._period_end == other._period_end and self._release_date > other._release_date)
 
     def __ge__(self, other):
         return (self == other) or (self > other)
@@ -989,9 +989,10 @@ class FinancialsManager:
             if edf.shape[0] > 1:
                 # Drop dates that occurred just before another
                 edf = edf.sort_index(ascending=True)
-                d = edf.index.to_series().diff()
-                d.iloc[0] = pd.Timedelta(999, unit='d')
-                x_near = np.abs(d) < pd.Timedelta(5, "days")
+                d = edf.index.to_series().diff().dt.days.to_numpy()
+                d[0] = 999
+                d = np.roll(d, -1)
+                x_near = np.abs(d) <= 8.0
                 if x_near.any():
                     edf = edf[~x_near]
                 edf = edf.sort_index(ascending=False)
@@ -1006,13 +1007,15 @@ class FinancialsManager:
                     dt = yfcd.DateEstimate(dt, yfcd.Confidence.Medium)
 
                 duplicate = False
+                # thr_days = 20
+                thr_days = 8
                 for c in release_dates:
                     diff = c - dt
                     try:
-                        duplicate = diff > timedelta(days=-20) and diff < timedelta(days=20)
+                        duplicate = diff > timedelta(days=-thr_days) and diff < timedelta(days=thr_days)
                     except yfcd.AmbiguousComparisonException:
-                        p1 = diff.prob_gt(timedelta(days=-20))
-                        p2 = diff.prob_lt(timedelta(days=20))
+                        p1 = diff.prob_gt(timedelta(days=-thr_days))
+                        p2 = diff.prob_lt(timedelta(days=thr_days))
                         duplicate = p1 > 0.9 and p2 > 0.9
                     if duplicate:
                         # Update: keep which is more specific
@@ -1510,11 +1513,18 @@ class FinancialsManager:
 
                             r_is_end_of_year = releases[i].is_end_of_year()
                             if try_interval != 365:
-                                # Annual reports take longer than interims
+                                # Annual reports take longer than interims, normally
                                 if r_is_end_of_year:
                                     dt += timedelta(days=28)
                                 elif closest_r.is_end_of_year():
-                                    dt -= timedelta(days=28)
+                                    try:
+                                        lhs = delay-timedelta(days=7)
+                                        rhs = timedelta(days=28)
+                                        shift = min(lhs, rhs)
+                                    except yfcd.AmbiguousComparisonException:
+                                        p = lhs.prob_lt(rhs)
+                                        shift = lhs if p > 0.5 else rhs
+                                    dt -= shift
 
                             if not hasattr(dt, 'confidence'):
                                 if r_is_end_of_year and try_interval != 365:
