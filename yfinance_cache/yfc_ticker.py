@@ -865,8 +865,8 @@ class Ticker:
     def quarterly_cashflow(self):
         return self._financials_manager.get_quarterly_cashflow()
 
-    def get_earnings_dates(self, limit=12):
-        return self._financials_manager.get_earnings_dates(limit)
+    def get_earnings_dates(self, start):
+        return self._financials_manager.get_earnings_dates(start)
 
     def get_release_dates(self, period='quarterly', as_df=False, check=True):
         if period not in ['annual', 'quarterly']:
