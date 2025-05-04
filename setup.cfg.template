@@ -20,7 +20,7 @@ package_dir =
 packages = find:
 python_requires = >=3.9
 install_requires = 
-    yfinance >= 0.2.55
+    yfinance >= 0.2.57
     exchange_calendars >= 4.10
     numpy >= 1.26
     pandas >= 1.5

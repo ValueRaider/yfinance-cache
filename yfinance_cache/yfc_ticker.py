@@ -81,6 +81,7 @@ class Ticker:
                 debug=True, quiet=False,
                 trigger_at_market_close=False
     ):
+        yf.set_config(proxy=proxy)
 
         # t0 = perf_counter()
 
@@ -235,7 +236,7 @@ class Ticker:
                 raise Exception("Need to add mapping of exchange {} to xcal (ticker={})".format(exchange, self._ticker))
 
         if self._histories_manager is None:
-            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session)
 
         # t1_setup = perf_counter()
 
@@ -341,10 +342,10 @@ class Ticker:
     def history_metadata(self):
         return yfcm.ReadCacheDatum(self._ticker, "history_metadata")
 
-    def _getCachedPrices(self, interval, proxy=None):
+    def _getCachedPrices(self, interval):
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session)
 
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
@@ -419,7 +420,7 @@ class Ticker:
 
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy=None)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session)
 
         v = True
 
@@ -505,7 +506,7 @@ class Ticker:
 
         if self._histories_manager is None:
             exchange, tz_name, lday = self._getExchangeAndTzAndListingDay()
-            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session, proxy=None)
+            self._histories_manager = yfcp.HistoriesManager(self._ticker, exchange, tz_name, lday, self._session)
 
         v = self._histories_manager.GetHistory(interval)._verifyCachedPrices(rtol, vol_rtol, correct, discard_old, quiet, debug)
 

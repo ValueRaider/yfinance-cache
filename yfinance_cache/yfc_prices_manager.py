@@ -27,7 +27,7 @@ class HistoriesManager:
     # - only one History() object exists for each timescale/data type
     # - different History() objects and communicate
 
-    def __init__(self, ticker, exchange, tzName, listingDay, session, proxy):
+    def __init__(self, ticker, exchange, tzName, listingDay, session):
         self.logger = None
 
         yfcu.TypeCheckStr(ticker, "ticker")
@@ -42,7 +42,6 @@ class HistoriesManager:
         self.listingDay = listingDay
         self.histories = {}
         self.session = session
-        self.proxy = proxy
 
     def __del__(self):
         if self.logger is not None:
@@ -57,11 +56,11 @@ class HistoriesManager:
         if key not in self.histories:
             if key in yfcd.intervalToString.keys():
                 if key == yfcd.Interval.Days1:
-                    self.histories[key] = PriceHistory(self, self.ticker, self.exchange, self.tzName, self.listingDay, key, self.session, self.proxy, repair=True, contiguous=True)
+                    self.histories[key] = PriceHistory(self, self.ticker, self.exchange, self.tzName, self.listingDay, key, self.session, repair=True, contiguous=True)
                 else:
-                    self.histories[key] = PriceHistory(self, self.ticker, self.exchange, self.tzName, self.listingDay, key, self.session, self.proxy, repair=True, contiguous=False)
+                    self.histories[key] = PriceHistory(self, self.ticker, self.exchange, self.tzName, self.listingDay, key, self.session, repair=True, contiguous=False)
             elif key == "Events":
-                self.histories[key] = EventsHistory(self, self.ticker, self.exchange, self.tzName, self.proxy)
+                self.histories[key] = EventsHistory(self, self.ticker, self.exchange, self.tzName)
             else:
                 raise Exception(f"Not implemented code path for key='{key}'")
 
@@ -87,7 +86,7 @@ class HistoriesManager:
 
 
 class EventsHistory:
-    def __init__(self, manager, ticker, exchange, tzName, proxy):
+    def __init__(self, manager, ticker, exchange, tzName):
         if not isinstance(manager, HistoriesManager):
             raise TypeError(f"'manager' must be HistoriesManager not {type(manager)}")
         yfcu.TypeCheckStr(ticker, "ticker")
@@ -98,7 +97,6 @@ class EventsHistory:
         self.ticker = ticker
         self.exchange = exchange
         self.tzName = tzName
-        self.proxy = proxy
 
         self.tz = ZoneInfo(self.tzName)
 
@@ -392,7 +390,7 @@ class EventsHistory:
 
 
 class PriceHistory:
-    def __init__(self, manager, ticker, exchange, tzName, listingDay, interval, session, proxy, repair=True, contiguous=False):
+    def __init__(self, manager, ticker, exchange, tzName, listingDay, interval, session, repair=True, contiguous=False):
         if isinstance(interval, str):
             if interval not in yfcd.intervalStrToEnum.keys():
                 raise Exception("'interval' if str must be one of: {}".format(yfcd.intervalStrToEnum.keys()))
@@ -412,7 +410,6 @@ class PriceHistory:
         self.listingDay = listingDay
         self.interval = interval
         self.session = session
-        self.proxy = proxy
         self.repair = repair
         self.contiguous = contiguous
 
@@ -2565,7 +2562,6 @@ class PriceHistory:
                         "repair": True,
                         "auto_adjust": False,  # store raw data, adjust myself
                         "back_adjust": False,  # store raw data, adjust myself
-                        "proxy": self.proxy,
                         "rounding": False,  # store raw data, round myself
                         "raise_errors": not quiet}
         if debug:
