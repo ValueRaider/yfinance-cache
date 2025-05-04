@@ -1714,6 +1714,7 @@ class PriceHistory:
                         orphan_divs['Dividends'] = 0.0
                         orphan_divs['Close before'] = 1.0
                         orphan_divs['FetchDate'] = dt_now
+                        orphan_divs['Close repaired?'] = False  # doesn't matter
                         self.manager.GetHistory("Events").UpdateDividends(orphan_divs)
                     else:
                         if not quiet:
