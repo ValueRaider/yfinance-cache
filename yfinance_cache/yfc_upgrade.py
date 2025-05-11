@@ -13,14 +13,13 @@ from . import yfc_time as yfct
 
 
 def _tidy_upgrade_history():
-    actions = ["have-upgraded-calendar-to-df",
-                "have-added-holdings-analysis-to-options",
-                "have-added-repaired-to-cached-divs",
+    actions = ["have-added-repaired-to-cached-divs",
                 "have-fixed-prices-final-again",
                 "have-reset-xcals-again",
                 "have-reset-ccy-cal",
                 "have-fixed-24h-prices-final",
-                "have-fixed-prices-final-again-x2"
+                "have-fixed-prices-final-again-x2",
+                "have-added-unexpected-intervals-to-options"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -30,124 +29,6 @@ def _tidy_upgrade_history():
     for f in os.listdir(yfc_dp):
         if f not in actions:
             os.remove(os.path.join(yfc_dp, f))
-
-
-def _upgrade_calendar_to_df():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-upgraded-calendar-to-df")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    print("YFC upgrading cached calendars ...")
-
-    columns = ['Earnings Date1', 'Earnings Date2', 'Earnings Low', 'Earnings High', 'Earnings Average', 'Revenue Low', 'Revenue High', 'Revenue Average', 'Ex-Dividend Date']
-    date_cols = [c for c in columns if 'Date' in c]
-    num_cols = [c for c in columns if ('Revenue' in c or 'Earnings' in c) and c not in date_cols]
-    columns += ['FetchDate', 'LastCheck']
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    for d in contents:
-        if d.startswith("exchange-"):
-            pass
-        else:
-            calendar_fp = os.path.join(dp, d, f'calendar.pkl')
-            calendars_fp = os.path.join(dp, d, f'calendars.pkl')
-            if os.path.isfile(calendar_fp):
-                with open(calendar_fp, 'rb') as F:
-                    data = pkl.load(F)
-                if isinstance(data['data'], pd.DataFrame):
-                    os.rename(calendar_fp, calendars_fp)
-                    continue
-
-                md = data['metadata']
-                data = data['data']
-
-                info = yfcm.ReadCacheDatum(d, 'info')
-                if info is None:
-                    tz = None
-                else:
-                    tz = info['timeZoneFullName']
-
-                if 'Earnings Date' in data:
-                    if len(data['Earnings Date']) > 0:
-                        data['Earnings Date1'] = data['Earnings Date'][0]
-                    else:
-                        data['Earnings Date1'] = None
-                    if len(data['Earnings Date']) > 1:
-                        data['Earnings Date2'] = data['Earnings Date'][1]
-                    else:
-                        data['Earnings Date2'] = None
-                    del data['Earnings Date']
-                else:
-                    # No calendar
-                    data['Earnings Date1'] = None
-                    data['Earnings Date2'] = None
-
-                if 'Ex-Dividend Date' not in data:
-                    data['Ex-Dividend Date'] = None
-
-                for c in num_cols:
-                    if c not in data:
-                        data[c] = None
-
-                if 'LastCheck' in md:
-                    data['LastCheck'] = md['LastCheck']
-                else:
-                    data['LastCheck'] = data['FetchDate']
-
-                df = pd.DataFrame(data, index=[0])
-                df = df[columns]  # order
-
-                data = {'data':df, 'metadata':None}
-                with open(calendars_fp, 'wb') as F:
-                    pkl.dump(data, F, 4)
-                os.remove(calendar_fp)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _add_holdings_analysis_to_options():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-added-holdings-analysis-to-options")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    o = yfcm._option_manager
-    o.max_ages.holdings = '91d'
-    o.max_ages.analysis = '91d'
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
 
 
 def _add_repaired_to_cached_divs():
@@ -511,6 +392,29 @@ def _fix_prices_final_again_x2():
                         with open(prices_fp, 'wb') as F:
                             data['data'] = h
                             pkl.dump(data, F, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _add_unexpected_intervals_to_options():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-unexpected-intervals-to-options")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    o = yfcm._option_manager
+    if 'calendar' not in o:
+        o.calendar.accept_unexpected_Yahoo_intervals = True
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)

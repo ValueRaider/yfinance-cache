@@ -497,6 +497,8 @@ class OptionsManager:
             a.options = '1d'
             a.holdings = '91d'
             a.analysis = '91d'
+            c = self.__getattr__('calendar')
+            c.accept_unexpected_Yahoo_intervals = True
 
     def _save_option(self):
         with open(self.option_file, 'w') as file:
@@ -509,6 +511,11 @@ class OptionsManager:
         if key not in self.options:
             self.options[key] = {}
         return NestedOptions(key, self.options[key])
+
+    def __contains__(self, key):
+        if not self._initialised:
+            self._load_option()
+        return key in self.options
 
     def __repr__(self):
         if not self._initialised:
