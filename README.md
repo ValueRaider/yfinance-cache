@@ -85,16 +85,16 @@ For data obtained from `Ticker` properties not functions, max age set in YFC opt
 Implemented to behave like `pandas.options`, except YFC options are persistent.
 
 ``` python
->>> import yfinance_cache as yfc
->>> yfc.options
+import yfinance_cache as yfc
+print(yfc.options)
 {
     "max_ages": {
         "calendar": "7d",
         ...
     }
 }
->>> yfc.options.max_ages.calendar = '30d'
->>> yfc.options
+yfc.options.max_ages.calendar = '30d'
+print(yfc.options)
 {
     "max_ages": {
         "calendar": "30d",
@@ -109,6 +109,19 @@ Financials updates are handled different because they don't age.
 Instead, YFC analyses earnings dates to determine exactly when next earnings will be, 
 or if Yahoo data is incomplete then YFC will predict.
 You can inspect this schedule in new function `dat.get_release_dates()`.
+
+## Offline mode
+
+Disable all web fetches with this special option at top of first script:
+
+```python
+import yfinance_cache as yfc
+yfc.options.session.offline = True
+...
+```
+
+Options in `yfc.options.session` reset when Python closes.
+
 
 ## Verifying cache
 

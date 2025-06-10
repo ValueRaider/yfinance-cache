@@ -491,7 +491,10 @@ class PriceHistory:
                     yfcm.StoreCacheDatum(self.ticker, "new_divs", cached_new_divs)
                 yfcm.WriteCacheMetadata(self.ticker, "new_divs", "locked", None)
 
-    def get(self, start=None, end=None, period=None, max_age=None, trigger_at_market_close=False, repair=True, prepost=False, adjust_splits=False, adjust_divs=False, quiet=False):
+    def get(self, start=None, end=None, period=None, 
+                max_age=None, trigger_at_market_close=False, repair=True, prepost=False, 
+                adjust_splits=False, adjust_divs=False, 
+                quiet=False):
         if start is None and end is None and period is None:
             raise ValueError("Must provide value for one of: 'start', 'end', 'period'")
         if start is not None:
@@ -728,9 +731,13 @@ class PriceHistory:
             if self.h.empty:
                 self.h = None
 
+        offline = yfcm._option_manager.session.offline
+
         ranges_to_fetch = []
         if self.h is None:
             # Simple, just fetch the requested data
+            if offline:
+                return None
 
             if self.contiguous:
                 # Ensure daily always up-to-now
@@ -750,7 +757,7 @@ class PriceHistory:
 
             self._updatedCachedPrices(h)
 
-        else:
+        elif not offline:
             # Compare request against cached data, only fetch missing/expired data
 
             # Performance TODO: tag rows as fully contiguous to avoid searching for gaps
@@ -953,7 +960,7 @@ class PriceHistory:
                     self._fetchAndAddRanges_sparse(ranges_to_fetch, prepost, debug_yf, quiet=quiet)
 
         # repair after all fetches complete
-        if self.repair and repair:
+        if (not offline) and self.repair and repair:
             f_checked = self.h["C-Check?"].to_numpy()
             f_not_checked = ~f_checked
             if f_not_checked.any():
@@ -1031,7 +1038,7 @@ class PriceHistory:
 
         # Now prices have been repaired, can send out dividends
         cached_new_divs = yfcm.ReadCacheDatum(self.ticker, "new_divs")
-        if self.interval == yfcd.Interval.Days1 and cached_new_divs is not None and not cached_new_divs.empty:
+        if (not offline) and self.interval == yfcd.Interval.Days1 and cached_new_divs is not None and not cached_new_divs.empty:
             cached_new_divs_locked = yfcm.ReadCacheMetadata(self.ticker, "new_divs", "locked")
             if cached_new_divs_locked is None:
                 f_dups = cached_new_divs.index.duplicated()
