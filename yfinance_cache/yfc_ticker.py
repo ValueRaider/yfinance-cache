@@ -78,7 +78,7 @@ class Ticker:
                 adjust_splits=True, adjust_divs=True,
                 keepna=False,
                 proxy=None, rounding=False,
-                debug=True, quiet=False,
+                debug=True, quiet=False, 
                 trigger_at_market_close=False
     ):
         yf.set_config(proxy=proxy)
@@ -559,6 +559,9 @@ class Ticker:
                         return data, md
                     return data
 
+        if yfcm._option_manager.session.offline:
+            return None if a is None else a['data']
+
         if name in dir(self._dat):
             newd = getattr(self._dat, name)
         else:
@@ -643,7 +646,9 @@ class Ticker:
             else:
                 return self._fast_info
 
-        # self._fast_info = self._dat.fast_info
+        if yfcm._option_manager.session.offline:
+            return self._fast_info if self._fast_info else None
+
         self._fast_info = {}
         for k in self._dat.fast_info.keys():
             try:
@@ -695,7 +700,7 @@ class Ticker:
             # Loaded from cache. Either re-fetch or return None
             lastFetchDt = yfcm.ReadCacheMetadata(self._ticker, "shares", 'LastFetch')
             do_fetch = (lastFetchDt is None) or ((dt_now - lastFetchDt) > max_age)
-            if do_fetch:
+            if do_fetch and not yfcm._option_manager.session.offline:
                 self._shares = self._fetch_shares(start, end)
                 if self._shares is None:
                     self._shares = pd.DataFrame()
@@ -721,13 +726,14 @@ class Ticker:
             # Convert to Int, and add a little to avoid rounding errors
             self._shares['Shares'] = (self._shares['Shares']+0.01).round().astype('Int64')
 
-        if start < self._shares.index[0].date():
+        if start < self._shares.index[0].date() and (not yfcm._option_manager.session.offline):
             df_pre = self._fetch_shares(start, self._shares.index[0])
             yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
         if (end-td_1d) > self._shares.index[-1].date() and \
-            (end - self._shares.index[-1].date()) > max_age:
+            (end - self._shares.index[-1].date()) > max_age \
+            and (not yfcm._option_manager.session.offline):
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
             yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_post is not None:
@@ -987,6 +993,9 @@ class Ticker:
                 if self._options_age < max_age:
                     return self._options
 
+        if yfcm._option_manager.session.offline:
+            return self._options if self._options else None
+
         o = self._dat.options
         if md is None:
             md = {}
@@ -1035,6 +1044,9 @@ class Ticker:
                     "underlying": self._option_chain[expiry_date]['underlying']
                 })
 
+        if yfcm._option_manager.session.offline:
+            return None
+
         oc = self._dat.option_chain(expiry_date)
         md = {'FetchDate': pd.Timestamp.now()}
         self._option_chain[expiry_date] = {
@@ -1045,7 +1057,6 @@ class Ticker:
         }
         yfcm.StoreCacheDatum(self._ticker, "option_chain", self._option_chain)
         return oc
-        
 
     @property
     def news(self):
@@ -1055,6 +1066,9 @@ class Ticker:
         if yfcm.IsDatumCached(self._ticker, "news"):
             self._news = yfcm.ReadCacheDatum(self._ticker, "news")
             return self._news
+
+        if yfcm._option_manager.session.offline:
+            return None
 
         self._news = self._dat.news
         yfcm.StoreCacheDatum(self._ticker, "news", self._news)

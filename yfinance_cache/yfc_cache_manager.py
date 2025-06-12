@@ -455,9 +455,10 @@ ResetCacheDirpath()
 
 
 class NestedOptions:
-    def __init__(self, name, data):
+    def __init__(self, name, data, persistent=True):
         self.__dict__['name'] = name
         self.__dict__['data'] = data
+        self.__dict__['persistent'] = persistent
 
     def __getattr__(self, key):
         return self.data.get(key)
@@ -468,8 +469,10 @@ class NestedOptions:
             pd.Timedelta(value)
 
         self.data[key] = value
-        global _option_manager
-        _option_manager._save_option()
+
+        if self.__dict__['persistent']:
+            global _option_manager
+            _option_manager._save_option()
 
     def __len__(self):
         return len(self.__dict__['data'])
@@ -480,6 +483,7 @@ class NestedOptions:
 class OptionsManager:
     def __init__(self):
         self._initialised = False
+        self._tmp_options = {}  # these do not get saved to file
 
     def _load_option(self):
         self._initialised = True  # prevent infinite loop
@@ -500,6 +504,9 @@ class OptionsManager:
             c = self.__getattr__('calendar')
             c.accept_unexpected_Yahoo_intervals = True
 
+        self._tmp_options['session'] = {}
+        self._tmp_options['session']['offline'] = False
+
     def _save_option(self):
         with open(self.option_file, 'w') as file:
             json.dump(self.options, file, indent=4)
@@ -508,20 +515,33 @@ class OptionsManager:
         if not self._initialised:
             self._load_option()
 
-        if key not in self.options:
-            self.options[key] = {}
-        return NestedOptions(key, self.options[key])
+        if key == 'session':
+            # Return non-persistent NestedOptions for session category
+            if 'session' not in self._tmp_options:
+                self._tmp_options['session'] = {}
+            return NestedOptions(key, self._tmp_options['session'], persistent=False)
+        else:
+            if key not in self.options:
+                self.options[key] = {}
+            return NestedOptions(key, self.options[key], persistent=True)
 
     def __contains__(self, key):
         if not self._initialised:
             self._load_option()
+
+        if key == 'session':
+            return True  # session category always exists
+
         return key in self.options
 
     def __repr__(self):
         if not self._initialised:
             self._load_option()
 
-        return json.dumps(self.options, indent=4)
+        all_options = self.options.copy()
+        if 'session' in self._tmp_options and self._tmp_options['session']:
+            all_options['session'] = self._tmp_options['session']
+        return json.dumps(all_options, indent=4)
 
 # Global instance
 _option_manager = OptionsManager()

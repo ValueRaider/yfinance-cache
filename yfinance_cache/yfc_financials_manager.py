@@ -306,6 +306,9 @@ class FinancialsManager:
         self._fin_tbl_cache = {}
 
     def get_income_stmt(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._income_stmt is not None:
             return self._income_stmt
         if refresh:
@@ -314,6 +317,9 @@ class FinancialsManager:
         return self._income_stmt
 
     def get_quarterly_income_stmt(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._quarterly_income_stmt is not None:
             return self._quarterly_income_stmt
         if refresh:
@@ -322,6 +328,9 @@ class FinancialsManager:
         return self._quarterly_income_stmt
 
     def get_balance_sheet(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._balance_sheet is not None:
             return self._balance_sheet
         if refresh:
@@ -330,6 +339,9 @@ class FinancialsManager:
         return self._balance_sheet
 
     def get_quarterly_balance_sheet(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._quarterly_balance_sheet is not None:
             return self._quarterly_balance_sheet
         if refresh:
@@ -338,6 +350,9 @@ class FinancialsManager:
         return self._quarterly_balance_sheet
 
     def get_cashflow(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._cashflow is not None:
             return self._cashflow
         if refresh:
@@ -346,6 +361,9 @@ class FinancialsManager:
         return self._cashflow
 
     def get_quarterly_cashflow(self, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         if self._quarterly_cashflow is not None:
             return self._quarterly_cashflow
         if refresh:
@@ -354,6 +372,9 @@ class FinancialsManager:
         return self._quarterly_cashflow
 
     def _safe_refresh_release_dates(self, period, finType):
+        if yfcm._option_manager.session.offline:
+            return
+
         # trigger release dates refresh here, the only safe place to avoid infinite loop
         if period == yfcd.ReportingPeriod.Full:
             if self._release_dates_refreshed:
@@ -379,6 +400,9 @@ class FinancialsManager:
                         del self._fin_tbl_cache[cache_key]
 
     def _get_fin_table(self, finType, period, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         debug = False
         # debug = True
 
@@ -701,6 +725,9 @@ class FinancialsManager:
             return best
 
     def _get_interval(self, finType, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         debug = False
         # debug = True
 
@@ -715,6 +742,9 @@ class FinancialsManager:
         return self._get_interval_from_table(tbl)
 
     def get_release_dates(self, period, preferred_fin=yfcd.Financials.IncomeStmt, as_df=False, refresh=True, check=False):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         debug = False
         # debug = True
 
@@ -896,6 +926,9 @@ class FinancialsManager:
         return df
 
     def _calc_release_dates(self, period, preferred_fin=None, refresh=True, check=False):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         debug = False
         # debug = True
 
@@ -1635,10 +1668,8 @@ class FinancialsManager:
         return releases
 
     def _check_release_dates(self, releases, finType, period, preferred_fin, refresh):
-        # if period == yfcd.ReportingPeriod.Full:
-        #     interval_td = interval_str_to_days['ANNUAL']
-        # else:
-        #     interval_td = self._get_interval(finType, refresh)
+        if yfcm._option_manager.session.offline:
+            refresh = False
 
         # Ignore releases with no date:
         # - can happen with nonsense financials dates from Yahoo that
@@ -1896,6 +1927,9 @@ class FinancialsManager:
         yfcu.TypeCheckBool(with_report, 'with_report')
         yfcu.TypeCheckBool(refresh, 'refresh')
 
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         debug = False
         # debug = True
 
@@ -1997,6 +2031,9 @@ class FinancialsManager:
         yfcu.TypeCheckDateStrict(start, 'start')
         yfcu.TypeCheckBool(refresh, 'refresh')
         yfcu.TypeCheckBool(clean, 'clean')
+
+        if yfcm._option_manager.session.offline:
+            refresh = False
 
         debug = False
         # debug = True
@@ -2249,6 +2286,9 @@ class FinancialsManager:
             return None
 
     def _clean_earnings_dates(self, edf, refresh=True):
+        if yfcm._option_manager.session.offline:
+            refresh = False
+
         edf = edf.sort_index(ascending=False)
 
         # In rare cases, Yahoo has duplicated a date with different company name.
@@ -2305,6 +2345,9 @@ class FinancialsManager:
     def _fetch_earnings_dates(self, limit, refresh=True):
         yfcu.TypeCheckInt(limit, "limit")
         yfcu.TypeCheckBool(refresh, "refresh")
+
+        if yfcm._option_manager.session.offline:
+            refresh = False
         
         debug = False
         # debug = True
@@ -2366,6 +2409,9 @@ class FinancialsManager:
 
     def get_calendar(self, refresh=True):
         yfcu.TypeCheckBool(refresh, 'refresh')
+
+        if yfcm._option_manager.session.offline:
+            refresh = False
 
         max_age = pd.Timedelta(yfcm._option_manager.max_ages.calendar)
 
