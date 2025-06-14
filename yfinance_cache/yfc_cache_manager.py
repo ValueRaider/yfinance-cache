@@ -4,6 +4,17 @@ import json
 import platformdirs
 import pandas as pd
 
+# Handle Windows reserved filenames for tickers
+_WINDOWS_RESERVED_NAMES = {"CON","PRN","AUX","NUL","COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9","LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"}
+def _sanitize_name(name):
+    # Only sanitize on Windows
+    if os.name == "nt":
+        return f"{name}_" if name.upper() in _WINDOWS_RESERVED_NAMES else name
+    return name
+
+def get_ticker_folder_path(ticker):
+    return os.path.join(GetCacheDirpath(), _sanitize_name(ticker))
+
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
@@ -75,6 +86,7 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
         return GetFilepathPacked(ticker, objectName)
 
     fp = None
+    tdir = get_ticker_folder_path(ticker)
     if obj is not None:
         if isinstance(obj, list) and (len(obj)==0 or isinstance(obj[0], (int, float, str, datetime, date, timedelta))):
             ext = "json"
@@ -88,15 +100,15 @@ def GetFilepath(ticker, objectName, obj=None, prune=False):
         else:
             ext = "pkl"
             ext_bad = "json"
-        fp = os.path.join(GetCacheDirpath(), ticker, objectName) + "."+ext
-        fp_bad = os.path.join(GetCacheDirpath(), ticker, objectName) + "."+ext_bad
+        fp = os.path.join(tdir, objectName) + "."+ext
+        fp_bad = os.path.join(tdir, objectName) + "."+ext_bad
         if os.path.isfile(fp_bad):
             if prune:
                 os.remove(fp_bad)
             else:
                 raise Exception("For {} object {}/{}, a {} file already exists".format(ext, ticker, objectName, ext_bad))
     else:
-        fp_base = os.path.join(GetCacheDirpath(), ticker, objectName)
+        fp_base = os.path.join(tdir, objectName)
         json_exists = os.path.isfile(fp_base+".json")
         pkl_exists = os.path.isfile(fp_base+".pkl")
         if json_exists and pkl_exists:
@@ -112,7 +124,7 @@ def GetFilepathPacked(ticker, objectName):
     if not IsObjectInPackedData(objectName):
         return GetFilepath(ticker, objectName)
     pkg = GetPackedDataCat(objectName)
-    fp = os.path.join(GetCacheDirpath(), ticker, pkg) + ".pkl"
+    fp = os.path.join(get_ticker_folder_path(ticker), pkg) + ".pkl"
     return fp
 
 
@@ -267,7 +279,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None, metadata=None):
         if not isinstance(expiry, datetime):
             raise Exception("'expiry' must be datetime or yfcd.Interval")
 
-    td = os.path.join(GetCacheDirpath(), ticker)
+    td = get_ticker_folder_path(ticker)
     if not os.path.isdir(td):
         os.makedirs(td)
 
@@ -333,7 +345,7 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
         if (metadata is not None) and "Expiry" in metadata.keys():
             raise Exception("'metadata' already contains 'Expiry'")
 
-    td = os.path.join(GetCacheDirpath(), ticker)
+    td = get_ticker_folder_path(ticker)
     if not os.path.isdir(td):
         os.makedirs(td)
 
