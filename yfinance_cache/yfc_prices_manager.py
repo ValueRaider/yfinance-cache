@@ -1111,6 +1111,9 @@ class PriceHistory:
                 h_copy[c] *= h_copy["CDF"]
             h_copy = h_copy.drop("CDF", axis=1)
 
+        # Hide internal columns
+        h_copy = h_copy.drop(['C-Check?', 'LastDivAdjustDt', 'LastSplitAdjustDt'], axis=1, errors='ignore')
+
         log_msg = f"PriceHistory-{self.istr}.get() returning"
         if h_copy.empty:
             log_msg += " empty df"
