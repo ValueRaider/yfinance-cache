@@ -2417,6 +2417,10 @@ class FinancialsManager:
                     df.loc[dt, 'Date confirmed?'] = True
                     break
 
+        if 'Event Type' not in df.columns:
+            # User has old YF installed
+            df['Event Type'] = 'Earnings'
+
         df = self._clean_earnings_dates(df, refresh)
 
         return df
