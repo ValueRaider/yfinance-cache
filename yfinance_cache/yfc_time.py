@@ -877,7 +877,7 @@ def GetTimestampNextSession(exchange, ts):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckDatetime(ts, "ts")
 
-    sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=10))
+    sched = GetExchangeSchedule(exchange, ts.date(), ts.date()+timedelta(days=15))
     if "auction" in sched.columns:
         sched = sched.copy()
         f = ~(sched["auction"].isna())
