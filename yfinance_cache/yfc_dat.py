@@ -916,6 +916,11 @@ class TimedeltaRangeEstimate():
     def __radd__(self, other):
         return self.__add__(other)
 
+    def __sub__(self, other):
+        if isinstance(other, timedelta):
+            return TimedeltaRangeEstimate(self.td1 - other, self.td2 - other, self.confidence)
+        raise NotImplementedError(f'Not implemented {self} - {type(other)}={other}')
+
     def __mul__(self, other):
         if isinstance(other, (int, float)):
             return TimedeltaRangeEstimate(self.td1 * other, self.td2 * other, self.confidence)

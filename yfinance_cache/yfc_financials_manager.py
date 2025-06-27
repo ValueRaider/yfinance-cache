@@ -943,7 +943,10 @@ class FinancialsManager:
         # Get period ends
         tbl = None
         finType = None
-        for f in [preferred_fin]+list(yfcd.Financials):
+        fins = list(yfcd.Financials)
+        if preferred_fin is not None:
+            fins = [preferred_fin] + fins
+        for f in fins:
             t = self._get_fin_table(f, period, refresh)
             t = self._prune_yf_financial_df(t)
             if tbl is None:
@@ -1001,14 +1004,14 @@ class FinancialsManager:
 
         # Get full year end date
         tbl = None
-        for f in [preferred_fin]+list(yfcd.Financials):
+        for f in fins:
             t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh=False)  # minimise fetches
             t = self._prune_yf_financial_df(t)
             if t is not None and not t.empty:
                 tbl = t
                 break
         if tbl is None and refresh:
-            for f in [preferred_fin]+list(yfcd.Financials):
+            for f in fins:
                 t = self._get_fin_table(f, yfcd.ReportingPeriod.Full, refresh)
                 t = self._prune_yf_financial_df(t)
                 if t is not None and not t.empty:
