@@ -25,3 +25,6 @@ _fix_prices_final_again_x2()
 
 from .yfc_upgrade import _add_unexpected_intervals_to_options
 _add_unexpected_intervals_to_options()
+
+from .yfc_upgrade import _add_event_type_to_earnings_dates
+_add_event_type_to_earnings_dates()

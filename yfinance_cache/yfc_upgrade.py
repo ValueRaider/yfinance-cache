@@ -19,7 +19,8 @@ def _tidy_upgrade_history():
                 "have-reset-ccy-cal",
                 "have-fixed-24h-prices-final",
                 "have-fixed-prices-final-again-x2",
-                "have-added-unexpected-intervals-to-options"
+                "have-added-unexpected-intervals-to-options",
+                "have-added-event-type-to-earnings-dates"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -415,6 +416,75 @@ def _add_unexpected_intervals_to_options():
     o = yfcm._option_manager
     if 'calendar' not in o:
         o.calendar.accept_unexpected_Yahoo_intervals = True
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _add_event_type_to_earnings_dates():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-added-event-type-to-earnings-dates")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    dp = yfcm.GetCacheDirpath()
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    r = n/1200
+    print(f"YFC adding 'Event Type' to earnings dates, estimate {round(r):.0f} seconds to process {n} tickers.")
+
+    try:
+        from tqdm import tqdm
+        iterator = tqdm(range(len(contents)))
+        manual_progress_bar = None
+    except Exception:
+        # Use YF's progress bar
+        iterator = range(len(contents))
+        from yfinance import utils as yf_utils
+        manual_progress_bar = yf_utils.ProgressBar(len(contents))
+    for i in iterator:
+        d = contents[i]
+        if manual_progress_bar is not None:
+            manual_progress_bar.animate()
+
+        if d.startswith("exchange-"):
+            pass
+        else:
+            edf_fp = os.path.join(dp, d, 'earnings_dates.pkl')
+            if os.path.isfile(edf_fp):
+                with open(edf_fp, 'rb') as F:
+                    data = pkl.load(F)
+                edf = data['data']
+                if edf is None or edf.empty:
+                    continue
+                c = 'Event Type'
+                edf_changed = False
+                if c not in edf.columns:
+                    edf[c] = 'Earnings'
+                    edf_changed = True
+
+                if edf_changed:
+                    with open(edf_fp, 'wb') as F:
+                        data['data'] = edf
+                        pkl.dump(data, F, 4)
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)

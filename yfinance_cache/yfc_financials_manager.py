@@ -980,6 +980,24 @@ class FinancialsManager:
 
         # Get earnings dates
         edf = self.get_earnings_dates(start=tbl.columns.min().date(), refresh=refresh, clean=False)
+        if edf is not None:
+            # Filter rows base on Event Type
+            # - drop meetings
+            edf = edf[edf['Event Type']!='Meeting']
+            # - drop calls if have its earnings date (within 7 days)
+            f_call = edf['Event Type'] == 'Call'
+            f_earn = edf['Event Type'] == 'Earnings'
+            if f_call.any() and f_earn.any():
+                for earn_dt in edf.index[f_earn]:
+                    f_call_indices = np.where(f_call)[0]
+                    for i in range(len(f_call_indices)-1, -1, -1):
+                        idx = f_call_indices[i]
+                        call_dt = edf.index[idx]
+                        if abs(call_dt - earn_dt) < timedelta(days=7):
+                            f_drop = (edf.index == call_dt) & (edf['Event Type']=='Call')
+                            edf = edf[~f_drop]
+                            break
+            edf = edf.drop('Event Type', axis=1)
 
         # Get full year end date
         tbl = None
@@ -2239,16 +2257,7 @@ class FinancialsManager:
                     print("- next_rd:", next_rd)
                     print("- n_intervals_to_fetch:", n_intervals_to_fetch)
                     raise
-                # Sanity test:
-                if new_df is not None and not new_df.empty:
-                    edf_clean = self._clean_earnings_dates(new_df, refresh)
-                    if len(edf_clean) < len(new_df):
-                        print("- edf:") ; print(new_df[['EPS Estimate', 'Reported EPS', 'FetchDate']])
-                        print("- after clean:") ; print(edf_clean[['EPS Estimate', 'Reported EPS', 'FetchDate']])
-                        raise Exception(f'{self.ticker}: We literally just fetched earnings dates, why not cleaned?')
-                        yfcm.StoreCacheDatum(self.ticker, "earnings_dates", edf_clean)
 
-                yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', dt_now)
                 if debug:
                     print("- new_df:") ; print(new_df)
                 if new_df is not None and not new_df.empty:
@@ -2264,6 +2273,7 @@ class FinancialsManager:
                             print("- new_df:") ; print(new_df)
                     self._earnings_dates = new_df
                     df_modified = True
+                yfcm.WriteCacheMetadata(self.ticker, "earnings_dates", 'LastFetch', dt_now)
 
         if df_modified:
             if self._earnings_dates is None:
@@ -2306,31 +2316,15 @@ class FinancialsManager:
 
         for i in range(len(edf)-2, -1, -1):
             if (edf.index[i]-edf.index[i+1]) < timedelta(days=7):
-                # One must go
-                if edf['FetchDate'].iloc[i] > edf['FetchDate'].iloc[i+1]:
-                    edf = edf.drop(edf.index[i+1])
-                elif edf['FetchDate'].iloc[i+1] > edf['FetchDate'].iloc[i]:
-                    edf = edf.drop(edf.index[i])
-                else:
-                    cal = self.get_calendar(refresh)
-                    if cal is None or 'Earnings Date' not in cal:
-                        # print(edf.iloc[i:i+2])
-                        # raise Exception('Review how to handle 2x almost-equal earnings dates.')
-                        # pass  # Can't do anything with certainty
-                        # Keep earlier
-                        if edf.index[i] < edf.index[i+1]:
-                            edf = edf.drop(edf.index[i+1])
-                        else:
-                            edf = edf.drop(edf.index[i])
+                if edf['Event Type'].iloc[i] == edf['Event Type'].iloc[i+1]:
+                    # One must go
+                    if edf['FetchDate'].iloc[i] > edf['FetchDate'].iloc[i+1]:
+                        edf = edf.drop(edf.index[i+1])
+                    elif edf['FetchDate'].iloc[i+1] > edf['FetchDate'].iloc[i]:
+                        edf = edf.drop(edf.index[i])
                     else:
-                        # Cross-check against calendar
-                        dts = cal['Earnings Date']
-                        if len(dts) == 1 and dts[0] in [edf.index[i].date(), edf.index[i+1].date()]:
-                            if edf.index[i].date() == dts[0]:
-                                edf = edf.drop(edf.index[i+1])
-                            else:
-                                edf = edf.drop(edf.index[i])
-                        else:
+                        cal = self.get_calendar(refresh)
+                        if cal is None or 'Earnings Date' not in cal:
                             # print(edf.iloc[i:i+2])
                             # raise Exception('Review how to handle 2x almost-equal earnings dates.')
                             # pass  # Can't do anything with certainty
@@ -2339,6 +2333,23 @@ class FinancialsManager:
                                 edf = edf.drop(edf.index[i+1])
                             else:
                                 edf = edf.drop(edf.index[i])
+                        else:
+                            # Cross-check against calendar
+                            dts = cal['Earnings Date']
+                            if len(dts) == 1 and dts[0] in [edf.index[i].date(), edf.index[i+1].date()]:
+                                if edf.index[i].date() == dts[0]:
+                                    edf = edf.drop(edf.index[i+1])
+                                else:
+                                    edf = edf.drop(edf.index[i])
+                            else:
+                                # print(edf.iloc[i:i+2])
+                                # raise Exception('Review how to handle 2x almost-equal earnings dates.')
+                                # pass  # Can't do anything with certainty
+                                # Keep earlier
+                                if edf.index[i] < edf.index[i+1]:
+                                    edf = edf.drop(edf.index[i+1])
+                                else:
+                                    edf = edf.drop(edf.index[i])
 
         return edf
 
