@@ -573,6 +573,7 @@ class FinancialsManager:
                     msg += f" (last fetch = {md['LastFetch']})"
                 print(msg)
             df_new = getattr(self.dat, name)
+            df_new = df_new.astype('float')
             fetch_dt = pd.Timestamp.utcnow().tz_convert(self.tzName)
             if md is None:
                 md = {'FetchDates':{}}
@@ -1000,6 +1001,9 @@ class FinancialsManager:
                             f_drop = (edf.index == call_dt) & (edf['Event Type']=='Call')
                             edf = edf[~f_drop]
                             break
+                    f_call = edf['Event Type'] == 'Call'
+                    if not f_call.any():
+                        break
             edf = edf.drop('Event Type', axis=1)
 
         # Get full year end date
@@ -1108,6 +1112,16 @@ class FinancialsManager:
             print(f"- interval_td = {interval_td}")
             print(f"- interim_itd = {interim_itd}")
 
+        if abs(interim_itd - yfcd.ComparableRelativedelta(years=1)) < yfcd.ComparableRelativedelta(months=1):
+            # The interim financials are missing, so insert 6-monthly
+            interim_itd = yfcd.ComparableRelativedelta(months=6)
+            for i in range(len(period_ends)-2, -1, -1):
+                pdt = period_ends[i+1]+interim_itd
+                pdt = yfcd.DateEstimate(pdt, yfcd.Confidence.Medium)
+                period_ends.insert(i+1, pdt)
+            if period == yfcd.ReportingPeriod.Interim:
+                interval_td = interim_itd
+
         # Now combine known dates into 'Earnings Releases':
         if debug:
             print("# Now combine known dates into 'Earnings Releases':")
@@ -1136,7 +1150,7 @@ class FinancialsManager:
                 print("interval_td = {0}".format(interval_td))
                 raise Exception("Infinite loop detected while estimating next financial report")
 
-            next_period_end = yfcd.DateEstimate(interval_td + last_release.period_end, yfcd.Confidence.High)
+            next_period_end = yfcd.DateEstimate(interval_td + last_release.period_end, yfcd.Confidence.Medium)
 
             r = EarningsRelease(interval_td, next_period_end, None, year_end, interim_itd)
 
@@ -1562,23 +1576,26 @@ class FinancialsManager:
                                     pass
                             if debug:
                                 print(f"- matching '{releases[i]}' with '{closest_r}' for interval '{try_interval}'")
-                            delay = closest_r.release_date - closest_r.period_end
-                            dt = delay + releases[i].period_end
 
                             r_is_end_of_year = releases[i].is_end_of_year()
-                            if try_interval != 365:
-                                # Annual reports take longer than interims, normally
-                                if r_is_end_of_year:
-                                    dt += timedelta(days=28)
-                                elif closest_r.is_end_of_year():
-                                    try:
-                                        lhs = delay-timedelta(days=7)
-                                        rhs = timedelta(days=28)
-                                        shift = min(lhs, rhs)
-                                    except yfcd.AmbiguousComparisonException:
-                                        p = lhs.prob_lt(rhs)
-                                        shift = lhs if p > 0.5 else rhs
-                                    dt -= shift
+                            closest_r_is_end_of_year = closest_r.is_end_of_year()
+                            delay = closest_r.release_date - closest_r.period_end
+                            if r_is_end_of_year == closest_r_is_end_of_year:
+                                pass
+                            elif r_is_end_of_year:
+                                delay += timedelta(days=28)
+                            elif closest_r_is_end_of_year:
+                                delay -= timedelta(days=28)
+                                try:
+                                    delay_too_short = delay < timedelta(days=7)
+                                except yfcd.AmbiguousComparisonException:
+                                    p = delay.prob_lt(timedelta(days=7))
+                                    delay_too_short = p > 0.5
+                                if delay_too_short:
+                                    delay = timedelta(days=7)
+                            if debug:
+                                print("- delay =", delay)
+                            dt = releases[i].period_end + delay
 
                             if not hasattr(dt, 'confidence'):
                                 if r_is_end_of_year and try_interval != 365:

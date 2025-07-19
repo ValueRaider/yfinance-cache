@@ -1461,6 +1461,8 @@ class DateEstimate():
             return DateEstimate(self.date+other, self.confidence)
         elif isinstance(other, TimedeltaRange):
             return DateRangeEstimate(self.date + other.td1, self.date + other.td2, self.confidence)
+        elif isinstance(other, TimedeltaRangeEstimate):
+            return other + self
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
     def __radd__(self, other):
@@ -1471,7 +1473,9 @@ class DateEstimate():
             self.date -= other
             return self
         elif isinstance(other, TimedeltaEstimate):
-            return DateEstimate(self.date-other.td, min(self.confidence, other.confidence))
+            self.date -= other.dt
+            self.confidence = min(self.confidence, other.confidence)
+            return self
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
 
     def __sub__(self, other):

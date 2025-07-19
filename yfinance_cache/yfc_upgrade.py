@@ -20,7 +20,8 @@ def _tidy_upgrade_history():
                 "have-fixed-24h-prices-final",
                 "have-fixed-prices-final-again-x2",
                 "have-added-unexpected-intervals-to-options",
-                "have-added-event-type-to-earnings-dates"
+                "have-added-event-type-to-earnings-dates",
+                "have-fixed-financials-dtypes"
                 ]
 
     d = yfcm.GetCacheDirpath()
@@ -484,6 +485,67 @@ def _add_event_type_to_earnings_dates():
                 if edf_changed:
                     with open(edf_fp, 'wb') as F:
                         data['data'] = edf
+                        pkl.dump(data, F, 4)
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
+
+def _fix_financials_dtypes():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-fixed-financials-dtypes")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    dp = yfcm.GetCacheDirpath()
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    r = n/900
+    print(f"YFC converting cached financials to numeric type, estimate {round(r):.0f} seconds to process {n} tickers.")
+
+    try:
+        from tqdm import tqdm
+        iterator = tqdm(range(len(contents)))
+        manual_progress_bar = None
+    except Exception:
+        # Use YF's progress bar
+        iterator = range(len(contents))
+        from yfinance import utils as yf_utils
+        manual_progress_bar = yf_utils.ProgressBar(len(contents))
+    for i in iterator:
+        d = contents[i]
+        if manual_progress_bar is not None:
+            manual_progress_bar.animate()
+
+        if d.startswith("exchange-"):
+            pass
+        else:
+            for x in ['quarterlys', 'annuals']:
+                fp = os.path.join(dp, d, f'{x}.pkl')
+                if os.path.isfile(fp):
+                    with open(fp, 'rb') as F:
+                        data = pkl.load(F)
+                    for k in data.keys():
+                        data[k]['data'] = data[k]['data'].astype('float')
+                    with open(fp, 'wb') as F:
                         pkl.dump(data, F, 4)
 
     if not os.path.isdir(yfc_dp):

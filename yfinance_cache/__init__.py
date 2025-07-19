@@ -28,3 +28,6 @@ _add_unexpected_intervals_to_options()
 
 from .yfc_upgrade import _add_event_type_to_earnings_dates
 _add_event_type_to_earnings_dates()
+
+from .yfc_upgrade import _fix_financials_dtypes
+_fix_financials_dtypes()
