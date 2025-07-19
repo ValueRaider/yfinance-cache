@@ -679,17 +679,22 @@ class PriceHistory:
                     f_nfinal = f_nfinal | f_repair
                 if f_nfinal.any():
                     idx0 = np.where(f_nfinal)[0][0]
-                    repaired = f_repair[idx0]
-                    h_interval_dt = h_interval_dts[idx0]
-                    fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"].iloc[idx0], tz=tz_exchange)
-                    try:
+                    f_na = self.h['Close'].isna()
+                    f_nfinal_nna = f_nfinal & (~f_na)
+                    if f_nfinal_nna.any():
+                        idx0_nna = np.where(f_nfinal_nna)[0][0]
+                    else:
+                        idx0_nna = None
+
+                    if idx0_nna is None:
+                        h_interval_dt = h_interval_dts[idx0]
+                        fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"].iloc[idx0], tz=tz_exchange)
+                        expired = (fetch_dt + max_age) < dt_now
+                    else:
+                        h_interval_dt = h_interval_dts[idx0_nna]
+                        fetch_dt = yfct.ConvertToDatetime(self.h["FetchDate"].iloc[idx0_nna], tz=tz_exchange)
+                        repaired = f_repair[idx0_nna]
                         expired = yfct.IsPriceDatapointExpired(h_interval_dt, fetch_dt, repaired, max_age, self.exchange, self.interval, yf_lag=yf_lag, triggerExpiryOnClose=trigger_at_market_close)
-                    except yfcd.TimestampOutsideIntervalException as e:
-                        if f_na[idx0]:
-                            # YFC must have inserted a row of NaNs, wrongly thinking exchange should have been open here.
-                            expired = True
-                        else:
-                            raise e
                     if expired:
                         self.h = self.h.iloc[:idx0]
                         h_interval_dts = h_interval_dts[:idx0]
@@ -1066,14 +1071,13 @@ class PriceHistory:
                         idx = self.h.index.get_loc(dt)
                         close_before = self.h["Close"].iloc[idx-1]
                         if np.isnan(close_before):
-                            for idx in range(idx-1, idx-9, -1):
-                                close_before = self.h["Close"].iloc[idx-1]
-                                if not np.isnan(close_before):
-                                    break
+                            recent_closes = self.h["Close"].iloc[max(0,idx-18):idx-1].dropna()
+                            if len(recent_closes) > 0:
+                                close_before = recent_closes.iloc[-1]
                             if np.isnan(close_before):
                                 print(f"- idx={idx} dt={dt}")
                                 print(self.h.iloc[idx-2:idx+3][["Close", "FetchDate"]])
-                                raise Exception("'close_before' is NaN")
+                                raise Exception(f"{self.ticker}: 'close_before' is NaN")
                     divs_df.loc[dt, "Close before"] = close_before
                     # De-split div:
                     if not divs_df.loc[dt, 'Desplitted?']:

@@ -1156,6 +1156,13 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, discardTimes=None,
         t0 = ts[0]
         tl = ts[len(ts)-1]
         tis = GetExchangeScheduleIntervals(exchange, interval, t0-itd, tl+itd, ignore_breaks=ignore_breaks)
+        if tis is None:
+            if len(ts) <= 1:
+                # probably Yahoo returning an interval right on market close
+                intervals = pd.DataFrame(index=ts)
+                intervals["interval_open"] = pd.NaT
+                intervals["interval_close"] = pd.NaT
+                return intervals
         tz_tis = tis[0].left.tzinfo
         if ts[0].tzinfo != tz_tis:
             ts = [t.astimezone(tz_tis) for t in ts]
