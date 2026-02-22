@@ -25,6 +25,11 @@ def download(tickers,
             debug=True, quiet=False,
             trigger_at_market_close=False, session=None):
 
+    if proxy is not None:
+        import yfinance as yf
+        yf.config.network.proxy = proxy
+        warnings.warn("Set proxy via new config control: yf.config.network.proxy = proxy", DeprecationWarning, stacklevel=3)
+
     if ignore_tz is None:
         # Set default value depending on interval
         ignore_tz = interval[-1] not in ['m', 'h']
@@ -53,7 +58,6 @@ def download(tickers,
                                     start=start, end=end, prepost=prepost,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
-                                    proxy=proxy,
                                     rounding=rounding, session=session)
             with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchange_locks,)) as pool:
                 result_async = pool.map_async(partial_func, tickers)
@@ -78,7 +82,6 @@ def download(tickers,
                                     start=start, end=end, prepost=prepost,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
-                                    proxy=proxy,
                                     rounding=rounding, session=session)
             with multiprocessing.Pool(processes=threads) as pool:
                 results = pool.map(partial_func, tickers)
@@ -90,7 +93,6 @@ def download(tickers,
                      'start':start, 'end':end, 'prepost':prepost,
                      'actions':actions, 'adjust_divs':adjust_divs,
                      'adjust_splits':adjust_splits, 'keepna':keepna,
-                     'proxy':proxy,
                      'rounding':rounding}
         if progress:
             if have_tqdm:
@@ -157,13 +159,13 @@ def reindex_dfs(dfs, ignore_tz):
 def download_one_parallel(ticker, queue, start=None, end=None, max_age=None,
                   adjust_divs=True, adjust_splits=True,
                   actions=False, period="max", interval="1d",
-                  prepost=False, proxy=None, rounding=False,
+                  prepost=False, rounding=False,
                   keepna=False, session=None):
     try:
         df = download_one(ticker, start=start, end=end, max_age=max_age,
                       adjust_divs=adjust_divs, adjust_splits=adjust_splits,
                       actions=actions, period=period, interval=interval,
-                      prepost=prepost, proxy=proxy, rounding=rounding,
+                      prepost=prepost, rounding=rounding,
                       keepna=keepna, session=session)
         queue.put(('success', 0))
         return df
@@ -176,14 +178,14 @@ def download_one_parallel(ticker, queue, start=None, end=None, max_age=None,
 def download_one(ticker, start=None, end=None, max_age=None,
                   adjust_divs=True, adjust_splits=True,
                   actions=False, period="max", interval="1d",
-                  prepost=False, proxy=None, rounding=False,
+                  prepost=False, rounding=False,
                   keepna=False, session=None):
     dat = yfc_ticker.Ticker(ticker, session=session)
     df = dat.history(
             period=period, interval=interval, max_age=max_age,
             start=start, end=end, prepost=prepost,
             actions=actions, adjust_divs=adjust_divs,
-            adjust_splits=adjust_splits, proxy=proxy,
+            adjust_splits=adjust_splits,
             rounding=rounding, keepna=keepna
     )
     return df

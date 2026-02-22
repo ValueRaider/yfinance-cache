@@ -35,3 +35,7 @@ _add_event_type_to_earnings_dates()
 
 from .yfc_upgrade import _fix_financials_dtypes
 _fix_financials_dtypes()
+
+from .yfc_upgrade import _fix_xcals_being_unordered
+_fix_xcals_being_unordered()
+

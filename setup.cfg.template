@@ -20,10 +20,11 @@ package_dir =
 packages = find:
 python_requires = >=3.9
 install_requires = 
-    yfinance >= 0.2.57
+    yfinance >= 1.0
     exchange_calendars >= 4.10
     numpy >= 1.26
-    pandas >= 1.5
+	# Wait for Pandas 3 to stabilise. It's changed datetime handling that requires cache upgrade.
+    pandas >= 1.5, < 3
     scipy >= 1.6.3
     platformdirs
     pulp

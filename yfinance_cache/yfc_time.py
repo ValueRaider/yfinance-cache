@@ -142,6 +142,28 @@ def JoinTwoXcals(cal1, cal2):
             if name in cal12.__dict__:
                 delattr(cal12, name)
 
+    # Still possible for cal12 to be out-of-order. Probably when 
+    # one has a time-gap in which the other cal fits.
+    sched2 = cal12.schedule.sort_index()
+    if (sched2.index != cal12.schedule.index).any():
+        # Was out-of-order.
+        
+        # Get the sorting indices from pandas
+        sort_indices = cal12.schedule.index.argsort()
+
+        # Apply
+        cal12.schedule = cal12.schedule.iloc[sort_indices]
+        cal12._opens = cal12._opens[sort_indices] if cal12._opens is not None else None
+        cal12._break_starts = cal12._break_starts[sort_indices] if cal12._break_starts is not None else None
+        cal12._break_ends = cal12._break_ends[sort_indices] if cal12._break_ends is not None else None
+        cal12._closes = cal12._closes[sort_indices] if cal12._closes is not None else None
+        cal12.opens_nanos = cal12.opens_nanos[sort_indices] if cal12.opens_nanos is not None else None
+        cal12.break_starts_nanos = cal12.break_starts_nanos[sort_indices] if cal12.break_starts_nanos is not None else None
+        cal12.break_ends_nanos = cal12.break_ends_nanos[sort_indices] if cal12.break_ends_nanos is not None else None
+        cal12.closes_nanos = cal12.closes_nanos[sort_indices] if cal12.closes_nanos is not None else None
+        cal12._late_opens = cal12._late_opens[sort_indices] if cal12._late_opens is not None else None
+        cal12._early_closes = cal12._early_closes[sort_indices] if cal12._early_closes is not None else None
+
     return cal12
 
 
@@ -536,7 +558,7 @@ def MapPeriodToDates(exchange, period, interval):
     td_1d = timedelta(days=1)
     dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
     d_now = dt_now.astimezone(tz_exchange).date()
-    sched = GetExchangeSchedule(exchange, d_now-(7*td_1d), d_now+td_1d)
+    sched = GetExchangeSchedule(exchange, d_now-(14*td_1d), d_now+td_1d)
     yf_lag = yfcd.exchangeToYfLag[exchange]
     dt_now_sub_lag = dt_now - yf_lag
     if sched["open"].iloc[-1] > dt_now_sub_lag:

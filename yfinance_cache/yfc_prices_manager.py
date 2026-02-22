@@ -757,6 +757,7 @@ class PriceHistory:
 
             if self.interval == yfcd.Interval.Days1:
                 h_splits = h[h["Stock Splits"] != 0]
+                h_splits = h_splits[~h_splits['Stock Splits'].isna()]
                 if len(h_splits) > 0:
                     self.manager.GetHistory("Events").UpdateSplits(h_splits)
 
@@ -1237,7 +1238,8 @@ class PriceHistory:
 
             # TODO: Problem: dividends need correct close
             if self.interval == yfcd.Interval.Days1:
-                h2_post_splits = h2_post[h2_post["Stock Splits"] != 0][["Stock Splits", "FetchDate"]].copy()
+                h2_post_splits = h2_post[["Stock Splits", "FetchDate"]][h2_post["Stock Splits"] != 0].copy()
+                h2_post_splits = h2_post_splits[~h2_post_splits['Stock Splits'].isna()]
                 if not h2_post_splits.empty:
                     self.manager.GetHistory("Events").UpdateSplits(h2_post_splits)
                 # Update: moving UpdateDividends() to after repair
@@ -1285,7 +1287,8 @@ class PriceHistory:
             h2_pre = self._reverseYahooAdjust(h2_pre)
 
             if self.interval == yfcd.Interval.Days1:
-                h2_pre_splits = h2_pre[h2_pre["Stock Splits"] != 0][["Stock Splits", "FetchDate"]].copy()
+                h2_pre_splits = h2_pre[["Stock Splits", "FetchDate"]][h2_pre["Stock Splits"] != 0].copy()
+                h2_pre_splits = h2_pre_splits[~h2_pre_splits['Stock Splits'].isna()]
                 if not h2_pre_splits.empty:
                     self.manager.GetHistory("Events").UpdateSplits(h2_pre_splits)
 
@@ -1304,6 +1307,7 @@ class PriceHistory:
             self.h.index = pd.to_datetime(self.h.index, utc=True).tz_convert(tz_exchange)
 
         self.h = self.h.sort_index()
+        self.h = self.h._consolidate()
         self._updatedCachedPrices(self.h)
 
         log_msg = "_fetchAndAddRanges_contiguous() returning"
@@ -1421,6 +1425,7 @@ class PriceHistory:
                 raise Exception(f"{self.ticker}: Adding range {rstart}->{rend} has added duplicate timepoints have been duplicated: {self.h.index[f_dups]}")
 
         self.h = self.h.sort_index()
+        self.h = self.h._consolidate()
         self._updatedCachedPrices(self.h)
 
         log_msg = "_fetchAndAddRanges_sparse() returning"
@@ -1570,7 +1575,7 @@ class PriceHistory:
             # Add some more days to avoid problem.
             fetch_end += 3*td_1d
             fetch_end = min(fetch_end, dt_now.tz_convert(self.tzName).ceil("D", nonexistent='shift_forward').date())
-            history_args_base = {'raise_errors': True, 'repair': True}
+            history_args_base = {'repair': True}
             if self.intraday:
                 history_args_base_intraday = history_args_base | {'interval': self.istr, 'auto_adjust': False, 'repair': True, 'keepna': True}
                 if self.interval == yfcd.Interval.Mins1:
@@ -2226,7 +2231,8 @@ class PriceHistory:
 
         if self.interval == yfcd.Interval.Days1:
             # Update: move checking for new dividends to here, before discarding out-of-range data
-            df_divs = df[df["Dividends"] != 0][["Dividends"]].copy()
+            f_div = (df["Dividends"]!=0).to_numpy() & (~df['Dividends'].isna())
+            df_divs = df[["Dividends"]][f_div].copy()
             if not df_divs.empty:
                 df_divs['Close before'] = df['Close'].ffill().shift(1).loc[df_divs.index]
                 df_divs['Close repaired?'] = df['Repaired?'].ffill().shift(1).loc[df_divs.index]
@@ -2578,7 +2584,7 @@ class PriceHistory:
                         "auto_adjust": False,  # store raw data, adjust myself
                         "back_adjust": False,  # store raw data, adjust myself
                         "rounding": False,  # store raw data, round myself
-                        "raise_errors": not quiet}
+                        }
         if debug:
             yf_logger = logging.getLogger('yfinance')
             yf_logger.setLevel(logging.DEBUG)  # verbose: print errors & debug info
@@ -2915,7 +2921,6 @@ class PriceHistory:
                     if hasattr(yf_logger, 'level'):
                         yf_log_level = yf_logger.level
                         yf_logger.setLevel(logging.CRITICAL)
-                    df_fine_old = self.dat.history(start=fetch_start, end=fetch_end, interval=yfcd.intervalToString[sub_interval], auto_adjust=True, prepost=prepost, raise_errors=False)
                     if hasattr(yf_logger, 'level'):
                         yf_logger.setLevel(yf_log_level)
                     hist_sub = self.manager.GetHistory(sub_interval)
@@ -4282,6 +4287,7 @@ class PriceHistory:
         if h_modified:
             self.h['CDF'] = self.h['CDF'].clip(lower=None, upper=1)
 
+            self.h = self.h._consolidate()
             self._updatedCachedPrices(self.h)
 
         log_msg = "PM::_applyNewEvents() returning"

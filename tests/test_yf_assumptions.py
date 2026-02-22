@@ -11,7 +11,6 @@ from .context import session_gbl
 from datetime import datetime, date, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-import appdirs
 import requests_cache
 
 import sys, os
@@ -24,7 +23,8 @@ class TestYfAssumptions(unittest.TestCase):
 
 		self.dat = yf.Ticker(self.tkr, session=self.session)
 
-		self.day = date(year=2024, month=1, day=10)
+		self.day = date.today() - timedelta(days=7)
+		self.day -= timedelta(days=self.day.weekday())
 
 		self.exchange = "NMS"
 		self.market_tz = ZoneInfo('US/Eastern')
@@ -35,7 +35,8 @@ class TestYfAssumptions(unittest.TestCase):
 		yfct.SetExchangeTzName(self.exchange, 'US/Eastern')
 
 	def tearDown(self):
-		self.session.close()
+		if self.session is not None:
+			self.session.close()
 
 
 	def test_minutes(self):

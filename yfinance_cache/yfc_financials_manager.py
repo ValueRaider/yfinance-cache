@@ -222,6 +222,44 @@ class EarningsRelease():
     def __ge__(self, other):
         return (self == other) or (self > other)
 
+    def prob_lt(self, other):
+        try:
+            period_lt = self._period_end < other._period_end
+            if period_lt:
+                period_lt_prob = 1.0
+            else:
+                period_lt_prob = 0.0
+        except yfcd.AmbiguousComparisonException:
+            if isinstance(self._period_end, yfcd.DateEstimate):
+                period_lt_prob = self._period_end.prob_lt(other._period_end)
+            else:
+                period_lt_prob = 1.0 - other._period_end.prob_lt(self._period_end)
+
+        if period_lt_prob == 1.0:
+            return True
+
+        try:
+            rd_lt = self._release_date < other._release_date
+            if rd_lt:
+                rd_lt_prob = 1.0
+            else:
+                rd_lt_prob = 0.0
+        except yfcd.AmbiguousComparisonException:
+            if isinstance(self._release_date, yfcd.DateEstimate):
+                rd_lt_prob = self._release_date.prob_lt(other._release_date)
+            else:
+                rd_lt_prob = 1.0 - other._release_date.prob_lt(self._release_date)
+
+        if self._period_end == other._period_end:
+            # Focus on release date:
+            return rd_lt_prob >= 0.5
+        else:
+            # Consider both dates
+            return (period_lt_prob*rd_lt_prob) > 0.5
+
+        def prob_gt(self, other):
+            return 1.0 - self.prob_lt(other)
+
     def is_end_of_year(self):
         r_is_end_of_year = False
         rpe = self._period_end
@@ -490,7 +528,7 @@ class FinancialsManager:
                     else:
                         do_fetch = True
                 else:
-                    releases = sorted(releases)
+                    releases = sort_estimates(releases)
                     # last_d = df.columns.max().date()
                     # Update: analyse pruned dates:
                     last_d = self._prune_yf_financial_df(df).columns.max().date()
@@ -846,14 +884,21 @@ class FinancialsManager:
             # If last release is in past, or almost in past, 
             # then append a crude estimation
             releases = sorted(releases)
-            lastr = releases[-1]
+            if period == yfcd.ReportingPeriod.Interim and len(releases) > 1:
+                # Try to avoid using full-year earnings release to predict a 
+                # interim release.
+                lastr = releases[-2]
+                lastr_periods = 2
+            else:
+                lastr = releases[-1]
+                lastr_periods = 1
 
             try:
                 lastr_is_past = lastr.period_end < d_today
             except yfcd.AmbiguousComparisonException:
                 lastr_is_past = True
             while lastr_is_past:
-                next_pe = lastr.period_end + itd
+                next_pe = lastr.period_end + (itd*lastr_periods)
                 if hasattr(lastr.period_end, 'confidence'):
                     if lastr.period_end.confidence == yfcd.Confidence.High:
                         next_pe.confidence = yfcd.Confidence.Medium
@@ -861,7 +906,20 @@ class FinancialsManager:
                         next_pe.confidence = yfcd.Confidence.Low
                 else:
                     next_pe = yfcd.DateEstimate(next_pe, yfcd.Confidence.High)
-                next_rd = lastr.release_date + itd
+                next_rd = lastr.release_date + (itd*lastr_periods)
+                if lastr.is_end_of_year() and period == yfcd.ReportingPeriod.Interim:
+                    next_rd -= timedelta(days=28)
+                    try:
+                        next_rd_too_early = next_rd < next_pe+timedelta(days=7)
+                    except yfcd.AmbiguousComparisonException:
+                        next_rd_too_early = True
+                    if next_rd_too_early:
+                        # next_rd = next_pe+timedelta(days=7)
+                        if isinstance(next_pe, yfcd.DateEstimate):
+                            conf = max(yfcd.Confidence.Low, next_pe.confidence-1)
+                        else:
+                            conf = yfcd.Confidence.Medium
+                        next_rd = yfcd.DateEstimate(next_pe+timedelta(days=14), conf)
                 newr = EarningsRelease(itd, next_pe, next_rd, lastr.full_year_end, interim_itd)
 
                 releases.append(newr)
@@ -1429,6 +1487,19 @@ class FinancialsManager:
                 m = mean([d[0] for d in fy_clusters[i]])
                 if m > 200:
                     del fy_clusters[i]
+
+        if len(fy_clusters) > 1:
+            # Assume the smaller cluster is wrong. If 2x with same length, use shortest mean delay.
+            fy_cluster = fy_clusters[0]
+            for i in range(len(fy_clusters)):
+                c = fy_cluster[i]
+                if len(c) > len(fy_cluster):
+                    fy_cluster = c
+                elif len(c) == len(fy_cluster):
+                    if mean(c) < mean(fy_cluster):
+                        fy_cluster = c
+            fy_clusters = [fy_cluster]
+
         if len(fy_clusters) > 1:
             for c in fy_clusters:
                 print(c)
@@ -2542,6 +2613,13 @@ class FinancialsManager:
                 if len(new_columns) > 0:
                     if new_columns[0] == 'Dividend Date':
                         self._calendars['Dividend Date'] = None
+                for x in ['Earnings', 'Revenue']:
+                    for y in ['Low', 'High', 'Average']:
+                        xy = x+' '+y
+                        if xy in new_columns:
+                            if c2[xy] is None:
+                                # discard
+                                del c2[xy]
                 new_columns = [k for k in c2.keys() if k not in self._calendars.columns]
                 if len(new_columns) > 0:
                     print("- cached:") ; pprint(self._calendar)
@@ -2586,9 +2664,12 @@ class FinancialsManager:
         else:
             if c is None:
                 self._calendar_clean = {}
+                self._calendars = pd.DataFrame()
+                self._calendar = None
             else:
                 self._calendar_clean = dict(c)
                 self._calendars = c2_df
+                self._calendar = self._calendars.iloc[-1].to_dict()
 
         yfcm.StoreCacheDatum(self.ticker, "calendars", self._calendars)
 

@@ -241,7 +241,8 @@ class Test_Yfc_Financials(unittest.TestCase):
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
     # Calendar, True or False
     def test_calendar_noRefresh(self):

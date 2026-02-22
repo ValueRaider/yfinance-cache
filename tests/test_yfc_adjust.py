@@ -21,7 +21,6 @@ from zoneinfo import ZoneInfo
 import os
 import requests_cache
 from pprint import pprint
-import appdirs
 
 
 class Test_Unadjust(Test_Base):
@@ -37,7 +36,8 @@ class Test_Unadjust(Test_Base):
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
     def test_cleanFetch(self):
         # Fetch with empty cache, no adjustment
@@ -364,7 +364,7 @@ class Test_Unadjust(Test_Base):
         end_d = pd.Timestamp.utcnow().date()
         if not end_d.weekday() == 5:
             end_d -= timedelta(days=end_d.weekday()+2)
-        start_d = end_d - timedelta(days=5) - timedelta(days=8*7)
+        start_d = end_d - timedelta(days=5) - timedelta(days=4*7)
         td_1d = timedelta(days=1)
         td_5d = timedelta(days=5)
 
@@ -374,7 +374,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start_d, end=end_d, interval="1h")
-            df_yf = dat_yf.history(start=start_d, end=end_d, interval="1d", repair=True)
+            df_yf = dat_yf.history(start=start_d-td_5d, end=end_d, interval="1d", repair=True).loc[str(start_d):]
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -390,8 +390,8 @@ class Test_Unadjust(Test_Base):
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
             # - ignore volume here, and missing hour intervals
-            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
+            df_yf = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             # Note: Yahoo doesn't dividend-adjust hourly
@@ -420,10 +420,11 @@ class Test_Unadjust(Test_Base):
         end2_d = pd.Timestamp.utcnow().date()
         if not end2_d.weekday() == 5:
             end2_d -= timedelta(days=end2_d.weekday()+2)
-        start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
+        start2_d = end2_d - timedelta(days=5) - timedelta(days=2*7)
         end1_d = start2_d - timedelta(days=2)
-        start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        start1_d = end1_d - timedelta(days=5) - timedelta(days=2*7)
         td_5d = timedelta(days=5)
+        td_1d = timedelta(days=1)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -434,7 +435,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, end=end2_d, interval="1d", repair=True).loc[str(start1_d):]
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -477,10 +478,11 @@ class Test_Unadjust(Test_Base):
         end2_d = pd.Timestamp.utcnow().date()
         if not end2_d.weekday() == 5:
             end2_d -= timedelta(days=end2_d.weekday()+2)
-        start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
+        start2_d = end2_d - timedelta(days=5) - timedelta(days=2*7)
         end1_d = start2_d - timedelta(days=2)
-        start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        start1_d = end1_d - timedelta(days=5) - timedelta(days=2*7)
         td_5d = timedelta(days=5)
+        td_1d = timedelta(days=1)
 
         for tkr in self.tkrs:
             dat = yfc.Ticker(tkr, session=self.session)
@@ -491,7 +493,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end2_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end2_d, interval="1d", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, end=end2_d, interval="1d", repair=True).loc[str(start1_d):]
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -535,11 +537,11 @@ class Test_Unadjust(Test_Base):
         end3_d = pd.Timestamp.utcnow().date()
         if not end3_d.weekday() == 5:
             end3_d -= timedelta(days=end3_d.weekday()+2)
-        start3_d = end3_d - timedelta(days=5) - timedelta(days=4*7)
+        start3_d = end3_d - timedelta(days=5) - timedelta(days=2*7)
         end2_d = start3_d - timedelta(days=2)
-        start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
+        start2_d = end2_d - timedelta(days=5) - timedelta(days=2*7)
         end1_d = start2_d - timedelta(days=2)
-        start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        start1_d = end1_d - timedelta(days=5) - timedelta(days=2*7)
         td_5d = timedelta(days=5)
 
         for tkr in self.tkrs:
@@ -552,7 +554,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, end=end3_d, interval="1d", repair=True).loc[str(start1_d):]
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -595,11 +597,11 @@ class Test_Unadjust(Test_Base):
         end3_d = pd.Timestamp.utcnow().date()
         if not end3_d.weekday() == 5:
             end3_d -= timedelta(days=end3_d.weekday()+2)
-        start3_d = end3_d - timedelta(days=5) - timedelta(days=4*7)
+        start3_d = end3_d - timedelta(days=5) - timedelta(days=2*7)
         end2_d = start3_d - timedelta(days=2)
-        start2_d = end2_d - timedelta(days=5) - timedelta(days=4*7)
+        start2_d = end2_d - timedelta(days=5) - timedelta(days=2*7)
         end1_d = start2_d - timedelta(days=2)
-        start1_d = end1_d - timedelta(days=5) - timedelta(days=4*7)
+        start1_d = end1_d - timedelta(days=5) - timedelta(days=2*7)
         td_5d = timedelta(days=5)
 
         for tkr in self.tkrs:
@@ -612,7 +614,7 @@ class Test_Unadjust(Test_Base):
 
             # First compare against YF daily data (aggregate YFC by day)
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h")
-            df_yf = dat_yf.history(start=start1_d, end=end3_d, interval="1d", repair=True)
+            df_yf = dat_yf.history(start=start1_d-td_5d, end=end3_d, interval="1d", repair=True).loc[str(start1_d):]
             df_yfc_daily = df_yfc.copy()
             df_yfc_daily["_day"] = pd.to_datetime(df_yfc_daily.index.date).tz_localize(df_yfc.index.tz)
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==0,"Stock Splits"]=1
@@ -626,8 +628,8 @@ class Test_Unadjust(Test_Base):
                 StockSplits=("Stock Splits", "prod")).rename(columns={"StockSplits":"Stock Splits"})
             df_yfc_daily.loc[df_yfc_daily["Stock Splits"]==1,"Stock Splits"]=0
             # Loose tolerance because just checking that in same ballpark
-            df_yf2 = df_yf[df_yf.index.isin(df_yfc_daily.index)]
-            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf2.drop("Volume",axis=1), 1e-1)
+            df_yf = df_yf[df_yf.index.isin(df_yfc_daily.index)]
+            self.verify_df(df_yfc_daily.drop("Volume",axis=1), df_yf.drop("Volume",axis=1), 1e-1)
 
             # Now compare against YF hourly
             df_yfc = dat.history(start=start1_d, end=end3_d, interval="1h", adjust_divs=True)

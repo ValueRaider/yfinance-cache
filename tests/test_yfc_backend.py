@@ -21,7 +21,6 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import pytz
 import os
-import appdirs
 
 ## 2022 calendar:
 ## X* = day X is public holiday that closed exchange
@@ -82,7 +81,8 @@ class Test_Yfc_Backend(Test_Base):
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
     def test_yf_lag(self):
         ## Only use high-volume stocks:
@@ -170,7 +170,7 @@ class Test_Yfc_Backend(Test_Base):
         else:
             tz_name = dat.info["timeZoneFullName"]
         lday = date(2019, 6, 1)
-        hm = yfcp.HistoriesManager(tkr, exchange, tz_name, lday, self.session, None)
+        hm = yfcp.HistoriesManager(tkr, exchange, tz_name, lday, self.session)
 
         # Step 1: add a dividend into system
         div = 0.7

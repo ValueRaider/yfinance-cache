@@ -496,6 +496,7 @@ class OptionsManager:
     def __init__(self):
         self._initialised = False
         self._tmp_options = {}  # these do not get saved to file
+        self._disable_save = False
 
     def _load_option(self):
         self._initialised = True  # prevent infinite loop
@@ -505,6 +506,7 @@ class OptionsManager:
             with open(self.option_file, 'r') as file:
                 self.options = json.load(file)
         except (FileNotFoundError, json.JSONDecodeError):
+            self._disable_save = True
             self.options = {}
             # Initialise
             a = self.__getattr__('max_ages')
@@ -515,11 +517,15 @@ class OptionsManager:
             a.analysis = '91d'
             c = self.__getattr__('calendar')
             c.accept_unexpected_Yahoo_intervals = True
+            self._disable_save = False
+            self._save_option()
 
         self._tmp_options['session'] = {}
         self._tmp_options['session']['offline'] = False
 
     def _save_option(self):
+        if self._disable_save:
+            return
         with open(self.option_file, 'w') as file:
             json.dump(self.options, file, indent=4)
 

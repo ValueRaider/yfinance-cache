@@ -20,7 +20,6 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 import pytz
 import os
-import appdirs
 
 ## 2022 calendar:
 ## X* = day X is public holiday that closed exchange
@@ -79,7 +78,8 @@ class Test_Yfc_Interface(Test_Base):
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
 
     def test_history_basics1_usa(self):

@@ -81,7 +81,9 @@ class Ticker:
                 debug=True, quiet=False, 
                 trigger_at_market_close=False
     ):
-        yf.set_config(proxy=proxy)
+        if proxy is not None:
+            yf.config.network.proxy = proxy
+            warnings.warn("Set proxy via new config control: yf.config.network.proxy = proxy", DeprecationWarning, stacklevel=3)
 
         # t0 = perf_counter()
 
@@ -713,6 +715,9 @@ class Ticker:
         if debug:
             print("- self._shares:", self._shares.index[0], '->', self._shares.index[-1])
 
+        lastFetchDt = yfcm.ReadCacheMetadata(self._ticker, "shares", 'LastFetch')
+        do_fetch = (dt_now - lastFetchDt) > max_age
+
         td_1d = datetime.timedelta(days=1)
         last_row = self._shares.iloc[-1]
         if pd.isna(last_row['Shares']):# and last_row['FetchDate'].date() == last_row.name:
@@ -726,14 +731,15 @@ class Ticker:
             # Convert to Int, and add a little to avoid rounding errors
             self._shares['Shares'] = (self._shares['Shares']+0.01).round().astype('Int64')
 
-        if start < self._shares.index[0].date() and (not yfcm._option_manager.session.offline):
+        if (not yfcm._option_manager.session.offline) and do_fetch and \
+            (start < self._shares.index[0].date()):
             df_pre = self._fetch_shares(start, self._shares.index[0])
             yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
-        if (end-td_1d) > self._shares.index[-1].date() and \
-            (end - self._shares.index[-1].date()) > max_age \
-            and (not yfcm._option_manager.session.offline):
+        if (not yfcm._option_manager.session.offline) and do_fetch and \
+            (end-td_1d) > self._shares.index[-1].date() and \
+            (end - self._shares.index[-1].date()) > max_age:
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
             yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
             if df_post is not None:
@@ -780,9 +786,7 @@ class Ticker:
         end_d = min(end_d, datetime.date.today() + td_1d)
 
         df = self._dat.get_shares_full(start_d, end_d)
-        if df is None:
-            return df
-        if df.empty:
+        if df is None or df.empty:
             return None
 
         # Convert to Pandas Int for NaN support

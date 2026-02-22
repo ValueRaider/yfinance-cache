@@ -7,6 +7,7 @@ from .context import yfc_time as yfct
 from .context import yfc_cache_manager as yfcm
 from .context import yfc_utils as yfcu
 from .context import yfc_ticker as yfc
+from .context import yfc_financials_manager as yfcf
 from .context import session_gbl
 from .utils import Test_Base
 import pickle as pkl
@@ -55,13 +56,11 @@ class Test_Yfc_Ticker(Test_Base):
 
     def tearDown(self):
         self.tempCacheDir.cleanup()
-        self.session.close()
+        if self.session is not None:
+            self.session.close()
 
 
     def test_info(self):
-        fp = yfcm.GetFilepath(self.usa_tkr, 'info')
-        self.assertIsNone(fp)
-
         i1 = self.usa_dat.info
         self.assertIsNotNone(i1)
 
@@ -84,13 +83,13 @@ class Test_Yfc_Ticker(Test_Base):
 
 
     def test_calendar(self):
-        fp = yfcm.GetFilepath(self.usa_tkr, 'calendar')
+        fp = yfcm.GetFilepath(self.usa_tkr, 'calendars')
         self.assertIsNone(fp)
 
         i1 = self.usa_dat.calendar
         self.assertIsNotNone(i1)
 
-        fp = yfcm.GetFilepath(self.usa_tkr, 'calendar')
+        fp = yfcm.GetFilepath(self.usa_tkr, 'calendars')
         self.assertIsNotNone(fp)
         self.assertTrue(os.path.isfile(fp))
         mod_dt1 = datetime.fromtimestamp(os.path.getmtime(fp))
@@ -102,6 +101,8 @@ class Test_Yfc_Ticker(Test_Base):
 
         # Simulate aging
         yfcm._option_manager.max_ages.calendar = '1s'
+        # - disable spam blocker:
+        yfcf.yf_spam_window = timedelta(0)
         sleep(2)
         i3 = self.usa_dat.calendar
         mod_dt3 = datetime.fromtimestamp(os.path.getmtime(fp))

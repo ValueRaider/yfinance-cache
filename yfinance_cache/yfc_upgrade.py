@@ -553,4 +553,60 @@ def _fix_financials_dtypes():
     with open(state_fp, 'w'):
         pass
 
+
+def _fix_xcals_being_unordered():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-sorted-xcals")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    dp = yfcm.GetCacheDirpath()
+    contents = os.listdir(dp)
+    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
+
+    n = len(contents)
+    if n == 0:
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    for d in contents:
+        if d.startswith("exchange-"):
+            xcal_fp = os.path.join(dp, d, "cal.pkl")
+            if os.path.isfile(xcal_fp):
+                # print(xcal_fp)
+                try:
+                    with open(xcal_fp, 'rb') as F:
+                        data = pkl.load(F)
+                except AttributeError as e:
+                    if "__nat_unpickle" in str(e):
+                        # Pandas 3 does not like df pickled with Pandas 2
+                        # print("Delete: " + xcal_fp)
+                        continue
+                except NotImplementedError as e:
+                    if 'datetime64' in str(e) and 'array' in str(e):
+                        # Pandas 2 does not like df pickled with Pandas 3
+                        # print("Delete: " + xcal_fp)
+                        continue
+
+                xcal = data['data']
+                sched2 = xcal.schedule.sort_index()
+                if (sched2.index != xcal.schedule.index).any():
+                    # Easiest to just delete and let yfc_time.py rebuild.
+                    shutil.rmtree(os.path.join(dp, d))
+
+    if not os.path.isdir(yfc_dp):
+        os.makedirs(yfc_dp)
+    with open(state_fp, 'w'):
+        pass
+
 #

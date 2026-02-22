@@ -111,6 +111,7 @@ exchangeToXcalExchange["TOR"] = "XTSE"  # Toronto
 exchangeToXcalExchange["VAN"] = exchangeToXcalExchange["TOR"]  # TSX Venture
 exchangeToXcalExchange["CNQ"] = exchangeToXcalExchange["TOR"]  # CSE. TSX competitor, but has same hours
 exchangeToXcalExchange["NEO"] = exchangeToXcalExchange["TOR"]  # Canada Cboe. VERY similar to Toronto, I'm too lazy to add NEO to exchange_calendars
+exchangeToXcalExchange['TSI'] = exchangeToXcalExchange['TOR']  # only seen with index e.g. ^GSPTSE
 # Europe:
 exchangeToXcalExchange["LSE"] = "XLON"  # London
 exchangeToXcalExchange["IOB"] = exchangeToXcalExchange["LSE"]
@@ -122,6 +123,7 @@ exchangeToXcalExchange["BUD"] = "XBUD"  # Budapest
 exchangeToXcalExchange["BVB"] = "XBSE"  # Bucharest
 exchangeToXcalExchange["CPH"] = "XCSE"  # Copenhagen
 exchangeToXcalExchange["EBS"] = "XSWX"  # Zurich
+exchangeToXcalExchange["ZRH"] = exchangeToXcalExchange["EBS"]  # Zurich
 exchangeToXcalExchange["FRA"] = "XFRA"  # Frankfurt. Germany also has XETRA but that's part of Frankfurt exchange
 exchangeToXcalExchange["GER"] = "XFRA"  # Frankfurt
 exchangeToXcalExchange["DUS"] = "XDUS"  # Dusseldorf
@@ -150,6 +152,7 @@ exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange['OSA'] = exchangeToXcalExchange["JPX"]  # Osaka. Not in xcal so assume
 exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
+exchangeToXcalExchange['SSH'] = 'XSHG'  # Shanghai
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["TWO"] = "XTAI"  # Taipai OTC, Taiwan. Closes 5 minutes before TWSE, otherwise same.
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
@@ -197,6 +200,7 @@ exchangeToYfLag["TOR"] = timedelta(0)
 exchangeToYfLag["VAN"] = exchangeToYfLag["TOR"]
 exchangeToYfLag["CNQ"] = exchangeToYfLag["TOR"]
 exchangeToYfLag["NEO"] = timedelta(0)
+exchangeToYfLag["TSI"] = timedelta(minutes=5)
 # Europe:
 exchangeToYfLag["LSE"] = timedelta(minutes=20)
 exchangeToYfLag["IOB"] = timedelta(minutes=20)
@@ -208,6 +212,7 @@ exchangeToYfLag["BUD"] = timedelta(minutes=15)
 exchangeToYfLag["BVB"] = timedelta(minutes=15)
 exchangeToYfLag["CPH"] = timedelta(0)
 exchangeToYfLag["EBS"] = timedelta(minutes=30)
+exchangeToYfLag["ZRH"] = exchangeToYfLag["EBS"]  # assume same
 exchangeToYfLag["FRA"] = timedelta(minutes=15)
 exchangeToYfLag["GER"] = timedelta(minutes=15)
 exchangeToYfLag["DUS"] = timedelta(minutes=15)
@@ -1023,6 +1028,13 @@ class TimedeltaRange():
     def __radd__(self, other):
         return self.__add__(other)
 
+    def __isub__(self, other):
+        if isinstance(other, timedelta):
+            self.td1 -= other
+            self.td2 -= other
+            return self
+        raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
+
     def __mul__(self, other):
         if isinstance(other, (int, float)):
             return TimedeltaRange(self.td1 * other, self.td2 * other)
@@ -1321,11 +1333,11 @@ class DateRange():
 
     def __add__(self, other):
         if isinstance(other, timedelta):
-            return DateRange(self.start + other, self.end + other)
+            return DateRange(self.start+other, self.end+other)
+        elif isinstance(other, TimedeltaEstimate):
+            return DateRangeEstimate(self.start+other.td, self.end+other.td, other.confidence)
         raise NotImplementedError(f'Not implemented {self} + {type(other)}={other}')
 
-    # def __radd__(self, other):
-    #     raise NotImplementedError(f'Not implemented {self} radd {type(other)}={other}')
     def __radd__(self, other):
         return self.__add__(other)
 
