@@ -29,5 +29,9 @@ install_requires =
     platformdirs
     pulp
 
+[options.package_data]
+yfinance_cache =
+    VERSION
+
 [options.packages.find]
 where = ./

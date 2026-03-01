@@ -27,6 +27,8 @@ _make() (
 
 	# Note: to download from Test PYPI successfully,
 	# need to download dependencies from PYPI like this:
+	python -m venv ~/venv/yfc2
+	source ~/venv/yfc2/bin/activate
 	pip install --no-deps --index-url https://test.pypi.org/simple yfinance_cache2
 	_reqs=`pip show yfinance_cache2 | grep "^Requires:" | cut -d':' -f2 | sed 's/,//g'`
 	pip install -v $_reqs
