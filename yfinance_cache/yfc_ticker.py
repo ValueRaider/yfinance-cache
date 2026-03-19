@@ -280,7 +280,7 @@ class Ticker:
                 h = h.copy()
             for c in ["Open", "Close", "Low", "High", "Dividends"]:
                 h[c] = np.multiply(h[c].to_numpy(), h["CSF"].to_numpy())
-            h["Volume"] = np.round(np.divide(h["Volume"].to_numpy(), h["CSF"].to_numpy()), 0).astype('int')
+            h["Volume"] = yfcu.safe_int((h["Volume"] / h["CSF"]))
         if adjust_divs:
             if not h_copied:
                 h = h.copy()

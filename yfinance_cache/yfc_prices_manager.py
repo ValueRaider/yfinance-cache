@@ -1109,7 +1109,7 @@ class PriceHistory:
         if adjust_splits:
             for c in ["Open", "High", "Low", "Close", "Dividends"]:
                 h_copy[c] *= h_copy["CSF"]
-            h_copy["Volume"] = (h_copy["Volume"]/h_copy["CSF"]).round(0).astype('int')
+            h_copy["Volume"] = yfcu.safe_int((h_copy["Volume"]/h_copy["CSF"]))
             h_copy = h_copy.drop("CSF", axis=1)
         if adjust_divs:
             for c in ["Open", "High", "Low", "Close"]:
@@ -1466,7 +1466,7 @@ class PriceHistory:
         # Apply stock-split adjustment to match YF
         for c in ["Open", "Close", "Low", "High", "Dividends"]:
             h[c] = h[c].to_numpy() * h["CSF"].to_numpy()
-        h["Volume"] = (h["Volume"].to_numpy() / h["CSF"].to_numpy()).round().astype('int')
+        h["Volume"] = yfcu.safe_int(pd.Series(h["Volume"].to_numpy() / h["CSF"].to_numpy(), index=h.index))
 
         td_1d = pd.Timedelta("1D")
         dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
@@ -3052,13 +3052,13 @@ class PriceHistory:
                     # Adjust fine-grained to match
                     df_new[price_cols] *= ratio
                     df_new["Volume"] /= ratio
-                    df_new["Volume"] = df_new["Volume"].round(0).astype('int')
+                    df_new["Volume"] = yfcu.safe_int(df_new["Volume"])
                 elif ratio_rcp > 1:
                     # data has different split-adjustment than fine-grained data
                     # Adjust fine-grained to match
                     df_new[price_cols] *= 1.0 / ratio_rcp
                     df_new["Volume"] *= ratio_rcp
-                    df_new["Volume"] = df_new["Volume"].round(0).astype('int')
+                    df_new["Volume"] = yfcu.safe_int(df_new["Volume"])
 
             # Repair!
             bad_dts = df_block.index[(df_block[price_cols] == tag).any(axis=1)]
@@ -3095,7 +3095,7 @@ class PriceHistory:
                     # df_v2.loc[idx, "CDF"] = df_new_row["CDF"]
                     # df_v2.loc[idx, "CSF"] = df_new_row["CSF"]
                 if "Volume" in bad_fields:
-                    df_v2.loc[idx, "Volume"] = df_new_row["Volume"].round().astype('int')
+                    df_v2.loc[idx, "Volume"] = yfcu.safe_int(df_new_row["Volume"])
                 df_v2.loc[idx, "Repaired?"] = True
                 n_fixed += 1
 
@@ -3702,9 +3702,9 @@ class PriceHistory:
                     f_open_and_closed_fixed = f_open_fixed & f_close_fixed
                     f_open_xor_closed_fixed = np.logical_xor(f_open_fixed, f_close_fixed)
                     if f_open_and_closed_fixed.any():
-                        df2.loc[f_open_and_closed_fixed, "Volume"] = (df2.loc[f_open_and_closed_fixed, "Volume"]*m_rcp).round().astype('int')
+                        df2.loc[f_open_and_closed_fixed, "Volume"] = yfcu.safe_int((df2.loc[f_open_and_closed_fixed, "Volume"]*m_rcp))
                     if f_open_xor_closed_fixed.any():
-                        df2.loc[f_open_and_closed_fixed, "Volume"] = (df2.loc[f_open_and_closed_fixed, "Volume"]*0.5*m_rcp).round().astype('int')
+                        df2.loc[f_open_and_closed_fixed, "Volume"] = yfcu.safe_int((df2.loc[f_open_and_closed_fixed, "Volume"]*0.5*m_rcp))
 
                 df2.loc[f_corrected, 'Repaired?'] = True
 
@@ -3758,7 +3758,7 @@ class PriceHistory:
                 if correct_dividend:
                     df2.iloc[r[0]:r[1], df2.columns.get_loc('Dividends')] *= m
                 if correct_volume:
-                    df2.iloc[r[0]:r[1], df2.columns.get_loc("Volume")] = (df2['Volume'].iloc[r[0]:r[1]]*m_rcp).round().astype('int')
+                    df2.iloc[r[0]:r[1], df2.columns.get_loc("Volume")] = yfcu.safe_int((df2['Volume'].iloc[r[0]:r[1]]*m_rcp))
                 df2.iloc[r[0]:r[1], df2.columns.get_loc('Repaired?')] = True
                 if r[0] == r[1] - 1:
                     if self.interday:
@@ -3776,7 +3776,7 @@ class PriceHistory:
                 self.manager.LogEvent('info', 'price-repair-split-'+self.istr, msg)
 
         if correct_volume:
-            df2['Volume'] = df2['Volume'].round(0).astype('int')
+            df2['Volume'] = yfcu.safe_int(df2['Volume'])
 
         yfcl.TraceExit(log_func + " returning")
         return df2.sort_index()
@@ -4054,7 +4054,7 @@ class PriceHistory:
             df["Volume"] *= csf
 
         if df["Volume"].dtype != 'int64':
-            df["Volume"] = df["Volume"].round(0).astype('int')
+            df["Volume"] = yfcu.safe_int(df["Volume"])
 
         # Drop 'Adj Close', replace with scaling factors:
         df = df.drop("Adj Close", axis=1)

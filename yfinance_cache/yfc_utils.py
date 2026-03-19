@@ -10,6 +10,11 @@ import pandas as pd
 from . import yfc_dat as yfcd
 
 
+def safe_int(series: pd.Series) -> pd.Series:
+    """Round to integer values, mapping inf to NaN. Returns float64 to preserve NaN."""
+    return series.replace([np.inf, -np.inf], np.nan).round(0)
+
+
 class CustomNanCheckingDataFrame(pd.DataFrame):
     def __init__(self, *args, **kwargs):
         super(CustomNanCheckingDataFrame, self).__init__(*args, **kwargs)
