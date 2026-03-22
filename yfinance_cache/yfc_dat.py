@@ -10,6 +10,99 @@ yf_data_cols = yf_price_data_cols+['Volume', 'Dividends', 'Stock Splits']
 yf_min_year = 1950
 
 
+class ComparableRelativedelta(relativedelta):
+    def _have_same_attributes(self, other):
+        attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
+
+        for a in attrs:
+            if getattr(self, a, 0) == 0:
+                if getattr(other, a, 0) != 0:
+                    return False
+        return True
+
+    def __str__(self):
+        s = ''
+
+        a = 'years'
+        x = getattr(self, a, 0)
+        if x != 0:
+            s += f'{x}y'
+
+        a = 'months'
+        x = getattr(self, a, 0)
+        if x != 0:
+            s += f'{x}mo'
+
+        a = 'days'
+        x = getattr(self, a, 0)
+        if x != 0:
+            s += f'{x}d'
+
+        a = 'hours'
+        x = getattr(self, a, 0)
+        if x != 0:
+            s += f'{x}h'
+
+        a = 'minutes'
+        x = getattr(self, a, 0)
+        if x != 0:
+            s += f'{x}m'
+
+        if s == '':
+            s = '0'
+
+        return s
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other):
+        if isinstance(other, relativedelta):
+            attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
+            return all(getattr(self, attr, 0) == getattr(other, attr, 0) for attr in attrs)
+
+        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} == {type(other)}={other}')
+
+    def __lt__(self, other):
+        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
+            return other.__gt__(self)
+
+        elif isinstance(other, (relativedelta, timedelta)):
+            reference_date = date(2000, 1, 1)
+            result_date_self = reference_date + self
+            result_date_other = reference_date + other
+
+            if not self._have_same_attributes(other):
+                if abs(result_date_self - result_date_other) < timedelta(days=7):
+                    raise AmbiguousComparisonException(self, other, '<')
+
+            return result_date_self < result_date_other
+
+        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} < {type(other)}={other}')
+
+    def __le__(self, other):
+        return self < other
+
+    def __gt__(self, other):
+        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
+            return other.__lt__(self)
+
+        elif isinstance(other, (relativedelta, timedelta)):
+            reference_date = date(2000, 1, 1)
+            result_date_self = reference_date + self
+            result_date_other = reference_date + other
+
+            if not self._have_same_attributes(other):
+                if abs(result_date_self - result_date_other) < timedelta(days=7):
+                    raise AmbiguousComparisonException(self, other, '>')
+
+            return result_date_self > result_date_other
+        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} > {type(other)}={other}')
+
+    def __ge__(self, other):
+        return self > other
+
+
 class Period(Enum):
     Days1 = 0
     Days5 = 1
@@ -36,17 +129,17 @@ periodStrToEnum = {v: k for k, v in periodToString.items()}
 periodToTimedelta = {}
 periodToTimedelta[Period.Days1] = timedelta(days=1)
 periodToTimedelta[Period.Days5] = timedelta(days=7)
-periodToTimedelta[Period.Months1] = relativedelta(months=1)
-periodToTimedelta[Period.Months3] = relativedelta(months=3)
-periodToTimedelta[Period.Months6] = relativedelta(months=6)
-periodToTimedelta[Period.Years1] = relativedelta(years=1)
-periodToTimedelta[Period.Years2] = relativedelta(years=2)
-periodToTimedelta[Period.Years5] = relativedelta(years=5)
+periodToTimedelta[Period.Months1] = ComparableRelativedelta(months=1)
+periodToTimedelta[Period.Months3] = ComparableRelativedelta(months=3)
+periodToTimedelta[Period.Months6] = ComparableRelativedelta(months=6)
+periodToTimedelta[Period.Years1] = ComparableRelativedelta(years=1)
+periodToTimedelta[Period.Years2] = ComparableRelativedelta(years=2)
+periodToTimedelta[Period.Years5] = ComparableRelativedelta(years=5)
 
 
-# Months3 = 0
-# Months1 = 2
 class Interval(Enum):
+    Months3 = 0
+    Months1 = 2
     Week = 5
     Days1 = 10
     Hours1 = 20
@@ -68,8 +161,8 @@ intervalToString[Interval.Mins90] = "90m"
 intervalToString[Interval.Hours1] = "1h"
 intervalToString[Interval.Days1] = "1d"
 intervalToString[Interval.Week] = "1wk"
-# intervalToString[Interval.Months1] = "1mo"
-# intervalToString[Interval.Months3] = "3mo"
+intervalToString[Interval.Months1] = "1mo"
+intervalToString[Interval.Months3] = "3mo"
 intervalStrToEnum = {v: k for k, v in intervalToString.items()}
 intervalToTimedelta = {}
 intervalToTimedelta[Interval.Mins1] = timedelta(minutes=1)
@@ -82,8 +175,8 @@ intervalToTimedelta[Interval.Mins90] = timedelta(minutes=90)
 intervalToTimedelta[Interval.Hours1] = timedelta(hours=1)
 intervalToTimedelta[Interval.Days1] = timedelta(days=1)
 intervalToTimedelta[Interval.Week] = timedelta(days=7)
-# intervalToTimedelta[Interval.Months1] = relativedelta(months=1)
-# intervalToTimedelta[Interval.Months3] = relativedelta(months=3)
+intervalToTimedelta[Interval.Months1] = relativedelta(months=1)
+intervalToTimedelta[Interval.Months3] = relativedelta(months=3)
 
 
 exchangeToXcalExchange = {}
@@ -152,7 +245,7 @@ exchangeToXcalExchange["MEX"] = "XMEX"  # Mexico
 exchangeToXcalExchange["JPX"] = "JPX"   # Tokyo
 exchangeToXcalExchange['OSA'] = exchangeToXcalExchange["JPX"]  # Osaka. Not in xcal so assume
 exchangeToXcalExchange['SHZ'] = 'XSHG'  # Shenzen
-exchangeToXcalExchange['SSH'] = 'XSHG'  # Shanghai
+exchangeToXcalExchange['SHH'] = 'XSHG'  # Shanghai
 exchangeToXcalExchange["TAI"] = "XTAI"  # Taiwan
 exchangeToXcalExchange["TWO"] = "XTAI"  # Taipai OTC, Taiwan. Closes 5 minutes before TWSE, otherwise same.
 exchangeToXcalExchange["KSC"] = "XKRX"  # Korea
@@ -241,6 +334,7 @@ exchangeToYfLag["MEX"] = timedelta(minutes=20)
 exchangeToYfLag["JPX"] = timedelta(minutes=20)
 exchangeToYfLag["OSA"] = timedelta(minutes=30)
 exchangeToYfLag["SHZ"] = timedelta(minutes=30)
+exchangeToYfLag["SHH"] = timedelta(minutes=30)
 exchangeToYfLag["TAI"] = timedelta(minutes=20)
 exchangeToYfLag["TWO"] = timedelta(minutes=20)
 exchangeToYfLag["KSC"] = timedelta(minutes=20)
@@ -300,8 +394,8 @@ yfMaxFetchRange[Interval.Mins60] = timedelta(days=730)
 yfMaxFetchRange[Interval.Hours1] = timedelta(days=730)
 yfMaxFetchRange[Interval.Days1] = None
 yfMaxFetchRange[Interval.Week] = None
-# yfMaxFetchRange[Interval.Months1] = None
-# yfMaxFetchRange[Interval.Months3] = None
+yfMaxFetchRange[Interval.Months1] = None
+yfMaxFetchRange[Interval.Months3] = None
 
 yfMaxFetchLookback = {}
 yfMaxFetchLookback[Interval.Mins1] = timedelta(days=30)
@@ -314,14 +408,14 @@ yfMaxFetchLookback[Interval.Mins60] = timedelta(days=730)
 yfMaxFetchLookback[Interval.Hours1] = timedelta(days=730)
 yfMaxFetchLookback[Interval.Days1] = None
 yfMaxFetchLookback[Interval.Week] = None
-# yfMaxFetchLookback[Interval.Months1] = None
-# yfMaxFetchLookback[Interval.Months3] = None
+yfMaxFetchLookback[Interval.Months1] = None
+yfMaxFetchLookback[Interval.Months3] = None
 
 listing_date_check_tols = {}
 listing_date_check_tols[Interval.Days1] = timedelta(days=7)
 listing_date_check_tols[Interval.Week] = timedelta(days=14)
-# listing_date_check_tols[Interval.Months1] = timedelta(days=35)
-# listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
+listing_date_check_tols[Interval.Months1] = timedelta(days=35)
+listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
 from multiprocessing import Manager, current_process, Lock
@@ -613,99 +707,6 @@ def uniform_prob_lt(X, Y):
 
     # Unexpected scenario
     raise ValueError(f"Unexpected scenario: X={X}, Y={Y}")
-
-
-class ComparableRelativedelta(relativedelta):
-    def _have_same_attributes(self, other):
-        attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
-
-        for a in attrs:
-            if getattr(self, a, 0) == 0:
-                if getattr(other, a, 0) != 0:
-                    return False
-        return True
-
-    def __str__(self):
-        s = ''
-
-        a = 'years'
-        x = getattr(self, a, 0)
-        if x != 0:
-            s += f'{x}y'
-
-        a = 'months'
-        x = getattr(self, a, 0)
-        if x != 0:
-            s += f'{x}mo'
-
-        a = 'days'
-        x = getattr(self, a, 0)
-        if x != 0:
-            s += f'{x}d'
-
-        a = 'hours'
-        x = getattr(self, a, 0)
-        if x != 0:
-            s += f'{x}h'
-
-        a = 'minutes'
-        x = getattr(self, a, 0)
-        if x != 0:
-            s += f'{x}m'
-
-        if s == '':
-            s = '0'
-
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __eq__(self, other):
-        if isinstance(other, relativedelta):
-            attrs = ['years', 'months', 'days', 'leapdays', 'hours', 'minutes', 'seconds', 'microseconds', 'year', 'month', 'day', 'weekday']
-            return all(getattr(self, attr, 0) == getattr(other, attr, 0) for attr in attrs)
-
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} == {type(other)}={other}')
-
-    def __lt__(self, other):
-        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
-            return other.__gt__(self)
-
-        elif isinstance(other, (relativedelta, timedelta)):
-            reference_date = date(2000, 1, 1)
-            result_date_self = reference_date + self
-            result_date_other = reference_date + other
-
-            if not self._have_same_attributes(other):
-                if abs(result_date_self - result_date_other) < timedelta(days=7):
-                    raise AmbiguousComparisonException(self, other, '<')
-
-            return result_date_self < result_date_other
-
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} < {type(other)}={other}')
-
-    def __le__(self, other):
-        return self < other
-
-    def __gt__(self, other):
-        if isinstance(other, (TimedeltaEstimate, TimedeltaRangeEstimate)):
-            return other.__lt__(self)
-
-        elif isinstance(other, (relativedelta, timedelta)):
-            reference_date = date(2000, 1, 1)
-            result_date_self = reference_date + self
-            result_date_other = reference_date + other
-
-            if not self._have_same_attributes(other):
-                if abs(result_date_self - result_date_other) < timedelta(days=7):
-                    raise AmbiguousComparisonException(self, other, '>')
-
-            return result_date_self > result_date_other
-        raise NotImplementedError(f'Not implemented ComparableRelativedelta={self} > {type(other)}={other}')
-
-    def __ge__(self, other):
-        return self > other
 
 
 class TimedeltaEstimate():
@@ -1332,7 +1333,7 @@ class DateRange():
         raise NotImplementedError(f'Not implemented {self} += {type(other)}={other}')
 
     def __add__(self, other):
-        if isinstance(other, timedelta):
+        if isinstance(other, (timedelta, ComparableRelativedelta)):
             return DateRange(self.start+other, self.end+other)
         elif isinstance(other, TimedeltaEstimate):
             return DateRangeEstimate(self.start+other.td, self.end+other.td, other.confidence)
@@ -1342,6 +1343,10 @@ class DateRange():
         return self.__add__(other)
 
     def __isub__(self, other):
+        if isinstance(other, timedelta):
+            self.start - other
+            self.end - other
+            return self
         raise NotImplementedError(f'Not implemented {self} -= {type(other)}={other}')
 
     def __sub__(self, other):
@@ -1353,7 +1358,7 @@ class DateRange():
             return TimedeltaRangeEstimate(self.start - other.date, self.end - other.date, other.confidence)
         elif isinstance(other, DateRangeEstimate):
             return TimedeltaRangeEstimate(self.start - other.end, self.end - other.start, other.confidence)
-        elif isinstance(other, timedelta):
+        elif isinstance(other, (timedelta, ComparableRelativedelta)):
             return DateRange(self.start - other, self.end - other)
         raise NotImplementedError(f'Not implemented {self} - {type(other)}={other}')
 

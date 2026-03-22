@@ -242,7 +242,11 @@ class Ticker:
 
         # t1_setup = perf_counter()
 
-        hist = self._histories_manager.GetHistory(interval)
+        # hist = self._histories_manager.GetHistory(interval)
+        if interval in [yfcd.Interval.Week, yfcd.Interval.Months1, yfcd.Interval.Months3]:
+            hist = self._histories_manager.GetHistory(yfcd.Interval.Days1)
+        else:
+            hist = self._histories_manager.GetHistory(interval)
         if period is not None:
             h = hist.get(start=None, end=None, period=period, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         elif interday:
@@ -251,6 +255,24 @@ class Ticker:
             h = hist.get(start_dt, end_dt, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
             return pd.DataFrame()
+        if interval == yfcd.Interval.Week:
+            h2 = yfcu.resample_1d_prices(h, '1wk')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
+        elif interval == yfcd.Interval.Months1:
+            h2 = yfcu.resample_1d_prices(h, '1mo')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
+        elif interval == yfcd.Interval.Months3:
+            h2 = yfcu.resample_1d_prices(h, '3mo')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
 
         # t2_sync = perf_counter()
 

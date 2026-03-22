@@ -347,6 +347,40 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
     return groups
 
 
+
+def resample_1d_prices(df, target_interval):
+    offset = None
+    if target_interval == '1wk':
+        resample_period = 'W-MON'
+    elif target_interval == '5d':
+        resample_period = '5D'
+    elif target_interval == '1mo':
+        resample_period = 'MS'
+    elif target_interval == '3mo':
+        resample_period = 'QS'
+        align_month = _datetime.datetime.now().strftime('%b').upper()
+        resample_period = f"QS-{align_month}"
+    else:
+        raise Exception(f"Not implementing resampling to interval '{target_interval}'")
+    resample_map = {
+        'Open': 'first', 'Low': 'min', 'High': 'max', 'Close': 'last',
+        'Volume': 'sum', 'Dividends': 'sum', 'Stock Splits': 'prod',
+        'CSF': 'prod', 'CDF': 'prod', 'Repaired?': 'any', 'Final?': 'all'
+        }
+    if 'Adj Close' in df.columns:
+        resample_map['Adj Close'] = resample_map['Close']
+    if 'FetchDate' in df.columns:
+        resample_map['FetchDate'] = 'max'
+    for c in df.columns:
+        if c not in resample_map.keys():
+            raise Exception(f'resample_map.keys() missing: {c}')
+    df.loc[df['Stock Splits']==0.0, 'Stock Splits'] = 1.0
+    df2 = df.resample(resample_period, label='left', closed='left', offset=offset).agg(resample_map)
+    df2.loc[df2['Stock Splits']==1.0, 'Stock Splits'] = 0.0
+    return df2
+
+
+
 def VerifyPricesDf(h, df_yf, interval, rtol=0.0001, vol_rtol=0.005, exit_first_error=False, quiet=False, debug=False):
     if df_yf.empty:
         raise Exception("VerifyPricesDf() has been given empty df_yf")
