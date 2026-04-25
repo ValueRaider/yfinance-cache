@@ -50,8 +50,10 @@ def download(tickers,
     if threads:
         if threads is True:
             threads = multiprocessing.cpu_count()
+        manager = yfcd.get_manager()
+        exchange_locks = yfcd.get_exchange_locks()
         if progress:
-            queue = yfcd.get_manager().Queue()
+            queue = manager.Queue()
             partial_func = partial(download_one_parallel, queue=queue, 
                                     period=period, interval=interval,
                                     max_age=max_age,
@@ -59,7 +61,7 @@ def download(tickers,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchange_locks,)) as pool:
+            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(exchange_locks,)) as pool:
                 result_async = pool.map_async(partial_func, tickers)
 
                 if have_tqdm:
@@ -83,7 +85,7 @@ def download(tickers,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads) as pool:
+            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(exchange_locks,)) as pool:
                 results = pool.map(partial_func, tickers)
         dfs = {tickers[i]:results[i] for i in range(len(tickers))}
     else:

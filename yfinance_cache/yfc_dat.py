@@ -423,30 +423,30 @@ import threading
 
 _manager = None
 _manager_lock = threading.Lock()
+_exchange_locks_lock = threading.Lock()
 
 def get_manager():
     global _manager
+    if current_process().name != 'MainProcess':
+        return None
+
     with _manager_lock:
         if _manager is None:
-            if current_process().name == 'MainProcess':
-                _manager = Manager()
-            else:
-                # For non-main processes, use threading locks instead
-                return None
+            _manager = Manager()
         return _manager
 
-# Initialize exchange_locks with thread locks by default
-exchange_locks = {e:Lock() for e in exchangeToXcalExchange.keys()}
+# Lazily create multiprocessing locks, to avoid annoying warning during init.
+exchange_locks = None
 
-# Only use Manager locks in main process
-if current_process().name == 'MainProcess':
-    try:
-        manager = get_manager()
-        if manager is not None:
-            exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
-    except Exception as e:
-        # Fallback to thread locks if Manager fails
-        print(f"Warning: Failed to initialize Manager locks: {e}")
+def get_exchange_locks():
+    global exchange_locks
+
+    with _exchange_locks_lock:
+        if exchange_locks is None:
+            manager = get_manager()
+            lock_factory = Lock if manager is None else manager.Lock
+            exchange_locks = {e:lock_factory() for e in exchangeToXcalExchange.keys()}
+        return exchange_locks
 
     
 class Financials(Enum):
