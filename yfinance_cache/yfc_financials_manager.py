@@ -1106,6 +1106,8 @@ class FinancialsManager:
                 # Drop dates that occurred just before another
                 edf = edf.sort_index(ascending=True)
                 d = edf.index.to_series().diff().dt.days.to_numpy()
+                if not d.flags.writeable:
+                    d = d.copy()
                 d[0] = 999
                 d = np.roll(d, -1)
                 x_near = np.abs(d) <= 8.0
