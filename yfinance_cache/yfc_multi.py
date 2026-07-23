@@ -9,8 +9,12 @@ from . import yfc_ticker
 from . import yfc_utils as yfcu
 from . import yfc_dat as yfcd
 
-def reinitialize_locks(locks):
-    yfcd.exchange_locks = locks
+_progress_queue = None
+
+def reinitialize_locks(locks, progress_queue=None):
+    global _progress_queue
+    yfcd.set_exchange_locks(locks)
+    _progress_queue = progress_queue
 
 def download(tickers,
             threads=True, ignore_tz=None, 
@@ -50,16 +54,21 @@ def download(tickers,
     if threads:
         if threads is True:
             threads = multiprocessing.cpu_count()
+        # Make every multiprocessing primitive from the same context.  This
+        # respects both the platform default and any start method selected by
+        # the application (spawn, forkserver, or fork).
+        ctx = multiprocessing.get_context()
+        locks = {e: ctx.Lock() for e in yfcd.exchangeToXcalExchange}
         if progress:
-            queue = yfcd.get_manager().Queue()
-            partial_func = partial(download_one_parallel, queue=queue, 
+            queue = ctx.Queue()
+            partial_func = partial(download_one_parallel,
                                     period=period, interval=interval,
                                     max_age=max_age,
                                     start=start, end=end, prepost=prepost,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads, initializer=reinitialize_locks, initargs=(yfcd.exchange_locks,)) as pool:
+            with ctx.Pool(processes=threads, initializer=reinitialize_locks, initargs=(locks, queue)) as pool:
                 result_async = pool.map_async(partial_func, tickers)
 
                 if have_tqdm:
@@ -83,7 +92,7 @@ def download(tickers,
                                     actions=actions, adjust_divs=adjust_divs,
                                     adjust_splits=adjust_splits, keepna=keepna,
                                     rounding=rounding, session=session)
-            with multiprocessing.Pool(processes=threads) as pool:
+            with ctx.Pool(processes=threads, initializer=reinitialize_locks, initargs=(locks,)) as pool:
                 results = pool.map(partial_func, tickers)
         dfs = {tickers[i]:results[i] for i in range(len(tickers))}
     else:
@@ -156,7 +165,7 @@ def reindex_dfs(dfs, ignore_tz):
         dfs[key] = df.reindex(idx)
 
 
-def download_one_parallel(ticker, queue, start=None, end=None, max_age=None,
+def download_one_parallel(ticker, start=None, end=None, max_age=None,
                   adjust_divs=True, adjust_splits=True,
                   actions=False, period="max", interval="1d",
                   prepost=False, rounding=False,
@@ -167,11 +176,11 @@ def download_one_parallel(ticker, queue, start=None, end=None, max_age=None,
                       actions=actions, period=period, interval=interval,
                       prepost=prepost, rounding=rounding,
                       keepna=keepna, session=session)
-        queue.put(('success', 0))
+        _progress_queue.put(('success', 0))
         return df
     except Exception as e:
         tb = traceback.format_exception(type(e), e, e.__traceback__)
-        queue.put(('error', (e, ''.join(tb))))
+        _progress_queue.put(('error', (e, ''.join(tb))))
         return e
 
 

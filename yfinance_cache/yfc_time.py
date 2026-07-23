@@ -34,9 +34,9 @@ def SetExchangeTzName(exchange, tz):
     yfcu.TypeCheckStr(exchange, "exchange")
     yfcu.TypeCheckStr(tz, "tz")
 
-    if exchange not in yfcd.exchange_locks:
+    if not yfcd.has_exchange_lock(exchange):
         raise Exception(f"Need to add mapping of exchange {exchange} to xcal")
-    exchange_lock = yfcd.exchange_locks[exchange]
+    exchange_lock = yfcd.get_exchange_lock(exchange)
     with exchange_lock:
         tzc = yfcm.ReadCacheDatum("exchange-"+exchange, "tz")
         if tzc is not None:
@@ -210,7 +210,7 @@ def GetCalendarViaCache(exchange, start, end=None):
 
     cal = None
 
-    exchange_lock = yfcd.exchange_locks[exchange]
+    exchange_lock = yfcd.get_exchange_lock(exchange)
 
     def _customModSchedule(cal):
         tz = ZoneInfo(GetExchangeTzName(exchange))

@@ -418,35 +418,27 @@ listing_date_check_tols[Interval.Months1] = timedelta(days=35)
 listing_date_check_tols[Interval.Months3] = timedelta(days=35*3)
 
 
-from multiprocessing import Manager, current_process, Lock
 import threading
 
-_manager = None
-_manager_lock = threading.Lock()
+# Normal ticker operations only need to coordinate threads in this process.
+# In particular, do not create multiprocessing primitives here: this module can
+# be imported while a spawn/forkserver child is bootstrapping.  yfc_multi
+# replaces these locks in pool workers with locks made by the pool's context.
+exchange_locks = {e: threading.Lock() for e in exchangeToXcalExchange}
+_exchange_locks_lock = threading.Lock()
 
-def get_manager():
-    global _manager
-    with _manager_lock:
-        if _manager is None:
-            if current_process().name == 'MainProcess':
-                _manager = Manager()
-            else:
-                # For non-main processes, use threading locks instead
-                return None
-        return _manager
+def has_exchange_lock(exchange):
+    return exchange in exchangeToXcalExchange
 
-# Initialize exchange_locks with thread locks by default
-exchange_locks = {e:Lock() for e in exchangeToXcalExchange.keys()}
+def get_exchange_lock(exchange):
+    if not has_exchange_lock(exchange):
+        raise KeyError(exchange)
+    return exchange_locks[exchange]
 
-# Only use Manager locks in main process
-if current_process().name == 'MainProcess':
-    try:
-        manager = get_manager()
-        if manager is not None:
-            exchange_locks = {e:manager.Lock() for e in exchangeToXcalExchange.keys()}
-    except Exception as e:
-        # Fallback to thread locks if Manager fails
-        print(f"Warning: Failed to initialize Manager locks: {e}")
+def set_exchange_locks(locks):
+    global exchange_locks
+    with _exchange_locks_lock:
+        exchange_locks = locks
 
     
 class Financials(Enum):
