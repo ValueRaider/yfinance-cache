@@ -364,7 +364,7 @@ def resample_1d_prices(df, target_interval):
         raise Exception(f"Not implementing resampling to interval '{target_interval}'")
     resample_map = {
         'Open': 'first', 'Low': 'min', 'High': 'max', 'Close': 'last',
-        'Volume': 'sum', 'Dividends': 'sum', 'Stock Splits': 'prod',
+        'Volume': 'sum', 'Dividends': 'sum', 'Capital Gains': 'sum', 'Stock Splits': 'prod',
         'CSF': 'prod', 'CDF': 'prod', 'Repaired?': 'any', 'Final?': 'all'
         }
     if 'Adj Close' in df.columns:
