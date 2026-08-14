@@ -157,17 +157,17 @@ def JoinTwoXcals(cal1, cal2):
         sort_indices = cal12.schedule.index.argsort()
 
         # Apply
-        cal12.schedule = cal12.schedule.iloc[sort_indices]
-        cal12._opens = cal12._opens[sort_indices] if cal12._opens is not None else None
-        cal12._break_starts = cal12._break_starts[sort_indices] if cal12._break_starts is not None else None
-        cal12._break_ends = cal12._break_ends[sort_indices] if cal12._break_ends is not None else None
-        cal12._closes = cal12._closes[sort_indices] if cal12._closes is not None else None
-        cal12.opens_nanos = cal12.opens_nanos[sort_indices] if cal12.opens_nanos is not None else None
-        cal12.break_starts_nanos = cal12.break_starts_nanos[sort_indices] if cal12.break_starts_nanos is not None else None
-        cal12.break_ends_nanos = cal12.break_ends_nanos[sort_indices] if cal12.break_ends_nanos is not None else None
-        cal12.closes_nanos = cal12.closes_nanos[sort_indices] if cal12.closes_nanos is not None else None
-        cal12._late_opens = cal12._late_opens[sort_indices] if cal12._late_opens is not None else None
-        cal12._early_closes = cal12._early_closes[sort_indices] if cal12._early_closes is not None else None
+        cal12.schedule           = cal12.schedule.iloc[sort_indices]
+        cal12._opens             = cal12._opens[sort_indices]
+        cal12._break_starts      = cal12._break_starts[sort_indices]
+        cal12._break_ends        = cal12._break_ends[sort_indices]
+        cal12._closes            = cal12._closes[sort_indices]
+        cal12.opens_nanos        = cal12.opens_nanos[sort_indices]
+        cal12.break_starts_nanos = cal12.break_starts_nanos[sort_indices]
+        cal12.break_ends_nanos   = cal12.break_ends_nanos[sort_indices]
+        cal12.closes_nanos       = cal12.closes_nanos[sort_indices]
+        cal12._late_opens        = cal12._late_opens[sort_indices]        if cal12._late_opens else []
+        cal12._early_closes      = cal12._early_closes[sort_indices]      if cal12._early_closes else []
 
     return cal12
 
