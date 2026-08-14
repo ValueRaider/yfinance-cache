@@ -111,13 +111,14 @@ class Ticker:
                 raise Exception(f"Need to add mapping of exchange {exchange} to xcal (ticker={self._ticker})")
             else:
                 raise
-        dt_now = pd.Timestamp.utcnow()
+        dt_now = pd.Timestamp.now("UTC")
 
         # Type checks
         if max_age is not None:
             if isinstance(max_age, str):
                 if max_age.endswith("wk"):
                     max_age = re.sub("wk$", "w", max_age)
+                max_age = re.sub("d$", "D", max_age)
                 max_age = pd.Timedelta(max_age)
             if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
                 raise Exception("Argument 'max_age' must be Timedelta or equivalent string")
@@ -125,6 +126,7 @@ class Ticker:
             if start is not None or end is not None:
                 raise Exception("Don't set both 'period' and 'start'/'end'' arguments")
             if isinstance(period, str):
+                period = period.lower()
                 if period in ["max", "ytd"]:
                     period = yfcd.periodStrToEnum[period]
                 else:
@@ -135,6 +137,8 @@ class Ticker:
                     elif period.endswith("mo"):
                         period = relativedelta(months=int(re.sub("mo", "", period)))
                     else:
+                        if period.endswith('d'):
+                            period = period.replace('d', 'D')
                         period = pd.Timedelta(period)
             if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
                 raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(period)}")
@@ -543,11 +547,13 @@ class Ticker:
 
     def get_attribute(self, name, max_age=None, merge=False, metadata=False):
         if max_age is None:
-            max_age = pd.Timedelta('365d')
-        if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
-            max_age = pd.Timedelta(max_age)
-        if max_age < pd.Timedelta(0):
-            raise Exception(f"'max_age' must be positive timedelta not {max_age}")
+            max_age = pd.Timedelta('365D')
+        else:
+            if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+                max_age = re.sub("d$", "D", max_age)
+                max_age = pd.Timedelta(max_age)
+            if max_age < pd.Timedelta(0):
+                raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
         if name in self._attributes:
             a = self._attributes[name]
@@ -689,15 +695,17 @@ class Ticker:
 
         return self._fast_info
 
-    def get_shares(self, start=None, end=None, max_age='30d'):
+    def get_shares(self, start=None, end=None, max_age='30D'):
         debug = False
         # debug = True
 
-        max_age = pd.Timedelta(max_age)
+        if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = re.sub("d$", "D", max_age)
+            max_age = pd.Timedelta(max_age)
 
         # Process dates
         exchange, tz, lday = self._getExchangeAndTzAndListingDay()
-        dt_now = pd.Timestamp.utcnow().tz_convert(tz)
+        dt_now = pd.Timestamp.now("UTC").tz_convert(tz)
         if start is not None:
             start_dt, start_d = self._process_user_dt(start)
             start = start_d
@@ -728,7 +736,7 @@ class Ticker:
                 self._shares = self._fetch_shares(start, end)
                 if self._shares is None:
                     self._shares = pd.DataFrame()
-                yfcm.StoreCacheDatum(self._ticker, "shares", self._shares, metadata={'LastFetch':pd.Timestamp.utcnow().tz_convert(tz)})
+                yfcm.StoreCacheDatum(self._ticker, "shares", self._shares, metadata={'LastFetch':pd.Timestamp.now("UTC").tz_convert(tz)})
                 if self._shares.empty:
                     return None
             else:
@@ -756,14 +764,14 @@ class Ticker:
         if (not yfcm._option_manager.session.offline) and do_fetch and \
             (start < self._shares.index[0].date()):
             df_pre = self._fetch_shares(start, self._shares.index[0])
-            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
+            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.now("UTC").tz_convert(tz))
             if df_pre is not None:
                 self._shares = pd.concat([df_pre, self._shares])
         if (not yfcm._option_manager.session.offline) and do_fetch and \
             (end-td_1d) > self._shares.index[-1].date() and \
             (end - self._shares.index[-1].date()) > max_age:
             df_post = self._fetch_shares(self._shares.index[-1] + td_1d, end)
-            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.utcnow().tz_convert(tz))
+            yfcm.WriteCacheMetadata(self._ticker, "shares", 'LastFetch', pd.Timestamp.now("UTC").tz_convert(tz))
             if df_post is not None:
                 self._shares = pd.concat([self._shares, df_post])
 
@@ -820,7 +828,7 @@ class Ticker:
             if df.empty:
                 return None
 
-        fetch_dt = pd.Timestamp.utcnow().tz_convert(tz)
+        fetch_dt = pd.Timestamp.now("UTC").tz_convert(tz)
         df = pd.DataFrame(df, columns=['Shares'])
 
         if start_d < df.index[0].date():
@@ -999,6 +1007,7 @@ class Ticker:
         if max_age is None:
             max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
         if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = re.sub("d$", "D", max_age)
             max_age = pd.Timedelta(max_age)
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
@@ -1049,6 +1058,7 @@ class Ticker:
         if max_age is None:
             max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
         if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
+            max_age = re.sub("d$", "D", max_age)
             max_age = pd.Timedelta(max_age)
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")

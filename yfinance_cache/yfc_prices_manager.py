@@ -527,7 +527,7 @@ class PriceHistory:
         yfct.SetExchangeTzName(self.exchange, self.tzName)
         td_1d = timedelta(days=1)
         tz_exchange = ZoneInfo(self.tzName)
-        dt_now = pd.Timestamp.utcnow().tz_convert(tz_exchange)
+        dt_now = pd.Timestamp.now("UTC").tz_convert(tz_exchange)
         d_now_exchange = dt_now.date()
         tomorrow_d = d_now_exchange + td_1d
         if self.interday:
@@ -1341,7 +1341,7 @@ class PriceHistory:
 
         tz_exchange = self.tz
         td_1d = timedelta(days=1)
-        dtnow = pd.Timestamp.utcnow().tz_convert(tz_exchange)
+        dtnow = pd.Timestamp.now("UTC").tz_convert(tz_exchange)
 
         # Backport events that occurred since last adjustment:
         self._applyNewEvents()
@@ -1469,7 +1469,7 @@ class PriceHistory:
         h["Volume"] = (h["Volume"].to_numpy() / h["CSF"].to_numpy()).round().astype('int')
 
         td_1d = pd.Timedelta("1D")
-        dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC"))
 
         def _aggregate_yfdf_daily(df):
             df2 = df.copy()
@@ -1889,7 +1889,7 @@ class PriceHistory:
 
         tz_exchange = self.tz
         td_1d = timedelta(days=1)
-        dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
+        dt_now = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC"))
 
         if self.intraday:
             maxLookback = yfcd.yfMaxFetchLookback[self.interval] - timedelta(seconds=10)
@@ -2069,7 +2069,7 @@ class PriceHistory:
                 if df.index.duplicated().any():
                     raise Exception("df contains duplicated dates")
 
-        fetch_dt_utc = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
+        fetch_dt_utc = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC"))
 
         if (df is not None) and (df.index.tz is not None) and (not isinstance(df.index.tz, ZoneInfo)):
             # Convert to ZoneInfo
@@ -2773,7 +2773,7 @@ class PriceHistory:
         if min_lookback is None:
             min_dt = None
         else:
-            min_dt = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC")) - min_lookback
+            min_dt = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC")) - min_lookback
         if debug:
             print(f"- min_dt={min_dt} interval={self.interval} sub_interval={sub_interval}")
         if min_dt is not None:
@@ -4061,7 +4061,7 @@ class PriceHistory:
         df["CSF"] = csf
         df["CDF"] = cdf
 
-        h_lastDivAdjustDt = pd.Timestamp.utcnow().tz_convert(ZoneInfo("UTC"))
+        h_lastDivAdjustDt = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC"))
         h_lastSplitAdjustDt = h_lastDivAdjustDt
         df["LastDivAdjustDt"] = h_lastDivAdjustDt
         df["LastSplitAdjustDt"] = h_lastSplitAdjustDt
@@ -4211,7 +4211,7 @@ class PriceHistory:
                             # This can happen with recent multiday intervals and that's ok, and will correct manually.
                             f1_oldest_idx = np.where(f1)[0][-1]
                             f1_oldest_dt = self.h.index[f1_oldest_idx]
-                            is_f1_oldest_dt_recent = (pd.Timestamp.utcnow() - f1_oldest_dt) < (1.5*self.itd)
+                            is_f1_oldest_dt_recent = (pd.Timestamp.now("UTC") - f1_oldest_dt) < (1.5*self.itd)
                             if self.interday and self.interval != yfcd.Interval.Days1 and is_f1_oldest_dt_recent:
                                 # Yup, that's what happened
                                 f[f1_oldest_idx:] = False

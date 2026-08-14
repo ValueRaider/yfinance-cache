@@ -200,7 +200,7 @@ def ReadCacheDatum(ticker, objectName, return_metadata_too=False):
         expiry = d["expiry"]   if "expiry"   in d else None
 
         if expiry is not None:
-            dtnow = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            dtnow = pd.Timestamp.now("UTC").replace(tzinfo=ZoneInfo("UTC"))
             if dtnow >= expiry:
                 if verbose:
                     print("Deleting expired datum '{0}/{1}'".format(ticker, objectName))
@@ -238,7 +238,7 @@ def ReadCachePackedDatum(ticker, objectName, return_metadata_too=False):
         expiry = objData["expiry"]   if "expiry"   in objData else None
 
         if expiry is not None:
-            dtnow = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            dtnow = pd.Timestamp.now("UTC").replace(tzinfo=ZoneInfo("UTC"))
             if dtnow >= expiry:
                 if verbose:
                     print("Deleting expired packed datum '{0}/{1}'".format(ticker, objectName))
@@ -275,7 +275,7 @@ def StoreCacheDatum(ticker, objectName, datum, expiry=None, metadata=None):
     if expiry is not None:
         if isinstance(expiry, yfcd.Interval):
             # Convert interval to actual datetime
-            expiry = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
+            expiry = pd.Timestamp.now("UTC").replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
         if not isinstance(expiry, datetime):
             raise Exception("'expiry' must be datetime or yfcd.Interval")
 
@@ -339,7 +339,7 @@ def StoreCachePackedDatum(ticker, objectName, datum, expiry=None, metadata=None)
     if expiry is not None:
         if isinstance(expiry, yfcd.Interval):
             # Convert interval to actual datetime
-            expiry = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
+            expiry = pd.Timestamp.now("UTC").replace(tzinfo=ZoneInfo("UTC")) + yfcd.intervalToTimedelta[expiry]
         if not isinstance(expiry, datetime):
             raise Exception("'expiry' must be datetime or yfcd.Interval")
         if (metadata is not None) and "Expiry" in metadata.keys():

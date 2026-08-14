@@ -8,6 +8,7 @@ from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+pdV = pd.__version__
 import numpy as np
 import exchange_calendars as xcal
 
@@ -95,8 +96,12 @@ def Simple247xcal(opens, closes):
 
     cal._break_starts = None
     cal._break_ends = None
-    cal.break_starts_nanos = cal.schedule['break_start'].values.astype(np.int64)
-    cal.break_ends_nanos = cal.schedule['break_end'].values.astype(np.int64)
+    if pdV.startswith('3'):
+        cal.break_starts_nanos = cal.schedule['break_start'].as_unit('ns').values.astype(np.int64)
+        cal.break_ends_nanos = cal.schedule['break_end'].as_unit('ns').values.astype(np.int64)
+    else:
+        cal.break_starts_nanos = cal.schedule['break_start'].values.astype(np.int64)
+        cal.break_ends_nanos = cal.schedule['break_end'].values.astype(np.int64)
 
     return cal
 
@@ -230,7 +235,10 @@ def GetCalendarViaCache(exchange, start, end=None):
                 closes = df["close"].to_numpy()
                 closes[f] += timedelta(minutes=1)
                 df["close"] = closes
-                cal.closes_nanos = df["close"].values.astype("int64")
+                if pdV.startswith('3'):
+                    cal.closes_nanos = df["close"].as_unit('ns').values.astype(np.int64)
+                else:
+                    cal.closes_nanos = df["close"].values.astype("int64")
         return cal
 
     with exchange_lock:
@@ -238,11 +246,29 @@ def GetCalendarViaCache(exchange, start, end=None):
         if cal_name in calCache:
             cal = calCache[cal_name]
         elif yfcm.IsDatumCached(cache_key, "cal"):
-            cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
-            if xcal.__version__ != md["version"]:
-                cal = None
-            elif ('np version' not in md) or (md['np version'] != np.__version__):
-                cal = None
+            # xcal pickling and loading is very sensitive to versions of np and pd.
+            # (Luckily, not yfinance dataframes)
+            try:
+                cal, md = yfcm.ReadCacheDatum(cache_key, "cal", True)
+            except NotImplementedError as e:
+                if 'datetime64' in str(e) and 'array' in str(e):
+                    # Pandas 2 does not like df pickled with Pandas 3
+                    cal = None
+            except AttributeError as e:
+                if "__nat_unpickle" in str(e):
+                    # Pandas 3 does not like df pickled with Pandas 2
+                    cal = None
+            else:
+                if xcal.__version__ != md["version"]:
+                    cal = None
+                elif ('np version' not in md) or (md['np version'] != np.__version__):
+                    cal = None
+                elif ('pd version' not in md) or (md['pd version'] != pd.__version__):
+                    cal = None
+            if cal is None:
+                # delete from cache
+                md = None
+                yfcm.StoreCacheDatum(cache_key, "cal", None)
 
         # Calculate missing data
         pre_range = None ; post_range = None
@@ -556,7 +582,7 @@ def MapPeriodToDates(exchange, period, interval):
 
     # Map period to start->end range so logic can intelligently fetch missing data
     td_1d = timedelta(days=1)
-    dt_now = pd.Timestamp.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+    dt_now = pd.Timestamp.now("UTC").replace(tzinfo=ZoneInfo("UTC"))
     d_now = dt_now.astimezone(tz_exchange).date()
     sched = GetExchangeSchedule(exchange, d_now-(14*td_1d), d_now+td_1d)
     yf_lag = yfcd.exchangeToYfLag[exchange]
@@ -634,7 +660,7 @@ def GetExchangeScheduleIntervals(exchange, interval, start, end, discardTimes=No
         yfc_logger.debug("GetExchangeScheduleIntervals()")
         yfc_logger.debug("- " + str(locals()))
 
-    dt_now = pd.Timestamp.utcnow()
+    dt_now = pd.Timestamp.now("UTC")
     tz = ZoneInfo(GetExchangeTzName(exchange))
     td_1d = timedelta(days=1)
     if not isinstance(start, datetime):
@@ -1817,7 +1843,7 @@ def IsPriceDatapointExpired(intervalStart, fetch_dt, repaired, max_age, exchange
     if dt_now is not None:
         yfcu.TypeCheckDatetime(dt_now, "dt_now")
     else:
-        dt_now = pd.Timestamp.utcnow().tz_convert(ZoneInfo(GetExchangeTzName(exchange)))
+        dt_now = pd.Timestamp.now("UTC").tz_convert(ZoneInfo(GetExchangeTzName(exchange)))
 
     if yf_lag is not None:
         yfcu.TypeCheckTimedelta(yf_lag, "yf_lag")
