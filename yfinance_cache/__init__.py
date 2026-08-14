@@ -11,7 +11,14 @@ from .yfc_logging import EnableLogging, DisableLogging
 from .yfc_cache_manager import _option_manager as options
 
 
+from .yfc_upgrade import _tidy_upgrade_history
+_tidy_upgrade_history()
+
+from .yfc_upgrade import _recommend_verify
+_recommend_verify()
+
 # Wait for Pandas 3 to be stable, because YFC will have to require Pandas 3.
 # Remember to switch calendars FetchDate to UTC tz
 # from .yfc_upgrade import _migrate_dfs_to_pandas3
 # _migrate_dfs_to_pandas3()
+

@@ -13,7 +13,7 @@ from . import yfc_time as yfct
 
 
 def _tidy_upgrade_history():
-    actions = []
+    actions = ["have-recommended-verify"]
 
     d = yfcm.GetCacheDirpath()
     yfc_dp = os.path.join(d, "_YFC_")
@@ -164,6 +164,66 @@ def fix_timezone_column(df, column_name, target_tz, debug=False):
         import traceback
         traceback.print_exc()
         raise
+
+
+_RECOMMEND_VERIFY = """\
+!!! YFC user: Due to significant improvements to yfinance price repair
+!!! and YFC's handling of price currency, a full verification of cached
+!!! prices is recommended.
+!!!
+!!!     yfc.verify_cached_tickers_prices(correct='all')
+!!!
+!!! This performs substantial yfinance fetching, so run it over a weekend
+!!! if possible.
+!!!
+!!! You can interrupt verification - resume with:
+!!!
+!!!     yfc.verify_cached_tickers_prices(
+!!!         correct='all',
+!!!         resume_from_ticker='AAPL',
+!!!     )
+!!!
+!!! This message stops once you complete a full verification.
+"""
+
+
+def _recommend_verify():
+    d = yfcm.GetCacheDirpath()
+    yfc_dp = os.path.join(d, "_YFC_")
+    state_fp = os.path.join(yfc_dp, "have-recommended-verify")
+    if os.path.isfile(state_fp):
+        return
+    if not os.path.isdir(d):
+        if not os.path.isdir(yfc_dp):
+            os.makedirs(yfc_dp)
+        with open(state_fp, 'w'):
+            pass
+        return
+
+    # print("!!! YFC user: With significant improvements to yfinance price-repair,")
+    # print("!!! and improvements in YFC handling price currency,")
+    # print("!!! I recommend you run a full verification of cached prices.")
+    # print("!!! Because high probability some price data is bad:")
+    # print("")
+    # print("    import yfinance_cache as yfc")
+    # print("    yfc.verify_cached_tickers_prices(correct='all')")
+    # print("")
+    # print("!!! This will do a lot of YF fetching, so probably want to run on weekend.")
+    # print("")
+    # print("!!! You can interrupt the verification and resume with:")
+    # print("")
+    # print("    import yfinance_cache as yfc")
+    # print("    yfc.verify_cached_tickers_prices(correct='all', resume_from_ticker='AAPL')")
+    # print("")
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(_RECOMMEND_VERIFY)
+
+    # if not os.path.isdir(yfc_dp):
+    #     os.makedirs(yfc_dp)
+    # with open(state_fp, 'w'):
+    #     pass
 
 
 def _migrate_dfs_to_pandas3():
