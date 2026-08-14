@@ -10,32 +10,8 @@ from .yfc_multi import download
 from .yfc_logging import EnableLogging, DisableLogging
 from .yfc_cache_manager import _option_manager as options
 
-from .yfc_upgrade import _tidy_upgrade_history
-_tidy_upgrade_history()
 
-from .yfc_upgrade import _fix_prices_final_again, _reset_cached_cals_again, _reset_CCY_cal
-_fix_prices_final_again()
-_reset_cached_cals_again()
-_reset_CCY_cal()
-
-from .yfc_upgrade import _add_repaired_to_cached_divs
-_add_repaired_to_cached_divs()
-
-from .yfc_upgrade import _fix_24_hour_prices_final
-_fix_24_hour_prices_final()
-
-from .yfc_upgrade import _fix_prices_final_again_x2
-_fix_prices_final_again_x2()
-
-from .yfc_upgrade import _add_unexpected_intervals_to_options
-_add_unexpected_intervals_to_options()
-
-from .yfc_upgrade import _add_event_type_to_earnings_dates
-_add_event_type_to_earnings_dates()
-
-from .yfc_upgrade import _fix_financials_dtypes
-_fix_financials_dtypes()
-
-from .yfc_upgrade import _fix_xcals_being_unordered
-_fix_xcals_being_unordered()
-
+# Wait for Pandas 3 to be stable, because YFC will have to require Pandas 3.
+# Remember to switch calendars FetchDate to UTC tz
+# from .yfc_upgrade import _migrate_dfs_to_pandas3
+# _migrate_dfs_to_pandas3()
