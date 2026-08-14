@@ -761,6 +761,7 @@ class PriceHistory:
                 if len(h_splits) > 0:
                     self.manager.GetHistory("Events").UpdateSplits(h_splits)
 
+            h = h._consolidate()
             self._updatedCachedPrices(h)
 
         elif not offline:
@@ -1040,6 +1041,7 @@ class PriceHistory:
                 else:
                     self.h = ha
                 self.h = self.h.sort_index()
+                self.h = self.h._consolidate()
                 self._updatedCachedPrices(self.h)
 
         # Now prices have been repaired, can send out dividends

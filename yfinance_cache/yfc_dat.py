@@ -188,6 +188,7 @@ exchangeToXcalExchange["PNK"] = exchangeToXcalExchange["NYQ"]  # OTC pink
 exchangeToXcalExchange["OQX"] = exchangeToXcalExchange["NYQ"]  # OTCQX
 exchangeToXcalExchange["OEM"] = exchangeToXcalExchange["NYQ"]  # OTC EXMKT
 exchangeToXcalExchange["OQB"] = exchangeToXcalExchange["NYQ"]  # OTCQB
+exchangeToXcalExchange["OID"] = exchangeToXcalExchange["NYQ"]  # OTCIC
 exchangeToXcalExchange["NCM"] = "NASDAQ"
 exchangeToXcalExchange["NAS"] = exchangeToXcalExchange["NCM"]
 exchangeToXcalExchange["NGM"] = exchangeToXcalExchange["NCM"]
@@ -278,6 +279,7 @@ exchangeToYfLag["PNK"] = timedelta(minutes=15)
 exchangeToYfLag["OQX"] = timedelta(minutes=15)
 exchangeToYfLag["OEM"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["OQB"] = exchangeToYfLag["OQX"]
+exchangeToYfLag["OID"] = exchangeToYfLag["OQX"]
 exchangeToYfLag["NCM"] = exchangeToYfLag["NYQ"]
 exchangeToYfLag["NAS"] = exchangeToYfLag["NCM"]
 exchangeToYfLag["NGM"] = exchangeToYfLag["NCM"]
