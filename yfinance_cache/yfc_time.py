@@ -1223,8 +1223,8 @@ def GetTimestampCurrentInterval_batch(exchange, ts, interval, discardTimes=None,
         intervals["interval_open"] = pd.to_datetime(intervals["interval_open"], utc=True)
         intervals["interval_close"] = pd.to_datetime(intervals["interval_close"], utc=True)
         if f.any():
-            intervals.loc[intervals.index[f], "interval_open"] = tis.left[idx[f]].tz_convert(tz)
-            intervals.loc[intervals.index[f], "interval_close"] = tis.right[idx[f]].tz_convert(tz)
+            intervals.loc[f, "interval_open"] = tis.left[idx[f]].tz_convert(tz).to_numpy()
+            intervals.loc[f, "interval_close"] = tis.right[idx[f]].tz_convert(tz).to_numpy()
         intervals["interval_open"] = pd.to_datetime(intervals["interval_open"])
         intervals["interval_close"] = pd.to_datetime(intervals["interval_close"])
         intervals["interval_open"] = intervals["interval_open"].dt.tz_convert(tz)
