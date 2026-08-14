@@ -13,16 +13,7 @@ from . import yfc_time as yfct
 
 
 def _tidy_upgrade_history():
-    actions = ["have-added-repaired-to-cached-divs",
-                "have-fixed-prices-final-again",
-                "have-reset-xcals-again",
-                "have-reset-ccy-cal",
-                "have-fixed-24h-prices-final",
-                "have-fixed-prices-final-again-x2",
-                "have-added-unexpected-intervals-to-options",
-                "have-added-event-type-to-earnings-dates",
-                "have-fixed-financials-dtypes"
-                ]
+    actions = []
 
     d = yfcm.GetCacheDirpath()
     yfc_dp = os.path.join(d, "_YFC_")
@@ -33,10 +24,152 @@ def _tidy_upgrade_history():
             os.remove(os.path.join(yfc_dp, f))
 
 
-def _add_repaired_to_cached_divs():
+def fix_timezone_column(df, column_name, target_tz, debug=False):
+    """
+    Automatically detect and fix timezone issues in a column.
+    
+    Handles:
+    - Corrupted timezone metadata
+    - Wrong timezone offsets (LMT)
+    - NaT values
+    - Already-correct timezones
+    
+    Returns: Fixed series with correct timezone
+    """
+    
+    if debug:
+        print(f"\n{'='*80}")
+        print(f"Diagnosing column: {column_name}")
+        print(f"{'='*80}")
+    
+    col = df[column_name]
+    
+    # Check 1: What's the dtype?
+    if debug:
+        print(f"dtype: {col.dtype}")
+    
+    # Check 2: Can we access .dt.tz?
+    can_access_dt = False
+    current_tz = None
+    try:
+        current_tz = col.dt.tz
+        can_access_dt = True
+        if debug:
+            print(f"✓ Can access .dt.tz: {current_tz}")
+    except AttributeError as e:
+        if debug:
+            print(f"✗ Cannot access .dt.tz: {e}")
+        can_access_dt = False
+    except Exception as e:
+        if debug:
+            print(f"✗ Error accessing .dt.tz: {type(e).__name__}: {e}")
+        can_access_dt = False
+    
+    # Check 3: Sample a value to see what it looks like
+    first_valid_idx = col.first_valid_index()
+    if first_valid_idx is not None:
+        sample_value = col.loc[first_valid_idx]
+        if debug:
+            print(f"Sample value: {sample_value}")
+            print(f"Sample value type: {type(sample_value)}")
+    else:
+        if debug:
+            print("No valid values found - all NaT")
+        return pd.Series(pd.NaT, index=df.index, dtype=f'datetime64[us, {target_tz}]')
+    
+    # DECISION TREE:
+    
+    # Case 1: .dt works and timezone is already correct
+    if can_access_dt and current_tz is not None:
+        if str(current_tz) == target_tz:
+            if debug:
+                print(f"✓ Already correct timezone: {target_tz}")
+            return col
+        else:
+            # Timezone is accessible but wrong - try simple convert
+            if debug:
+                print(f"Attempting .dt.tz_convert('{target_tz}')...")
+            try:
+                result = col.dt.tz_convert(target_tz)
+                if debug:
+                    print(f"✓ SUCCESS with .dt.tz_convert()")
+                return result
+            except Exception as e:
+                if debug:
+                    print(f"✗ .dt.tz_convert() failed: {e}")
+                    print("Falling through to nuclear option...")
+    
+    # Case 2: .dt doesn't work - nuclear option
+    if debug:
+        print(f"\nUsing nuclear option: rebuild from scratch")
+    
+    # Get the underlying array
+    try:
+        # Try to get values as int64
+        if hasattr(col, 'array'):
+            arr = col.array
+            if hasattr(arr, '_ndarray'):
+                raw_int64 = arr._ndarray.view('int64')
+            else:
+                raw_int64 = col.values.view('int64')
+        else:
+            raw_int64 = col.values.view('int64')
+        
+        if debug:
+            print(f"Extracted raw int64 values")
+            print(f"Sample raw value: {raw_int64[0] if len(raw_int64) > 0 else 'none'}")
+        
+        # Check if values are reasonable for nanoseconds or microseconds
+        sample = raw_int64[0] if len(raw_int64) > 0 else 0
+        
+        # Detect unit based on magnitude
+        # Nanoseconds since epoch: ~1.7e18 for year 2025
+        # Microseconds since epoch: ~1.7e15 for year 2025
+        # Milliseconds since epoch: ~1.7e12 for year 2025
+        
+        abs_sample = abs(sample)
+        
+        if abs_sample > 1e17:
+            unit = 'ns'
+            if debug:
+                print(f"Detected unit: nanoseconds (value ~{abs_sample:.2e})")
+        elif abs_sample > 1e14:
+            unit = 'us'
+            if debug:
+                print(f"Detected unit: microseconds (value ~{abs_sample:.2e})")
+        elif abs_sample > 1e11:
+            unit = 'ms'
+            if debug:
+                print(f"Detected unit: milliseconds (value ~{abs_sample:.2e})")
+        else:
+            unit = 's'
+            if debug:
+                print(f"Detected unit: seconds (value ~{abs_sample:.2e})")
+        
+        # Convert with error handling for invalid values
+        result = pd.to_datetime(raw_int64, unit=unit, errors='coerce')
+        result = pd.Series(result, index=df.index)
+        
+        # Localize to UTC first, then convert
+        result = result.dt.tz_localize('UTC')
+        result = result.dt.tz_convert(target_tz)
+        
+        if debug:
+            print(f"✓ SUCCESS - rebuilt from {unit}")
+        return result
+        
+    except Exception as e:
+        if debug:
+            print(f"✗ Nuclear option failed: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def _migrate_dfs_to_pandas3():
     d = yfcm.GetCacheDirpath()
     yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-added-repaired-to-cached-divs")
+    state_fp = os.path.join(yfc_dp, "have-fixed-df-tz-for-pandas3")
     if os.path.isfile(state_fp):
         return
     if not os.path.isdir(d):
@@ -45,6 +178,8 @@ def _add_repaired_to_cached_divs():
         with open(state_fp, 'w'):
             pass
         return
+
+    debug = False
 
     dp = yfcm.GetCacheDirpath()
     contents = os.listdir(dp)
@@ -57,531 +192,19 @@ def _add_repaired_to_cached_divs():
         with open(state_fp, 'w'):
             pass
         return
+
+    # Somehow, some dataframe timezones are old format.
+    # Ensure they are in modern timezones for Pandas 3.
+
+    # contents = ['BDX']
+    contents = ['COST']
+    debug = True
 
     for d in contents:
+        print(d)
+        dpd = os.path.join(dp, d)
         if d.startswith("exchange-"):
-            pass
-        else:
-            divs_fp = os.path.join(dp, d, f'dividends.pkl')
-            if os.path.isfile(divs_fp):
-                with open(divs_fp, 'rb') as F:
-                    data = pkl.load(F)
-                divs = data['data']
-                divs_modified = False
-
-                if divs.empty:
-                    continue
-
-                if 'Close repaired?' not in divs.columns:
-                    divs['Close repaired?'] = False
-                    divs_modified = True
-                    prices_fp = os.path.join(dp, d, f'history-1d.pkl')
-                    if os.path.isfile(prices_fp):
-                        with open(prices_fp, 'rb') as F:
-                            prices = pkl.load(F)['data']
-                        for dt in divs.index:
-                            if dt not in prices.index:
-                                # must have deleted old prices from cache
-                                idx = -1
-                            else:
-                                idx = prices.index.get_loc(dt)
-                            if idx == 0:
-                                # pass
-                                raise Exception(f'{d}: should have close before {dt}')
-                            elif idx > 1:
-                                divs.loc[dt, 'Close repaired?'] = prices['Repaired?'].iloc[idx-1]
-                else:
-                    f_na = divs['Close repaired?'].isna()
-                    if f_na.any():
-                        divs.loc[f_na, 'Close repaired?'] = False
-                        divs_modified = True
-                        prices_fp = os.path.join(dp, d, f'history-1d.pkl')
-                        if os.path.isfile(prices_fp):
-                            with open(prices_fp, 'rb') as F:
-                                prices = pkl.load(F)['data']
-                            for i in np.where(f_na)[0]:
-                                dt = divs.index[i]
-                                if dt not in prices.index:
-                                    # must have deleted old prices from cache
-                                    idx = -1
-                                else:
-                                    idx = prices.index.get_loc(dt)
-                                if idx == 0:
-                                    # pass
-                                    raise Exception(f'{d}: should have close before {dt}')
-                                elif idx > 1:
-                                    divs.loc[dt, 'Close repaired?'] = prices['Repaired?'].iloc[idx-1]
-                        divs_modified = True
-
-                if divs_modified:
-                    with open(divs_fp, 'wb') as F:
-                        data['data'] = divs
-                        pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _fix_prices_final_again():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-fixed-prices-final-again")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    e = n/680
-    print(f"YFC recalculating 'Final?' column in prices, estimate {e:.1f} minutes to process {n} tickers.")
-
-    try:
-        from tqdm import tqdm
-        iterator = tqdm(range(len(contents)))
-        manual_progress_bar = None
-    except Exception:
-        # Use YF's progress bar
-        iterator = range(len(contents))
-        from yfinance import utils as yf_utils
-        manual_progress_bar = yf_utils.ProgressBar(len(contents))
-    for i in iterator:
-        d = contents[i]
-        if manual_progress_bar is not None:
-            manual_progress_bar.animate()
-
-        if d.startswith("exchange-"):
-            pass
-        else:
-            for i in yfcd.Interval:
-                istr = yfcd.intervalToString[i]
-                prices_fp = os.path.join(dp, d, f'history-{istr}.pkl')
-                if os.path.isfile(prices_fp):
-                    with open(prices_fp, 'rb') as F:
-                        data = pkl.load(F)
-                    h = data['data']
-                    if h is None or h.empty:
-                        continue
-
-                    info = yfcm.ReadCacheDatum(d, 'info')
-                    lastDataDts = yfct.CalcIntervalLastDataDt_batch(info['exchange'], h.index.to_numpy(), i)#, bfill=True)
-                    data_final = h['FetchDate'] >= lastDataDts
-                    if (h["Final?"] != data_final).any():
-                        h["Final?"] = data_final
-                        with open(prices_fp, 'wb') as F:
-                            data['data'] = h
-                            pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _reset_cached_cals_again():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-reset-xcals-again")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    for d in contents:
-        if d.startswith("exchange-"):
-            shutil.rmtree(os.path.join(dp, d))
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _reset_CCY_cal():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-reset-ccy-cal")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    d = 'exchange-CCY'
-    if os.path.isdir(os.path.join(dp, d)):
-        shutil.rmtree(os.path.join(dp, d))
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _fix_24_hour_prices_final():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-fixed-24h-prices-final")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    for d in os.listdir(dp):
-        if d.startswith("exchange-") or d.endswith('.json') or d.startswith('_'):
-            pass
-        else:
-            info_fp = os.path.join(dp, d, f'info.json')
-            info = yfcm._ReadData(d, 'info')['data']
-            if 'exchange' not in info:
-                # not listed probably, skip for now
-                continue
-            exchange = info['exchange']
-            if exchange not in ['CCC', 'CCY']:
-                continue
-
-            for i in yfcd.Interval:
-                istr = yfcd.intervalToString[i]
-                prices_fp = os.path.join(dp, d, f'history-{istr}.pkl')
-                if os.path.isfile(prices_fp):
-                    with open(prices_fp, 'rb') as F:
-                        data = pkl.load(F)
-                    h = data['data']
-                    if h is None or h.empty:
-                        continue
-
-                    info = yfcm.ReadCacheDatum(d, 'info')
-                    lastDataDts = yfct.CalcIntervalLastDataDt_batch(info['exchange'], h.index.to_numpy(), i)#, bfill=True)
-                    data_final = h['FetchDate'] >= lastDataDts
-                    if (h["Final?"] != data_final).any():
-                        h["Final?"] = data_final
-                        with open(prices_fp, 'wb') as F:
-                            data['data'] = h
-                            pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _fix_prices_final_again_x2():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-fixed-prices-final-again-x2")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    e = n/680
-    print(f"YFC recalculating 'Final?' column in prices, estimate {e:.1f} minutes to process {n} tickers.")
-
-    try:
-        from tqdm import tqdm
-        iterator = tqdm(range(len(contents)))
-        manual_progress_bar = None
-    except Exception:
-        # Use YF's progress bar
-        iterator = range(len(contents))
-        from yfinance import utils as yf_utils
-        manual_progress_bar = yf_utils.ProgressBar(len(contents))
-    for i in iterator:
-        d = contents[i]
-        if manual_progress_bar is not None:
-            manual_progress_bar.animate()
-
-        if d.startswith("exchange-"):
-            pass
-        else:
-            for i in yfcd.Interval:
-                istr = yfcd.intervalToString[i]
-                prices_fp = os.path.join(dp, d, f'history-{istr}.pkl')
-                if os.path.isfile(prices_fp):
-                    with open(prices_fp, 'rb') as F:
-                        data = pkl.load(F)
-                    h = data['data']
-                    if h is None or h.empty:
-                        continue
-
-                    info = yfcm.ReadCacheDatum(d, 'info')
-                    tz_key = 'exchangeTimezoneName'
-                    if tz_key not in info:
-                        tz_key = 'timeZoneFullName'
-                    yfct.SetExchangeTzName(info['exchange'], info[tz_key])
-                    lastDataDts = yfct.CalcIntervalLastDataDt_batch(info['exchange'], h.index.to_numpy(), i)#, bfill=True)
-                    data_final = h['FetchDate'] >= lastDataDts
-                    if (h["Final?"] != data_final).any():
-                        h["Final?"] = data_final
-                        with open(prices_fp, 'wb') as F:
-                            data['data'] = h
-                            pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _add_unexpected_intervals_to_options():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-added-unexpected-intervals-to-options")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    o = yfcm._option_manager
-    if 'calendar' not in o:
-        o.calendar.accept_unexpected_Yahoo_intervals = True
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _add_event_type_to_earnings_dates():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-added-event-type-to-earnings-dates")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    r = n/1200
-    print(f"YFC adding 'Event Type' to earnings dates, estimate {round(r):.0f} seconds to process {n} tickers.")
-
-    try:
-        from tqdm import tqdm
-        iterator = tqdm(range(len(contents)))
-        manual_progress_bar = None
-    except Exception:
-        # Use YF's progress bar
-        iterator = range(len(contents))
-        from yfinance import utils as yf_utils
-        manual_progress_bar = yf_utils.ProgressBar(len(contents))
-    for i in iterator:
-        d = contents[i]
-        if manual_progress_bar is not None:
-            manual_progress_bar.animate()
-
-        if d.startswith("exchange-"):
-            pass
-        else:
-            edf_fp = os.path.join(dp, d, 'earnings_dates.pkl')
-            if os.path.isfile(edf_fp):
-                with open(edf_fp, 'rb') as F:
-                    data = pkl.load(F)
-                edf = data['data']
-                if edf is None or edf.empty:
-                    continue
-                c = 'Event Type'
-                edf_changed = False
-                if c not in edf.columns:
-                    edf[c] = 'Earnings'
-                    edf_changed = True
-
-                if edf_changed:
-                    with open(edf_fp, 'wb') as F:
-                        data['data'] = edf
-                        pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _fix_financials_dtypes():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-fixed-financials-dtypes")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    r = n/900
-    print(f"YFC converting cached financials to numeric type, estimate {round(r):.0f} seconds to process {n} tickers.")
-
-    try:
-        from tqdm import tqdm
-        iterator = tqdm(range(len(contents)))
-        manual_progress_bar = None
-    except Exception:
-        # Use YF's progress bar
-        iterator = range(len(contents))
-        from yfinance import utils as yf_utils
-        manual_progress_bar = yf_utils.ProgressBar(len(contents))
-    for i in iterator:
-        d = contents[i]
-        if manual_progress_bar is not None:
-            manual_progress_bar.animate()
-
-        if d.startswith("exchange-"):
-            pass
-        else:
-            for x in ['quarterlys', 'annuals']:
-                fp = os.path.join(dp, d, f'{x}.pkl')
-                if os.path.isfile(fp):
-                    with open(fp, 'rb') as F:
-                        data = pkl.load(F)
-                    for k in data.keys():
-                        data[k]['data'] = data[k]['data'].astype('float')
-                    with open(fp, 'wb') as F:
-                        pkl.dump(data, F, 4)
-
-    if not os.path.isdir(yfc_dp):
-        os.makedirs(yfc_dp)
-    with open(state_fp, 'w'):
-        pass
-
-
-def _fix_xcals_being_unordered():
-    d = yfcm.GetCacheDirpath()
-    yfc_dp = os.path.join(d, "_YFC_")
-    state_fp = os.path.join(yfc_dp, "have-sorted-xcals")
-    if os.path.isfile(state_fp):
-        return
-    if not os.path.isdir(d):
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    dp = yfcm.GetCacheDirpath()
-    contents = os.listdir(dp)
-    contents = [x for x in contents if x not in ['options.json', '_YFC_']]
-
-    n = len(contents)
-    if n == 0:
-        if not os.path.isdir(yfc_dp):
-            os.makedirs(yfc_dp)
-        with open(state_fp, 'w'):
-            pass
-        return
-
-    for d in contents:
-        if d.startswith("exchange-"):
-            xcal_fp = os.path.join(dp, d, "cal.pkl")
+            xcal_fp = os.path.join(dpd, "cal.pkl")
             if os.path.isfile(xcal_fp):
                 # print(xcal_fp)
                 try:
@@ -599,14 +222,170 @@ def _fix_xcals_being_unordered():
                         continue
 
                 xcal = data['data']
-                sched2 = xcal.schedule.sort_index()
-                if (sched2.index != xcal.schedule.index).any():
-                    # Easiest to just delete and let yfc_time.py rebuild.
-                    shutil.rmtree(os.path.join(dp, d))
+                df = xcal.schedule
+                tz = df.index[0].tzinfo
+                index2 = df.index.tz_convert(str(tz))
+                if (index2 != index).any():
+                    xcal.schedule.index = index2
+                    data['data'] = xcal
+                    with open(fp, 'wb') as F:
+                        pkl.dump(data, F, 4)
+
+        else:
+            # handle ticker
+            contents2 = os.listdir(dpd)
+
+            for f in contents2:
+                if not f.endswith('.pkl'):
+                    continue
+                elif f in ['annuals.pkl', 'quarterlys.pkl']:
+                    continue
+
+                if debug:
+                    print("- checking:", f)
+
+                fp = os.path.join(dpd, f)
+                with open(fp, 'rb') as bb:
+                    data = pkl.load(bb)
+                df = data['data']
+                if not isinstance(df, pd.DataFrame):
+                    continue
+                if df.empty:
+                    continue
+
+                changed = False
+
+                if hasattr(df.index[0], 'tzinfo'):
+                    tz = df.index[0].tzinfo
+                    index2 = df.index.tz_convert(str(tz))
+                    # if (index2 != df.index).any():
+                    # shift = index2[0] - df.index[0]
+                    # if shift != pd.Timedelta(0):
+                    if index2.tzinfo != tz:
+                        if debug:
+                            print("- index tz changed")
+                        df.index = index2
+                        changed = True
+                for c in df.columns:
+                    if debug:
+                        print("- - column:", c)
+                    if hasattr(df[c].iloc[0], 'tzinfo'):
+                        # tz = df[c].iloc[0].tzinfo
+                        try:
+                            tz = df[c].dropna().iloc[0].tzinfo
+                        except IndexError as e:
+                            if str(e) == 'single positional indexer is out-of-bounds':
+                                # No true values
+                                continue
+                            else:
+                                raise
+                        if debug:
+                            print("- - - tz:", tz, type(tz))
+                        if tz is None:
+                            # whoops, local system time. Lets get a tz on it
+                            from datetime import datetime
+                            now = datetime.now().astimezone()
+                            tz = str(now.tzinfo)
+                            # print("- - - tz:", tz)
+                            if debug:
+                                print(f"- - '{c}' set missing tz")
+                            try:
+                                df[c] = df[c].dt.tz_localize(tz)
+                                # c2 = df[c].dt.tz_localize(tz)
+                                changed = True
+                            except:
+                                if debug:
+                                    print(df)
+                                raise
+                        else:
+                            dt0 = df[c].iloc[0]
+                            if debug:
+                                print("- - - dt0:", dt0)
+                            try:
+                                c2 = df[c].dt.tz_convert(str(tz))
+                                # print(df[c])
+                                # df[c] = df[c].dt.tz_localize(None).dt.tz_localize('America/New_York')
+                                # print(df[c])
+                                # raise Exception('review')
+                            except AttributeError as e:
+                                if str(e) == "'NoneType' object has no attribute 'timezone'":
+                                    if debug:
+                                        print(f"- - '{c}' tz was corrupt")
+                                        print(df[c])
+                                    # The underlying tz info is corrupt. Rebuild
+                                    # Extract raw int64 values (bypasses ALL timezone logic)
+                                    # # Create naive datetime from raw values
+                                    # # c2 = pd.to_datetime(raw_values, unit='us')
+                                    # c2 = pd.to_datetime(raw_values, unit='us', errors='coerce')
+
+                                    # # raw_values = df[c].values.view('int64')
+                                    # raw_values = df[c].values.view('int64')
+                                    # # Check for valid values
+                                    # nat_mask = raw_values == np.iinfo(np.int64).min
+                                    # min_valid = pd.Timestamp('1677-09-22').value
+                                    # max_valid = pd.Timestamp('2262-04-11').value
+                                    # valid_mask = (raw_values >= min_valid) & (raw_values <= max_valid) & ~nat_mask
+                                    # # Create series, invalid → NaT
+                                    # c2 = pd.Series(pd.NaT, index=df.index, dtype='datetime64[us]')
+                                    # if valid_mask.any():
+                                    #     c2.loc[valid_mask] = pd.to_datetime(raw_values[valid_mask], unit='us')
+
+                                    # # Add clean timezone
+                                    # c2 = c2.tz_localize('UTC')
+                                    # c2 = c2.tz_convert(str(tz))
+                                    # c2 = pd.Series(c2)
+                                    # # print(df[c])
+                                    # print(c2)
+                                    # c2 = pd.Series(c2, index=df.index)
+                                    # print(c2)
+                                    # # df[c] = c2
+                                    # # print(df[c])
+                                    # raise Exception('review corruption fix')
+                                    
+                                    c2 = fix_timezone_column(df, c, str(tz))
+
+                                    # print(c2)
+                                    # raise Exception('review c2')
+
+                                    if debug:
+                                        print("- - corruption fixed")
+                                else:
+                                    raise
+                            # print("# c:") ; print(df[c])
+                            # print("# c2:") ; print(c2)
+                            # if changed or (c2 != df[c]).any():
+                            # shift = df[c].iloc[0] - c2.iloc[0]
+                            # if shift != pd.Timedelta(0):
+                            if debug:
+                                print("- - - checking if tz changed")
+                            if c2.dropna().iloc[0].tzinfo != tz:
+                                if debug:
+                                    print(f"- - '{c}' tz changed")
+                                df[c] = c2
+                                changed = True
+
+                if changed:
+                    if debug:
+                        print("- - changed so writing out")
+                    # print(df)
+                    data['data'] = df
+                    with open(fp, 'wb') as F:
+                        pkl.dump(data, F, 4)
+
+
+            # calendars
+            # earnings_dates
+
+            # shares
+
+            # history-*
+
+    # raise Exception('review')
 
     if not os.path.isdir(yfc_dp):
         os.makedirs(yfc_dp)
     with open(state_fp, 'w'):
         pass
+
 
 #
