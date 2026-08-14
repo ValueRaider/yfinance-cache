@@ -259,24 +259,6 @@ class Ticker:
             h = hist.get(start_dt, end_dt, period=None, max_age=max_age, trigger_at_market_close=trigger_at_market_close, quiet=quiet)
         if (h is None) or h.shape[0] == 0:
             return pd.DataFrame()
-        if interval == yfcd.Interval.Week:
-            h2 = yfcu.resample_1d_prices(h, '1wk')
-            if h2.index[0] < h.index[0]:
-                # Drop first row, not complete
-                h2 = h2.iloc[1:].copy()
-            h = h2
-        elif interval == yfcd.Interval.Months1:
-            h2 = yfcu.resample_1d_prices(h, '1mo')
-            if h2.index[0] < h.index[0]:
-                # Drop first row, not complete
-                h2 = h2.iloc[1:].copy()
-            h = h2
-        elif interval == yfcd.Interval.Months3:
-            h2 = yfcu.resample_1d_prices(h, '3mo')
-            if h2.index[0] < h.index[0]:
-                # Drop first row, not complete
-                h2 = h2.iloc[1:].copy()
-            h = h2
 
         # t2_sync = perf_counter()
 
@@ -284,10 +266,11 @@ class Ticker:
         if f_dups.any():
             raise Exception("{}: These timepoints have been duplicated: {}".format(self._ticker, h.index[f_dups]))
 
-        # Present table for user:
         h_copied = False
         if (start_dt is not None) and (end_dt is not None):
-            h = h.loc[start_dt:end_dt-datetime.timedelta(milliseconds=1)].copy()
+            # Broad filter: include extra data either side
+            itd = yfcd.intervalToTimedelta[interval]
+            h = h.loc[start_dt-itd:end_dt+itd].copy()
             h_copied = True
 
         if not keepna:
@@ -317,6 +300,30 @@ class Ticker:
                 h = h.copy()
             h["Adj Close"] = np.multiply(h["Close"].to_numpy(), h["CDF"].to_numpy())
         h = h.drop(["CSF", "CDF"], axis=1)
+
+        if interval == yfcd.Interval.Week:
+            h2 = yfcu.resample_1d_prices(h, '1wk')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
+        elif interval == yfcd.Interval.Months1:
+            h2 = yfcu.resample_1d_prices(h, '1mo')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
+        elif interval == yfcd.Interval.Months3:
+            h2 = yfcu.resample_1d_prices(h, '3mo')
+            if h2.index[0] < h.index[0]:
+                # Drop first row, not complete
+                h2 = h2.iloc[1:].copy()
+            h = h2
+
+        h_copied = False
+        if (start_dt is not None) and (end_dt is not None):
+            h = h.loc[start_dt:end_dt-datetime.timedelta(milliseconds=1)].copy()
+            h_copied = True
 
         if rounding:
             # Round to 4 sig-figs
