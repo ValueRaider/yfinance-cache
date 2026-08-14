@@ -2435,41 +2435,41 @@ class PriceHistory:
                         f_na = intervals["interval_open"].isna().to_numpy()
                         f_no_divs_splits = (df['Dividends']==0).to_numpy() & (df['Stock Splits']==0).to_numpy()
 
-                    # ... another clue is row is identical to previous trading day
-                    if f_na.any():
-                        f_drop = np.array([False]*n)
-                        for i in np.where(f_na)[0]:
-                            if i > 0:
-                                dt = df.index[i]
-                                last_dt = df.index[i-1]
-                                if (df.loc[dt, yfcd.yf_data_cols] == df.loc[last_dt, yfcd.yf_data_cols]).all():
-                                    f_drop[i] = True
-                        if f_drop.any():
-                            if debug_yfc:
-                                msg = "- dropping rows with no interval that are identical to previous row"
-                                yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
-                            yfIntervalStarts = yfIntervalStarts[~f_drop]
-                            intervals = intervals[~f_drop]
-                            df = df[~f_drop]
-                            n = df.shape[0]
-                            f_na = intervals["interval_open"].isna().to_numpy()
-                        f_no_divs_splits = (df['Dividends']==0).to_numpy() & (df['Stock Splits']==0).to_numpy()
+                # ... another clue is row is identical to previous trading day
+                if f_na.any():
+                    f_drop = np.array([False]*n)
+                    for i in np.where(f_na)[0]:
+                        if i > 0:
+                            dt = df.index[i]
+                            last_dt = df.index[i-1]
+                            if (df.loc[dt, yfcd.yf_data_cols] == df.loc[last_dt, yfcd.yf_data_cols]).all():
+                                f_drop[i] = True
+                    if f_drop.any():
+                        if debug_yfc:
+                            msg = "- dropping rows with no interval that are identical to previous row"
+                            yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
+                        yfIntervalStarts = yfIntervalStarts[~f_drop]
+                        intervals = intervals[~f_drop]
+                        df = df[~f_drop]
+                        n = df.shape[0]
+                        f_na = intervals["interval_open"].isna().to_numpy()
+                    f_no_divs_splits = (df['Dividends']==0).to_numpy() & (df['Stock Splits']==0).to_numpy()
 
-                    # ... and another clue is Open=High=Low=0.0
-                    if f_na.any():
-                        f_zero = (df['Open']==0).to_numpy() & (df['Low']==0).to_numpy() & (df['High']==0).to_numpy()
-                        f_zero = f_zero & f_no_divs_splits
-                        f_na_zero = f_na & f_zero
-                        if f_na_zero.any():
-                            if debug_yfc:
-                                msg = "- dropping {} price=0 rows with no matching interval".format(sum(f_na_zero))
-                                yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
-                            f_drop = f_na_zero
-                            yfIntervalStarts = yfIntervalStarts[~f_drop]
-                            intervals = intervals[~f_drop]
-                            df = df[~f_drop]
-                            n = df.shape[0]
-                            f_na = intervals["interval_open"].isna().to_numpy()
+                # ... and another clue is Open=High=Low=0.0
+                if f_na.any():
+                    f_zero = (df['Open']==0).to_numpy() & (df['Low']==0).to_numpy() & (df['High']==0).to_numpy()
+                    f_zero = f_zero & f_no_divs_splits
+                    f_na_zero = f_na & f_zero
+                    if f_na_zero.any():
+                        if debug_yfc:
+                            msg = "- dropping {} price=0 rows with no matching interval".format(sum(f_na_zero))
+                            yfcl.TracePrint(msg) if yfcl.IsTracingEnabled() else print(msg)
+                        f_drop = f_na_zero
+                        yfIntervalStarts = yfIntervalStarts[~f_drop]
+                        intervals = intervals[~f_drop]
+                        df = df[~f_drop]
+                        n = df.shape[0]
+                        f_na = intervals["interval_open"].isna().to_numpy()
 
                 if f_na.any() and self.interval == yfcd.Interval.Mins1:
                     # If 1-minute interval at market close, then merge with previous minute
@@ -2494,6 +2494,23 @@ class PriceHistory:
                             intervals = intervals.drop(dt)
                             yfIntervalStarts = np.delete(yfIntervalStarts, idx)
                     f_na = intervals["interval_open"].isna().to_numpy()
+
+                if f_na.any():
+                    # Dividends can have date when marked closed.
+                    # Insert a fake interval.
+                    f_div = df['Dividends']!=0
+                    f_div_na = f_div & f_na
+                    if f_div_na.any():
+                        # for div_dt in df.index[f_div_na]:
+                        for idx in np.where(f_div_na)[0]:
+                            dt = intervals.index[idx]
+                            if self.interday:
+                                intervals.loc[dt, "interval_open"] = df.index[idx].date()
+                                intervals.loc[dt, "interval_close"] = df.index[idx].date() + self.itd
+                            else:
+                                intervals.loc[dt, "interval_open"] = df.index[idx]
+                                intervals.loc[dt, "interval_close"] = df.index[idx] + self.itd
+                            f_na[idx] = False
 
                 if f_na.any():
                     df_na = df[f_na][["Close", "Volume", "Dividends", "Stock Splits"]]
