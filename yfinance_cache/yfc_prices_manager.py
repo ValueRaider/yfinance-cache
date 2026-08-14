@@ -2608,6 +2608,15 @@ class PriceHistory:
         try:
             df = self.dat.history(**history_args)
             currency = self.dat.history_metadata.get('currency', None)
+
+            # Ensure same YF currency as cache
+            if currency in ['GBp', 'ZAc', 'ILA']:
+                OHLC = ['Open', 'High', 'Low', 'Close']
+                for c in OHLC+['Adj Close']+['Dividends', 'Capital Gains']:
+                    if c in df.columns:
+                        df[c] *= 0.01
+                currency = {'GBp': 'GBP', 'ZAc': 'ZAR', 'ILA': 'ILS'}[currency]
+
             hist_md = yfcm.ReadCacheDatum(self.ticker, "history_metadata")
             if hist_md is None:
                 hist_md = {}
@@ -3271,7 +3280,31 @@ class PriceHistory:
         else:
             n = 100.0
 
-        return self._fixPricesSuddenChange(df, n, correct_dividend=True)
+        f_repair_before = df['Repaired?'].to_numpy()
+        df = self._fixPricesSuddenChange(df, n, correct_dividend=True)
+        f_repair_after = df['Repaired?'].to_numpy()
+        f_repair_unit = f_repair_after & (~f_repair_before)
+        if f_repair_unit.any():
+            hist_md = yfcm.ReadCacheDatum(self.ticker, "history_metadata")
+            # By this point, 'history_metadata' should be cached.
+            currency = hist_md['currency']
+            # Currency switch was repaired
+            if currency in ['GBp', 'GBP']:
+                # UK £/pence
+                currency2 = 'GBP'
+            elif currency in ['ZAc', 'ZAR']:
+                # South Africa Rand/cents
+                currency2 = 'ZAR'
+            elif currency in ['ILA', 'ILS']:
+                # Israel Shekels/Agora
+                currency2 = 'ILS'
+            else:
+                currency2 = currency
+            # self._history_metadata['currency'] = currency2
+            hist_md['currency'] = currency2
+            yfcm.StoreCacheDatum(self.ticker, "history_metadata", hist_md)
+
+        return df
 
     def _fixBadStockSplits(self, df):
         # Original logic only considered latest split adjustment could be missing, but 
