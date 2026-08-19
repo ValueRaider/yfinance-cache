@@ -365,8 +365,11 @@ def resample_1d_prices(df, target_interval):
     resample_map = {
         'Open': 'first', 'Low': 'min', 'High': 'max', 'Close': 'last',
         'Volume': 'sum', 'Dividends': 'sum', 'Stock Splits': 'prod',
-        'CSF': 'prod', 'CDF': 'prod', 'Repaired?': 'any', 'Final?': 'all'
+        'Repaired?': 'any', 'Final?': 'all'
         }
+    for c in ['CSF', 'CDF']:
+        if c in df.columns:
+            resample_map[c] = 'prod'
     if 'Adj Close' in df.columns:
         resample_map['Adj Close'] = resample_map['Close']
     if 'FetchDate' in df.columns:

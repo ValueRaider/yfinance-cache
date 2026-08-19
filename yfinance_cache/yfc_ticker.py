@@ -1193,6 +1193,16 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
         else:
             print(f"{tkr} : {i+1}/{len(tkrs)}")
 
+        # Success! Create marker to stop custom message showing on import.
+        d = yfcm.GetCacheDirpath()
+        yfc_dp = os.path.join(d, "_YFC_")
+        state_fp = os.path.join(yfc_dp, "have-recommended-verify")
+        if not os.path.isfile(state_fp):
+            if not os.path.isdir(yfc_dp):
+                os.makedirs(yfc_dp)
+            with open(state_fp, 'w'):
+                pass
+
         dat = Ticker(tkr, session=session)
 
         try:
