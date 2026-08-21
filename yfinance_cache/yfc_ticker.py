@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 import os
 import re
 from collections import namedtuple
+import shutil
 # from time import perf_counter
 
 # TODO: Ticker: add method to delete ticker from cache
@@ -1135,7 +1136,7 @@ class Ticker:
         return self._yf_lag
 
 
-def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, correct=False, halt_on_fail=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
+def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, correct=False, delist_action='raise', halt_on_fail=True, resume_from_tkr=None, debug_tkr=None, debug_interval=None):
     """
     :Parameters:
         session:
@@ -1143,6 +1144,10 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
             you have to abort and resume verification (likely).
         correct:
             False, 'one', 'all'
+        delist_action:
+            'delete' - delete from cache
+            'keep' - keep in cache
+            'raise' - raise exception, you decide
         resume_from_tkr: str
             Resume verification from this ticker (alphabetical order).
             Because maybe you had to abort verification partway.
@@ -1203,7 +1208,32 @@ def verify_cached_tickers_prices(session=None, rtol=0.0001, vol_rtol=0.005, corr
             with open(state_fp, 'w'):
                 pass
 
-        dat = Ticker(tkr, session=session)
+        try:
+            dat = Ticker(tkr, session=session)
+        except Exception as e:
+            # if "exchange and timezone not available" in str(e):
+            if "info missing exchange" in str(e) or \
+                "exchange and timezone not available" in str(e) or \
+                (isinstance(e, KeyError) and 'exchange' in str(e)):
+                # Invalid ticker now, but maybe historically it was listed.
+
+                # First check what is in cache folder - 
+                # if just info.json with invalid data,
+                # then no data to preserve, just delete folder.
+                tkr_dp = yfcm.get_ticker_folder_path(tkr)
+                contents = os.listdir(tkr_dp)
+                if len(contents)==1 and contents[0] == 'info.json':
+                    # Already know info[] lacks exchange/timezone, so no data.
+                    shutil.rmtree(tkr_dp)
+                    continue
+
+                # There is real data, so user decides action:
+                if delist_action == 'keep':
+                    continue
+                elif delist_action == 'delete':
+                    shutil.rmtree(tkr_dp)
+                    continue
+            raise
 
         try:
             discard_old = correct in ['one', 'all']
