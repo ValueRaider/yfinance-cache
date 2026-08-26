@@ -287,7 +287,7 @@ def GetCalendarViaCache(exchange, start, end=None):
             end = date(pre_range[1], 12, 31)
             if exchange == 'CCC':
                 opens = pd.date_range(start=start, end=end, freq='1d').tz_localize(ZoneInfo(GetExchangeTzName(exchange)))
-                ends = opens + pd.Timedelta('1d')
+                ends = opens + yfcu.SafeTimedelta('1d')
                 pre_cal = Simple247xcal(opens, ends)
             else:
                 pre_cal = xcal.get_calendar(cal_name, start=start, end=end)
@@ -301,7 +301,7 @@ def GetCalendarViaCache(exchange, start, end=None):
             end = date(post_range[1], 12, 31)
             if exchange == 'CCC':
                 opens = pd.date_range(start=start, end=end, freq='1d').tz_localize(ZoneInfo(GetExchangeTzName(exchange)))
-                ends = opens + pd.Timedelta('1d')
+                ends = opens + yfcu.SafeTimedelta('1d')
                 post_cal = Simple247xcal(opens, ends)
             else:
                 post_cal = xcal.get_calendar(cal_name, start=start, end=end)
@@ -315,7 +315,7 @@ def GetCalendarViaCache(exchange, start, end=None):
         # Write to cache
         calCache[cal_name] = cal
         if pre_range is not None or post_range is not None:
-            yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__, 'np version': np.__version__})
+            yfcm.StoreCacheDatum(cache_key, "cal", cal, metadata={"version": xcal.__version__, 'np version': np.__version__, 'pd version': pd.__version__})
 
     if debug:
         log_msg = f"Returning schedule {cal.schedule.index[0].date()} -> {cal.schedule.index[-1].date()}"
@@ -1648,7 +1648,7 @@ def CalcIntervalLastDataDt_batch(exchange, intervalStart, interval, ignore_break
     # For daily intervals, Yahoo data is updating until midnight. I guess aftermarket.
     i_td = yfcd.intervalToTimedelta[interval]
     if i_td >= timedelta(days=1):
-        td1m = pd.Timedelta('1m')
+        td1m = yfcu.SafeTimedelta('1m')
         
         # lastDataDt = start of next interval, even if next day (or later)
         next_intervals = GetTimestampNextInterval_batch(exchange, (mcloses-td1m).to_numpy(), yfcd.Interval.Days1, discardTimes=False, ignore_breaks=ignore_breaks)

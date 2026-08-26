@@ -203,6 +203,16 @@ def ProcessUserDt(dt, tz_name):
     return dt, d
 
 
+def SafeTimedelta(value):
+    if isinstance(value, (pd.Timedelta, timedelta)):
+        return value
+    if isinstance(value, str):
+        m = re.fullmatch(r"\s*(\d+)\s*([dDhHmMsS])\s*", value)
+        if m:
+            n, unit = m.groups()
+            return pd.Timedelta(int(n), unit=unit.lower())
+    return pd.Timedelta(value)
+
 def RDtoDO(rd):
     # Convert a relativedelta to Pandas.DateOffset
     return pd.DateOffset(years=rd.years,
@@ -282,7 +292,7 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
 
     s = schedule.copy()
     n = s.shape[0]
-    step = np.full(n, pd.Timedelta(days=1))
+    step = np.full(n, SafeTimedelta('1d'))
     step[1:] = (s.index.date[1:] - s.index.date[:-1])
     s["step"] = step ; s["step"] = s["step"].dt.days
 
@@ -330,7 +340,7 @@ def ChunkDatesIntoYfFetches(schedule, maxDays, overlapDays):
         pprint(groupEnds)
 
     groups = []
-    td_1d = pd.Timedelta(days=1)
+    td_1d = SafeTimedelta('1d')
     for i in range(len(groupStarts)):
         g = {}
         g["fetch start"] = s.index[groupStarts[i]].tz_localize(tz)

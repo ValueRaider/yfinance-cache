@@ -1470,7 +1470,7 @@ class PriceHistory:
             h[c] = h[c].to_numpy() * h["CSF"].to_numpy()
         h["Volume"] = (h["Volume"].to_numpy() / h["CSF"].to_numpy()).round().astype('int')
 
-        td_1d = pd.Timedelta("1D")
+        td_1d = yfcu.SafeTimedelta("1D")
         dt_now = pd.Timestamp.now("UTC").tz_convert(ZoneInfo("UTC"))
 
         def _aggregate_yfdf_daily(df):
@@ -4160,9 +4160,9 @@ class PriceHistory:
                     split = splits_since.loc[dt]
                     f1 = self.h.index < dt
                     diff1 = (self.h["LastSplitAdjustDt"] - split["Superseded split FetchDate"]).abs()
-                    f2 = (diff1 < pd.Timedelta("15s")).to_numpy()
+                    f2 = (diff1 < yfcu.SafeTimedelta("15s")).to_numpy()
                     diff2 = (self.h["FetchDate"] - split["Superseded split FetchDate"]).abs()
-                    f3 = (diff2 < pd.Timedelta("15s")).to_numpy()
+                    f3 = (diff2 < yfcu.SafeTimedelta("15s")).to_numpy()
                     f = f1 & (f2 | f3)
                     if not f.any():
                         if self.interval != yfcd.Interval.Days1:
@@ -4242,8 +4242,8 @@ class PriceHistory:
                     # Update: new strategy
                     # Instead of last adjust being the superseded dividend,
                     # set condition as last adjust being before this new dividend
-                    f2 = ((div["FetchDate"] - self.h["LastDivAdjustDt"]) > pd.Timedelta('1m')).to_numpy()
-                    f3 = ((div["FetchDate"] - self.h["FetchDate"]) > pd.Timedelta('1m')).to_numpy()
+                    f2 = ((div["FetchDate"] - self.h["LastDivAdjustDt"]) > yfcu.SafeTimedelta('1m')).to_numpy()
+                    f3 = ((div["FetchDate"] - self.h["FetchDate"]) > yfcu.SafeTimedelta('1m')).to_numpy()
                     f = f1 & (f2 & f3)
                     if not f.any():
                         if self.interval != yfcd.Interval.Days1:
@@ -4251,7 +4251,7 @@ class PriceHistory:
                             continue
                         else:
                             diff = (self.h["FetchDate"] - div["FetchDate"]).abs()
-                            f_recent = (diff < pd.Timedelta("15s")).to_numpy()
+                            f_recent = (diff < yfcu.SafeTimedelta("15s")).to_numpy()
                             if f_recent[f1].all():
                                 # All price data that could be affected by new dividend, was just
                                 # fetched with that dividend. So can safely ignore.

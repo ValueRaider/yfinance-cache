@@ -120,7 +120,7 @@ class Ticker:
                 if max_age.endswith("wk"):
                     max_age = re.sub("wk$", "w", max_age)
                 max_age = re.sub("d$", "D", max_age)
-                max_age = pd.Timedelta(max_age)
+                max_age = yfcu.SafeTimedelta(max_age)
             if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
                 raise Exception("Argument 'max_age' must be Timedelta or equivalent string")
         if period is not None:
@@ -140,7 +140,7 @@ class Ticker:
                     else:
                         if period.endswith('d'):
                             period = period.replace('d', 'D')
-                        period = pd.Timedelta(period)
+                        period = yfcu.SafeTimedelta(period)
             if not isinstance(period, (yfcd.Period, datetime.timedelta, pd.Timedelta, relativedelta)):
                 raise Exception(f"Argument 'period' must be one of: 'max', 'ytd', Timedelta or equivalent string. Not {type(period)}")
         if isinstance(interval, str):
@@ -555,11 +555,11 @@ class Ticker:
 
     def get_attribute(self, name, max_age=None, merge=False, metadata=False):
         if max_age is None:
-            max_age = pd.Timedelta('365D')
+            max_age = yfcu.SafeTimedelta('365D')
         else:
             if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
                 max_age = re.sub("d$", "D", max_age)
-                max_age = pd.Timedelta(max_age)
+                max_age = yfcu.SafeTimedelta(max_age)
             if max_age < pd.Timedelta(0):
                 raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
@@ -668,7 +668,7 @@ class Ticker:
         if max_age is None:
             if yfcm._option_manager.max_ages.info is None:
                 raise Exception('why is yfcm._option_manager.max_ages.info None?')
-            max_age = pd.Timedelta(yfcm._option_manager.max_ages.info)
+            max_age = yfcu.SafeTimedelta(yfcm._option_manager.max_ages.info)
         return self.get_attribute("info", max_age)
 
     @property
@@ -709,7 +709,7 @@ class Ticker:
 
         if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
             max_age = re.sub("d$", "D", max_age)
-            max_age = pd.Timedelta(max_age)
+            max_age = yfcu.SafeTimedelta(max_age)
 
         # Process dates
         exchange, tz, lday = self._getExchangeAndTzAndListingDay()
@@ -1013,10 +1013,10 @@ class Ticker:
             raise NotImplementedError(f'Not implement exclude_expired_contracts={exclude_expired_contracts}')
 
         if max_age is None:
-            max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
+            max_age = yfcu.SafeTimedelta(yfcm._option_manager.max_ages.options)
         if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
             max_age = re.sub("d$", "D", max_age)
-            max_age = pd.Timedelta(max_age)
+            max_age = yfcu.SafeTimedelta(max_age)
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
@@ -1064,10 +1064,10 @@ class Ticker:
             raise Exception(f"expiry_date='{expiry_date}' not found in: {self.options}")
 
         if max_age is None:
-            max_age = pd.Timedelta(yfcm._option_manager.max_ages.options)
+            max_age = yfcu.SafeTimedelta(yfcm._option_manager.max_ages.options)
         if not isinstance(max_age, (datetime.timedelta, pd.Timedelta)):
             max_age = re.sub("d$", "D", max_age)
-            max_age = pd.Timedelta(max_age)
+            max_age = yfcu.SafeTimedelta(max_age)
         if max_age < pd.Timedelta(0):
             raise Exception(f"'max_age' must be positive timedelta not {max_age}")
 
