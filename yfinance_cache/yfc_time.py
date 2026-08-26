@@ -159,8 +159,8 @@ def JoinTwoXcals(cal1, cal2):
         # Apply
         cal12.schedule           = cal12.schedule.iloc[sort_indices]
         cal12._opens             = cal12._opens[sort_indices]
-        cal12._break_starts      = cal12._break_starts[sort_indices]
-        cal12._break_ends        = cal12._break_ends[sort_indices]
+        cal12._break_starts      = cal12._break_starts[sort_indices]      if cal12._break_starts else []
+        cal12._break_ends        = cal12._break_ends[sort_indices]        if cal12._break_ends else []
         cal12._closes            = cal12._closes[sort_indices]
         cal12.opens_nanos        = cal12.opens_nanos[sort_indices]
         cal12.break_starts_nanos = cal12.break_starts_nanos[sort_indices]
