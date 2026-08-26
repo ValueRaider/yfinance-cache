@@ -16,6 +16,7 @@ import math
 from decimal import Decimal
 from pprint import pprint
 import pulp
+import re
 
 
 d_today = date.today()
